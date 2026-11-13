@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 
 const CLI = path.join(import.meta.dirname, 'cli.ts');
@@ -24,7 +25,8 @@ function cli(args: string[], env: Record<string, string> = {}): Promise<{ code: 
     }, 4000);
     child.on('exit', (code) => {
       clearTimeout(timer);
-      resolve({ code, output });
+      // Colors and cursor codes depend on the environment (CI turns colors on): compare plain text
+      resolve({ code, output: stripVTControlCharacters(output) });
     });
   });
 }
