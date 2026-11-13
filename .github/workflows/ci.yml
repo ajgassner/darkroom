@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # Node and corepack from mise.toml, like locally; corepack provides the pnpm version from package.json
-      - uses: jdx/mise-action@v5
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         with:
           install_args: node npm:corepack # agent-browser is only needed for local UI checks
       - run: corepack enable
@@ -53,7 +53,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Install this commit (not the latest release) with the installer, as a user would, then start the UI
+      # Install this commit (not the latest release) with the installer, as a user would, then start the UI.
+      # A failed update (missing source) must leave the installation working.
       - name: Install and start (macOS, Linux)
         if: runner.os != 'Windows'
         run: |
@@ -61,26 +62,52 @@ jobs:
           mkdir -p "$HOME/darkroom" && echo 'OPENROUTER_API_KEY=ci' >"$HOME/darkroom/.env"
           DARKROOM_SOURCE="file://$RUNNER_TEMP/src.tar.gz" bash install.sh
           darkroom="$HOME/.darkroom/bin/darkroom"
-          test "$("$darkroom" --version)" = "$(node -p "require('./package.json').version")"
+          version=$(node -p "require('./package.json').version")
+          test "$("$darkroom" --version)" = "$version"
+          if DARKROOM_SOURCE="file://$RUNNER_TEMP/missing.tar.gz" bash install.sh; then
+            echo "::error::the update from a missing source did not fail"
+            exit 1
+          fi
+          test "$("$darkroom" --version)" = "$version"
           "$darkroom" start &
           for _ in $(seq 60); do curl -sf http://localhost:5177/api/status >/dev/null && break; sleep 1; done
           curl -sf http://localhost:5177/ | grep -q '<title>darkroom</title>'
           "$darkroom" uninstall
           test ! -e "$HOME/.darkroom" && test -f "$HOME/darkroom/.env"
 
+      # Like a profile folder C:\Users\Jörg: non-ASCII characters (and an apostrophe) in both folders.
+      # Also checks that a failed update keeps the installation, that the command finds its data folder
+      # without DARKROOM_HOME, and that %VARIABLE% entries in the user PATH survive install and uninstall.
       - name: Install and start (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $src = Join-Path $env:RUNNER_TEMP 'src.zip'
           git archive --format=zip --prefix=darkroom/ -o $src HEAD
-          New-Item -ItemType Directory -Force "$HOME\darkroom" | Out-Null
-          Set-Content "$HOME\darkroom\.env" 'OPENROUTER_API_KEY=ci'
+          $installDir = "$HOME\.d$([char]0xE5)rkroom"
+          $dataDir = "$HOME\J$([char]0xF6)rg's darkroom"
+          New-Item -ItemType Directory -Force $dataDir | Out-Null
+          Set-Content (Join-Path $dataDir '.env') 'OPENROUTER_API_KEY=ci'
+          $envKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
+          $userPath = $envKey.GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+          $envKey.SetValue('Path', (@($userPath, '%USERPROFILE%\ci-unexpanded') | Where-Object { $_ }) -join ';', 'ExpandString')
+          $env:DARKROOM_DIR = $installDir
+          $env:DARKROOM_HOME = $dataDir
           $env:DARKROOM_SOURCE = $src
           ./install.ps1
-          $darkroom = "$HOME\.darkroom\bin\darkroom.cmd"
+          Remove-Item Env:DARKROOM_HOME
+          $darkroom = "$installDir\bin\darkroom.cmd"
+          $expected = node -p "require('./package.json').version"
           $version = & $darkroom --version
-          if ($version -ne (node -p "require('./package.json').version")) { throw "Unexpected version: $version" }
+          if ($version -ne $expected) { throw "Unexpected version: $version" }
+
+          $env:DARKROOM_SOURCE = Join-Path $env:RUNNER_TEMP 'missing.zip'
+          $failed = $false
+          try { ./install.ps1 } catch { $failed = $true }
+          if (-not $failed) { throw 'The update from a missing source did not fail' }
+          $version = & $darkroom --version
+          if ($version -ne $expected) { throw "The failed update broke the installation: $version" }
+
           Start-Process -FilePath $darkroom -ArgumentList 'start' -NoNewWindow
           $ok = $false
           foreach ($i in 1..60) {
@@ -88,3 +115,15 @@ jobs:
           }
           if (-not $ok) { throw 'Server did not start' }
           if ((Invoke-WebRequest http://localhost:5177/ -UseBasicParsing).Content -notmatch '<title>darkroom</title>') { throw 'UI not served' }
+          $status = Invoke-RestMethod http://localhost:5177/api/status
+          if ($status.envFile -ne (Join-Path $dataDir '.env') -or -not $status.hasKey) { throw "Wrong data folder: $($status.envFile)" }
+
+          Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force # Windows locks the files of a running app
+          Start-Sleep 2
+          & $darkroom uninstall
+          if ($LASTEXITCODE -ne 0) { throw "Uninstall failed with exit code $LASTEXITCODE" }
+          if (Test-Path -LiteralPath $installDir) { throw 'The install folder is still there' }
+          if (-not (Test-Path -LiteralPath (Join-Path $dataDir '.env'))) { throw 'The data folder is gone' }
+          $userPath = (Get-Item HKCU:\Environment).GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+          if ($userPath -like "*$installDir*") { throw "The PATH entry is still there: $userPath" }
+          if ($userPath -notlike '*%USERPROFILE%\ci-unexpanded*') { throw "PATH entries were expanded: $userPath" }

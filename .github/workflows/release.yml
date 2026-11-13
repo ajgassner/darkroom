@@ -3,7 +3,7 @@
 # with notes generated from the merged pull requests (categories in .github/release.yml). The installers and
 # the update hint in darkroom pick up the new release from there.
 # main only accepts pull requests; the release commit is pushed with the deploy key in RELEASE_DEPLOY_KEY,
-# the only actor allowed to bypass that rule.
+# the only actor allowed to bypass that rule. Only the push step sees the key.
 name: Release
 
 on:
@@ -34,32 +34,63 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
-      - uses: jdx/mise-action@v5
+          persist-credentials: false
+
+      # The release commit must sit directly on the main that CI checked
+      - name: Check that main has not moved on
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          main=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [ "$main" != "$(git rev-parse HEAD)" ]; then
+            echo "::error::main moved on to $main while the release ran on $(git rev-parse HEAD); run the release again"
+            exit 1
+          fi
+
+      - uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
         with:
           install_args: node
 
       - name: Bump version, commit and tag
         id: version
+        env:
+          BUMP: ${{ inputs.bump }}
         run: |
-          if [ "${{ inputs.bump }}" != none ]; then
-            npm version "${{ inputs.bump }}" --no-git-tag-version >/dev/null
+          if [ "$BUMP" != none ]; then
+            npm version "$BUMP" --no-git-tag-version --ignore-scripts >/dev/null
           fi
           version=$(node -p "require('./package.json').version")
-          if git ls-remote --exit-code --tags origin "v$version" >/dev/null; then
-            echo "::error::v$version is already released; pick a bump other than none"
-            exit 1
-          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           if ! git diff --quiet; then
             git commit -am "Release v$version"
           fi
           git tag "v$version"
-          git push origin HEAD:main "v$version"
           echo "version=$version" >>"$GITHUB_OUTPUT"
+
+      # The deploy key lives only in this step: in a private temporary folder, removed when the step ends.
+      # GitHub's SSH host keys come from its API (over HTTPS), so the host is verified, not trusted on first use.
+      # --atomic: main and the tag are updated together or not at all (a moved main rejects both).
+      - name: Push the release commit and tag
+        env:
+          DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ssh_dir=$(mktemp -d "$RUNNER_TEMP/ssh.XXXXXX")
+          trap 'rm -rf "$ssh_dir"' EXIT
+          (umask 077 && printf '%s\n' "$DEPLOY_KEY" >"$ssh_dir/key")
+          gh api meta --jq '.ssh_keys[] | "github.com " + .' >"$ssh_dir/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i $ssh_dir/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$ssh_dir/known_hosts -o StrictHostKeyChecking=yes"
+          remote="git@github.com:$GITHUB_REPOSITORY.git"
+          if git ls-remote --exit-code --tags "$remote" "v$VERSION" >/dev/null; then
+            echo "::error::v$VERSION is already released; pick a bump other than none"
+            exit 1
+          fi
+          git push --atomic "$remote" HEAD:refs/heads/main "refs/tags/v$VERSION"
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "v${{ steps.version.outputs.version }}" --generate-notes --title "darkroom v${{ steps.version.outputs.version }}"
+          VERSION: ${{ steps.version.outputs.version }}
+        run: gh release create "v$VERSION" --generate-notes --title "darkroom v$VERSION"
