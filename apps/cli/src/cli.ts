@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import * as p from '@clack/prompts';
+import { withLateCosts } from '@darkroom/core/audio-run';
 import {
   APP_VERSION,
   DEFAULT_MODEL,
@@ -58,36 +59,93 @@ async function ask(message: string, placeholder: string): Promise<string> {
   return v.trim();
 }
 
+type Spinner = ReturnType<typeof p.spinner>;
+/** The spinner that is running (its timer keeps the process alive until it is stopped). */
+let activeSpinner: Spinner | null = null;
+
+/** A command failed: stop its spinner with an error mark. */
+function failSpinner() {
+  activeSpinner?.error('Failed');
+  activeSpinner = null;
+}
+
+/**
+ * clack's spinner switches a terminal to raw mode, where Ctrl+C is a key press that quits with exit code 0 at once.
+ * Back in normal mode Ctrl+C is a SIGINT again, which aborts the running work cleanly (see onInterrupt).
+ */
+function spinner() {
+  const spin = p.spinner({ cancelMessage: 'Cancelled' });
+  return {
+    start(label: string) {
+      spin.start(label);
+      activeSpinner = spin;
+      if (process.stdin.isTTY) process.stdin.setRawMode(false);
+    },
+    message: (label: string) => spin.message(label),
+    stop(label: string) {
+      spin.stop(label);
+      activeSpinner = null;
+    },
+  };
+}
+
+/** Ctrl+C (or SIGTERM): the first one calls `first`, a second one quits right away. */
+function onInterrupt(first: () => void) {
+  let count = 0;
+  const handler = () => (count++ ? process.exit(130) : first());
+  process.on('SIGINT', handler);
+  process.on('SIGTERM', handler);
+}
+
 /** Ctrl+C aborts the running API calls (not delivered results are not billed according to OpenRouter). */
-function abortOnSigint(): AbortSignal {
+function abortOnInterrupt(): AbortSignal {
   const ac = new AbortController();
-  process.once('SIGINT', () => ac.abort());
+  onInterrupt(() => ac.abort());
   return ac.signal;
 }
 
-/** Spinner with progress while a run streams its results. */
+/** Resolves with `value` once `signal` is aborted. */
+function onAbort<T>(signal: AbortSignal, value: T): Promise<T> {
+  return new Promise((resolve) => {
+    if (signal.aborted) resolve(value);
+    else signal.addEventListener('abort', () => resolve(value), { once: true });
+  });
+}
+
+function report(entries: ManifestEntry[]) {
+  for (const e of entries) {
+    if (e.ok)
+      p.log.success(
+        `${pc.bold(`out/${e.file}`)}  ${pc.dim(`${usd(e.cost)} · ${(e.durationMs / 1000).toFixed(1)} s · ${e.model}`)}`,
+      );
+    else p.log.error(`${e.model}: ${e.error}`);
+    for (const w of e.warnings) p.log.warn(pc.yellow(w));
+  }
+}
+
+/** Spinner with progress while a run streams its results; Ctrl+C aborts the run (aborted entries, exit code 130). */
 function progress(total: number) {
-  const spin = p.spinner();
+  const spin = spinner();
+  const signal = abortOnInterrupt();
   let done = 0;
   return {
+    signal,
     start: (label: string) => spin.start(label),
     onEvent: (ev: RunEvent) => {
       if (ev.type !== 'image' && ev.type !== 'error') return;
       done++;
       spin.message(`${done}/${total} done`);
     },
-    stop: (entries: ManifestEntry[]) => {
+    /** Wait for costs that are looked up later (speech), then list the results. */
+    stop: async (results: ManifestEntry[]) => {
+      const late = withLateCosts(results, () => spin.message('Fetching cost'));
+      const entries = await Promise.race([late, onAbort(signal, results)]);
       const ok = entries.filter((e) => e.ok);
       const cost = entries.reduce((s, e) => s + (e.cost ?? 0), 0); // failed calls can be charged too
       spin.stop(`${ok.length} result(s), ${entries.length - ok.length} error(s), ${usd(cost)}`);
-      for (const e of entries) {
-        if (e.ok)
-          p.log.success(
-            `${pc.bold(`out/${e.file}`)}  ${pc.dim(`${usd(e.cost)} · ${(e.durationMs / 1000).toFixed(1)} s · ${e.model}`)}`,
-          );
-        else p.log.error(`${e.model}: ${e.error}`);
-        for (const w of e.warnings) p.log.warn(pc.yellow(w));
-      }
+      report(entries);
+      // Unfinished cost lookups are retried by the server at its next start
+      if (signal.aborted) process.exit(130);
       if (entries.length && !ok.length) process.exitCode = 1;
     },
   };
@@ -175,9 +233,9 @@ program
         privacy: o.privacy,
       },
       run.onEvent,
-      abortOnSigint(),
+      run.signal,
     );
-    run.stop(entries);
+    await run.stop(entries);
     const all = costSummary(await readEntries());
     p.outro(pc.dim(`Total so far: ${usd(all.total)} for ${all.images} results`));
   });
@@ -196,11 +254,11 @@ program
     const text = words.join(' ').trim() || (await ask('Text', 'Hello! This is a short test.'));
     const run = progress(1);
     run.start(`Speaking with ${o.model}`);
-    run.stop(
+    await run.stop(
       await runSpeech(
         { text, model: o.model, voice: o.voice, instructions: o.instructions, speed: o.speed, privacy: o.privacy },
         run.onEvent,
-        abortOnSigint(),
+        run.signal,
       ),
     );
     p.outro(pc.dim('Done'));
@@ -217,7 +275,7 @@ program
     const prompt = words.join(' ').trim() || (await ask('Describe the music', 'calm acoustic guitar jingle, 120 bpm'));
     const run = progress(1);
     run.start(`Composing with ${o.model}`);
-    run.stop(await runMusic({ prompt, model: o.model, privacy: o.privacy }, run.onEvent, abortOnSigint()));
+    await run.stop(await runMusic({ prompt, model: o.model, privacy: o.privacy }, run.onEvent, run.signal));
     p.outro(pc.dim('Done'));
   });
 
@@ -227,7 +285,8 @@ program
   .option('--all', 'include models without reference images')
   .option('--search <text>', 'filter by id or name')
   .action(async (o) => {
-    const spin = p.spinner();
+    const spin = spinner();
+    onInterrupt(() => process.exit(130));
     spin.start('Loading models');
     const [models, zdr] = await Promise.all([listImageModels(), zdrEndpoints()]);
     spin.stop(`${models.length} image models`);
@@ -264,12 +323,12 @@ program
     // The server is its own app: run it as a child process instead of importing it into the CLI
     const server = path.resolve(import.meta.dirname, '../../server/src/server.ts');
     const child = spawn(process.execPath, [server], { stdio: 'inherit' });
-    // Wait for the server to shut down. Ctrl+C in a terminal reaches the server directly (same process group; on
-    // Windows the same console), so forwarding it too would count as a second Ctrl+C and skip the clean shutdown.
-    // Signals sent to this process alone (kill, process managers) are passed on.
+    // Pass signals on and wait for the server to shut down. Ctrl+C in a terminal also reaches the server directly
+    // (same process group): it takes the forwarded copy right after as the same Ctrl+C. Windows has no signals:
+    // kill() ends the server abruptly there, so Ctrl+C (which reaches it through the shared console) is not passed on.
     for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       process.on(signal, () => {
-        if (signal === 'SIGTERM' || !process.stdin.isTTY) child.kill(signal);
+        if (signal === 'SIGTERM' || process.platform !== 'win32') child.kill(signal);
       });
     }
     child.on('exit', (code, signal) => process.exit(code ?? 128 + (signal ? os.constants.signals[signal] : 0)));
@@ -312,6 +371,8 @@ program
 try {
   await program.parseAsync();
 } catch (err) {
+  failSpinner();
   p.log.error((err as Error).message);
-  process.exitCode = 1;
+  // Exit right away: background work of the failed command (catalog requests, timers) must not keep it running
+  process.exit(1);
 }
