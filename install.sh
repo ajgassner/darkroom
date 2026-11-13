@@ -239,16 +239,25 @@ main() {
   rm -rf "$staging"
   mkdir -p "$staging/node" "$staging/app"
 
-  # Node.js: latest release of the major version, verified against the official checksums
-  say "Downloading Node.js $NODE_MAJOR ($os-$arch)"
+  # Node.js: latest release of the major version, verified against the official checksums. An installed copy of
+  # exactly that version is kept (updates then only replace the app).
   node_base="https://nodejs.org/dist/latest-v$NODE_MAJOR.x"
   curl -fsSL "$node_base/SHASUMS256.txt" >"$tmp/SHASUMS256.txt"
   node_file=$(grep -oE "node-v[0-9.]+-$os-$arch\.tar\.gz" "$tmp/SHASUMS256.txt" | head -n1)
   [ -n "$node_file" ] || fail "no Node.js $NODE_MAJOR build for $os-$arch"
-  curl -fsSL "$node_base/$node_file" >"$tmp/$node_file"
-  expected=$(grep " $node_file\$" "$tmp/SHASUMS256.txt" | cut -d' ' -f1)
-  [ "$(sha256 "$tmp/$node_file")" = "$expected" ] || fail "checksum mismatch for $node_file"
-  tar -xzf "$tmp/$node_file" -C "$staging/node" --strip-components=1
+  node_version=$(printf '%s' "$node_file" | sed -E 's/^node-(v[0-9.]+)-.*/\1/')
+  installed_node=$("$INSTALL_DIR/node/bin/node" --version 2>/dev/null) || installed_node=""
+  parts="node app"
+  if [ "$installed_node" = "$node_version" ] && { [ -f "$INSTALL_DIR/node/$COMPLETE" ] || [ -n "$trusted" ]; }; then
+    say "Node.js $node_version is up to date"
+    parts="app"
+  else
+    say "Downloading Node.js $node_version ($os-$arch)"
+    curl -fsSL "$node_base/$node_file" >"$tmp/$node_file"
+    expected=$(grep " $node_file\$" "$tmp/SHASUMS256.txt" | cut -d' ' -f1)
+    [ "$(sha256 "$tmp/$node_file")" = "$expected" ] || fail "checksum mismatch for $node_file"
+    tar -xzf "$tmp/$node_file" -C "$staging/node" --strip-components=1
+  fi
 
   # darkroom itself (your data lives in DATA_DIR, so replacing the app keeps it).
   # Downloads go through the shell, not curl -o: a snap-packaged curl (Ubuntu) cannot write to /tmp itself.
@@ -263,7 +272,7 @@ main() {
   case "$procs" in *"$INSTALL_DIR/node/bin/node "*) running=yes ;; esac
 
   # Everything is downloaded: swap in the new version, keeping the previous one until it is built
-  for part in node app; do
+  for part in $parts; do
     if [ -e "$INSTALL_DIR/$part" ]; then
       if [ -n "$trusted" ]; then touch "$INSTALL_DIR/$part/$COMPLETE"; fi
       mv "$INSTALL_DIR/$part" "$INSTALL_DIR/$part.old"
