@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/misc';
 import { deleteEntries, entryError, reuseSettings } from '@/lib/actions';
 import { downloadUrl, outUrl } from '@/lib/api';
-import { runMetaParts, voiceLabel } from '@/lib/labels';
+import { deleteTexts, runMetaParts, voiceLabel } from '@/lib/labels';
 import { usd } from '@/lib/pricing';
 import { type LiveRun, useData, useSettings, useUi } from '@/lib/store';
+import { entryTitle } from '@/lib/tools';
 import type { ManifestEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { AudioPlayer } from './shared';
@@ -17,6 +18,7 @@ export function Gallery() {
   const { t } = useTranslation();
   const history = useData((s) => s.history);
   const live = useUi((s) => s.liveRuns);
+  const mode = useSettings((s) => s.mode);
   const runs = useMemo(() => {
     // Group entries by run, newest first; skip runs that are still shown as live cards
     const liveIds = new Set(live.map((r) => r.runId).filter(Boolean));
@@ -31,14 +33,16 @@ export function Gallery() {
   }, [history, live]);
 
   return (
-    <div className="mt-[22px] flex flex-col gap-[26px]">
+    <div id="gallery" className="mt-3.5 flex flex-col gap-[26px]">
       {live.map((r) => (
         <LiveCard key={r.key} run={r} />
       ))}
       {runs.map((entries) => (
         <RunCard key={entries[0].runId} entries={entries} />
       ))}
-      {!runs.length && !live.length && <p className="text-muted">{t('gallery.empty')}</p>}
+      {!runs.length && !live.length && (
+        <p className="text-muted">{mode === 'audio' ? t('gallery.emptyAudio') : t('gallery.empty')}</p>
+      )}
     </div>
   );
 }
@@ -72,12 +76,13 @@ function CardHead({
   entries: ManifestEntry[];
   actions: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   // Failed calls can be charged too (their entries then carry the cost)
   const cost = entries.reduce((s, e) => s + (e.cost ?? 0), 0);
   return (
     <div className="mb-2.5 flex justify-between gap-4">
       <div className="min-w-0">
-        <div className="line-clamp-2 text-[13px]">{first.prompt}</div>
+        <div className="line-clamp-2 text-[13px] break-words">{entryTitle(t, first)}</div>
         <RunMeta first={first} entries={entries} />
       </div>
       <div className="flex shrink-0 items-start gap-2">
@@ -100,7 +105,7 @@ function RunCard({ entries }: { entries: ManifestEntry[] }) {
         actions={
           <>
             {!first.tool && (
-              <Button size="sm" onClick={() => reuseSettings(first)}>
+              <Button size="sm" onClick={() => reuseSettings(entries)}>
                 {t('gallery.reuse')}
               </Button>
             )}
@@ -174,18 +179,15 @@ function Grid({ children }: { children: React.ReactNode }) {
 
 function DeleteButton({ e, className }: { e: ManifestEntry; className?: string }) {
   const { t } = useTranslation();
+  const { label, confirm } = deleteTexts(t, e);
   return (
     <button
       type="button"
-      title={e.ok ? t('gallery.deleteImage') : t('gallery.removeError')}
-      aria-label={e.ok ? t('gallery.deleteImage') : t('gallery.removeError')}
+      title={label}
+      aria-label={label}
       onClick={(ev) => {
         ev.stopPropagation();
-        const skip = !e.ok || ev.shiftKey;
-        void deleteEntries(
-          { ids: e.id ? [e.id] : [], files: e.file ? [e.file] : [] },
-          skip ? null : t('gallery.confirmImage'),
-        );
+        void deleteEntries({ ids: e.id ? [e.id] : [], files: e.file ? [e.file] : [] }, ev.shiftKey ? null : confirm);
       }}
       className={cn(
         'absolute top-1.5 right-1.5 z-[2] grid size-[30px] cursor-pointer place-items-center rounded-lg bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-err focus-visible:opacity-100 [@media(hover:none)]:opacity-100',
@@ -225,7 +227,9 @@ function Tile({ e }: { e: ManifestEntry }) {
       className="group relative min-h-40 cursor-zoom-in overflow-hidden rounded-[10px] border border-line bg-panel-2 text-left"
     >
       <DeleteButton e={e} />
-      {e.file && <img src={outUrl(e.file)} loading="lazy" alt={e.prompt} className="block size-full object-cover" />}
+      {e.file && (
+        <img src={outUrl(e.file)} loading="lazy" alt={entryTitle(t, e)} className="block size-full object-cover" />
+      )}
       <div className="absolute inset-x-0 bottom-0 flex justify-between gap-1.5 bg-gradient-to-b from-transparent to-black/75 px-2 pt-[18px] pb-1.5 text-[11px] text-white">
         <span>{name(e.model)}</span>
         <span>

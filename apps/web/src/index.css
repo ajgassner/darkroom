@@ -49,10 +49,10 @@
 }
 
 @layer base {
-  html,
-  body,
+  /* min-height, not height: #root must grow with the page, otherwise the sticky top bar only sticks for one
+     viewport height */
   #root {
-    height: 100%;
+    min-height: 100dvh;
   }
   body {
     background: var(--bg);

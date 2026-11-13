@@ -23,7 +23,7 @@ export const en = {
   boot: {
     loading: 'Loading models, elements and gallery …',
     failed: 'darkroom could not be loaded',
-    hint: 'Is the server running? Start it with pnpm dev or pnpm start.',
+    hint: 'Is the server running? Start it with darkroom start (from source: pnpm start or pnpm dev).',
     retry: 'Try again',
   },
   topbar: {
@@ -34,6 +34,9 @@ export const en = {
     privacyZdr: 'Zero Data Retention (safety retention allowed)',
     privacyStrict: 'Zero Data Retention (strict)',
     privacyOff: 'Off (all providers)',
+    privacyZdrShort: 'ZDR',
+    privacyStrictShort: 'ZDR strict',
+    privacyOffShort: 'Off',
     language: 'Language',
     update: 'Update {{version}}',
     updateHint:
@@ -134,6 +137,7 @@ export const en = {
     placeholderMusic:
       'Describe the music: style, instruments, tempo, mood, lyrics if any, e.g. “calm acoustic guitar jingle, 120 bpm, instrumental”',
     preset: 'Preset …',
+    presetLabel: 'Prompt preset',
     importImage: 'Edit your own image',
     importHint: 'Upload your own image and edit it with the tools (also via ⌘V or drag and drop)',
     generate: 'Generate',
@@ -185,6 +189,7 @@ export const en = {
   },
   gallery: {
     empty: 'No images yet. Create an element, select a model, enter a prompt.',
+    emptyAudio: 'No audio yet. Pick a voice or a music model, then enter a text or describe the music.',
     reuse: 'Reuse',
     delete: 'Delete',
     cancel: 'Cancel',
@@ -199,6 +204,7 @@ export const en = {
     music: 'Music',
     speech: 'Speech',
     deleteImage: 'Delete image',
+    deleteAudio: 'Delete audio',
     removeError: 'Remove error message',
     debug: 'Debug: request/response',
     local: 'Local',
@@ -208,6 +214,8 @@ export const en = {
     downloadClean: 'Download (no metadata)',
     confirmImage:
       'Delete this image?\n\nThe file is removed; the cost stays in the total. (Tip: Shift-click on the trash icon deletes without asking.)',
+    confirmAudio:
+      'Delete this audio?\n\nThe file is removed; the cost stays in the total. (Tip: Shift-click on the trash icon deletes without asking.)',
     confirmRun_one: 'Delete the whole run ({{count}} result)?\n\nThe files are removed; the cost stays in the total.',
     confirmRun_other:
       'Delete the whole run ({{count}} results)?\n\nThe files are removed; the cost stays in the total.',
@@ -307,6 +315,30 @@ export const en = {
     white: 'White',
     lightGray: 'Light gray',
     black: 'Black',
+    preset: {
+      golden: 'Golden hour',
+      studio: 'Studio light',
+      window: 'Soft window light',
+      dramatic: 'Dramatic',
+      overcast: 'Overcast / neutral',
+      blue: 'Blue hour',
+      night: 'Night / neon',
+    },
+  },
+  // Titles of tool results in the gallery, built from the tool and its options
+  toolTitle: {
+    import: 'Uploaded: {{name}}',
+    crop: 'Crop to {{aspect}}',
+    cropSize: 'Crop to {{aspect}} ({{width}}×{{height}})',
+    resize: 'Resize to {{width}}×{{height}} (local)',
+    resizeWidth: 'Resize to {{width}} px wide (local)',
+    resizeFactor: 'Resize {{factor}}× (local)',
+    removebg: 'Remove background (transparent)',
+    removebgColor: 'Remove background (background {{color}})',
+    expand: 'Expand to {{aspect}}',
+    upscale: 'Upscale (AI, {{resolution}})',
+    relight: 'Relight: {{light}}',
+    cleanup: 'Clean up background',
   },
   elements: {
     title: 'Elements',

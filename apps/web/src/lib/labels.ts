@@ -79,6 +79,19 @@ function elementsLabel(t: TFunction, first: RunFirst): string {
   return first.element ? t('gallery.element', { name: first.element }) : t('gallery.noElement');
 }
 
+/**
+ * Label of a result's delete button and the confirmation question (null: delete without asking, as for failed
+ * entries that only remove the error message).
+ */
+export function deleteTexts(
+  t: TFunction,
+  e: Pick<ManifestEntry, 'ok' | 'kind'>,
+): { label: string; confirm: string | null } {
+  if (!e.ok) return { label: t('gallery.removeError'), confirm: null };
+  if (e.kind === 'audio') return { label: t('gallery.deleteAudio'), confirm: t('gallery.confirmAudio') };
+  return { label: t('gallery.deleteImage'), confirm: t('gallery.confirmImage') };
+}
+
 // ---------------------------------------------------------------- Composer
 
 export interface SummaryInput {

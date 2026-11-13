@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   composerSummary,
   debugRows,
+  deleteTexts,
   entryElements,
   entryInfoRows,
   modelName,
@@ -54,6 +55,21 @@ describe('entry helpers', () => {
     expect(voiceLabel(t, voices, 'voice:me')).toBe('gallery.ownVoiceLabel:Me');
     expect(voiceLabel(t, voices, 'voice:gone')).toBe('gallery.ownVoiceLabel:gone');
     expect(voiceLabel(t, voices, 'en-US-Ava:MAI-Voice-1')).toBe('en-US-Ava');
+  });
+});
+
+describe('deleteTexts', () => {
+  it('names images, audio and failed entries', () => {
+    expect(deleteTexts(t, { ok: true, kind: 'image' })).toEqual({
+      label: 'gallery.deleteImage',
+      confirm: 'gallery.confirmImage',
+    });
+    expect(deleteTexts(t, { ok: true })).toMatchObject({ label: 'gallery.deleteImage' });
+    expect(deleteTexts(t, { ok: true, kind: 'audio' })).toEqual({
+      label: 'gallery.deleteAudio',
+      confirm: 'gallery.confirmAudio',
+    });
+    expect(deleteTexts(t, { ok: false, kind: 'audio' })).toEqual({ label: 'gallery.removeError', confirm: null });
   });
 });
 

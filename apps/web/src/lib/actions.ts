@@ -155,15 +155,17 @@ export async function deleteEntries(
   }
 }
 
-/** Load prompt and settings of an earlier result back into the form. */
-export function reuseSettings(e: ManifestEntry) {
+/** Load prompt and settings of an earlier run (or a single result from the lightbox) back into the form. */
+export function reuseSettings(entries: ManifestEntry[]) {
+  const e = entries[0];
+  if (!e) return;
   const s = useSettings.getState();
   useUi.setState({ prompt: e.prompt });
   if (e.kind === 'audio') {
     s.set(audioSettingsFrom(e));
     toast.success(t('toast.reusedAudio'));
   } else {
-    s.set(imageSettingsFrom(e, s));
+    s.set(imageSettingsFrom(entries, s));
     useUi.setState({ extraRefs: extraRefsFrom(e) });
     toast.success(t('toast.reused'));
   }

@@ -39,13 +39,13 @@ export function App() {
   return (
     <TooltipProvider>
       <Topbar />
-      <div className="grid min-h-[calc(100%-52px)] grid-cols-1 md:grid-cols-[340px_1fr]">
+      <div className="grid grid-cols-1 md:min-h-[calc(100vh-52px)] md:grid-cols-[340px_1fr]">
         <aside className="border-b border-line bg-panel px-4 pt-3.5 pb-10 md:sticky md:top-[52px] md:h-[calc(100vh-52px)] md:overflow-y-auto md:border-r md:border-b-0">
           {mode === 'image' ? <ImagePanel /> : <AudioPanel />}
         </aside>
         <main
           className={cn(
-            'min-w-0 px-6 pt-[18px] pb-[60px]',
+            'min-w-0 px-4 pt-[18px] pb-[60px] md:px-6 md:pt-1.5',
             dragOver && 'outline-2 -outline-offset-8 outline-accent outline-dashed',
           )}
           onDragOver={(e) => {

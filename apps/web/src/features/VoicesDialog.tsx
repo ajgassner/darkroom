@@ -44,7 +44,7 @@ export function VoicesDialog() {
 }
 
 function VoiceEditor({ v }: { v: VoiceInfo }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const status = useData((s) => s.status);
   const set = useSettings((s) => s.set);
   const [label, setLabel] = useState(v.label);
@@ -97,7 +97,7 @@ function VoiceEditor({ v }: { v: VoiceInfo }) {
             options={[
               ...['de', 'en', 'fr', 'es', 'it'].map((c) => ({
                 value: c,
-                label: new Intl.DisplayNames([navigator.language], { type: 'language' }).of(c) ?? c,
+                label: new Intl.DisplayNames([i18n.resolvedLanguage ?? 'en'], { type: 'language' }).of(c) ?? c,
               })),
               { value: 'auto', label: t('voices.auto') },
             ]}
