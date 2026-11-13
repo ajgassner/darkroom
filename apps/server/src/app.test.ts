@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import { ENV_FILE, OUT_DIR, REFS_DIR, VOICES_DIR } from '@darkroom/core/config';
+import { ENV_FILE, FAVORITES_FILE, OUT_DIR, REFS_DIR, VOICES_DIR } from '@darkroom/core/config';
 import { fakeOpenRouter, testImage } from '@darkroom/core/test/fake-openrouter';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -59,6 +59,54 @@ describe('local-only protection', () => {
     const res = await get('/api/nope');
     expect(res.statusCode).toBe(404);
     expect(res.json()).toEqual({ error: 'Not found', code: 'not_found' });
+  });
+});
+
+describe('model lists and favorites', () => {
+  const ids = (res: { json: () => { id: string }[] }) => res.json().map((m) => m.id);
+
+  it('lists models newest first with release date and marks, and puts favorites first', async () => {
+    fakeOpenRouter();
+    const images = (await get('/api/models')).json();
+    expect(images.map((m: { id: string }) => m.id)).toEqual(['test/safety', 'test/zdr', 'test/open']);
+    expect(images[0]).toMatchObject({ created: 1_772_323_200, favorite: false, recommended: false });
+    expect(ids(await get('/api/speech/models'))).toEqual([
+      'test/clone',
+      'test/tts',
+      'google/test-tts',
+      'test/tts-safety',
+      'test/tts-open',
+    ]);
+
+    expect((await get('/api/favorites')).json()).toEqual({ image: [], speech: [], music: [] });
+    const added = await post('/api/favorites', { kind: 'image', model: 'test/open', favorite: true });
+    expect(added.json()).toEqual({ image: ['test/open'], speech: [], music: [] });
+    await post('/api/favorites', { kind: 'music', model: 'test/lyria', favorite: true });
+    expect((await get('/api/models')).json()[0]).toMatchObject({ id: 'test/open', favorite: true });
+    expect(ids(await get('/api/music/models'))).toEqual(['test/lyria', 'test/lyria-zdr', 'test/lyria-safety']);
+
+    await post('/api/favorites', { kind: 'image', model: 'test/open', favorite: false });
+    expect(ids(await get('/api/models'))[0]).toBe('test/safety');
+  });
+
+  it('only adds models of that catalog and validates the kind', async () => {
+    fakeOpenRouter();
+    const unknown = await post('/api/favorites', { kind: 'speech', model: 'test/zdr', favorite: true });
+    expect(unknown.statusCode).toBe(400);
+    expect(unknown.json()).toMatchObject({ code: 'unknown_model', params: { model: 'test/zdr' } });
+    const kind = await post('/api/favorites', { kind: 'video', model: 'test/zdr', favorite: true });
+    expect(kind.json()).toMatchObject({ code: 'bad_request' });
+    // Removing works for ids that left the catalog
+    expect((await post('/api/favorites', { kind: 'image', model: 'gone/x', favorite: false })).statusCode).toBe(200);
+  });
+
+  it('refuses to overwrite a damaged favorites.json', async () => {
+    await fs.writeFile(FAVORITES_FILE, 'not json');
+    fakeOpenRouter();
+    const res = await post('/api/favorites', { kind: 'image', model: 'test/zdr', favorite: true });
+    expect(res.json()).toMatchObject({ code: 'favorites_invalid' });
+    expect(await fs.readFile(FAVORITES_FILE, 'utf8')).toBe('not json');
+    await fs.rm(FAVORITES_FILE);
   });
 });
 

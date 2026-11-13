@@ -8,6 +8,7 @@ node_modules/
 models/
 .update-check.json
 .cli-state.json
+favorites.json
 dist/
 coverage/
 

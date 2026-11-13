@@ -5,11 +5,17 @@ import type { ImageModel } from '../src/contract.ts';
 
 const BASE = 'http://openrouter.test/api/v1';
 
+/** Release dates of the fake models (Unix seconds); some models have none. */
+const JAN_2026 = 1_767_225_600;
+const MAR_2026 = 1_772_323_200;
+const JUN_2026 = 1_780_272_000;
+
 /** Catalog used by the tests: one model per privacy situation. */
 export const MODELS: ImageModel[] = [
   {
     id: 'test/zdr',
     name: 'Test: ZDR',
+    created: JAN_2026,
     supported_parameters: {
       aspect_ratio: { type: 'enum', values: ['1:1', '3:4', '16:9'] },
       resolution: { type: 'enum', values: ['1K', '2K'] },
@@ -22,6 +28,7 @@ export const MODELS: ImageModel[] = [
   {
     id: 'test/safety',
     name: 'Test: ZDR with safety retention',
+    created: MAR_2026,
     supported_parameters: { input_references: { type: 'range', min: 0, max: 8 }, n: { type: 'range', min: 1, max: 4 } },
   },
   { id: 'test/open', name: 'Test: no ZDR', supported_parameters: {} },
@@ -46,15 +53,21 @@ const ZDR = [
 
 /** Speech and music models (OpenRouter /models with output modalities). */
 const SPEECH_MODELS = [
-  { id: 'test/tts', name: 'Test TTS', description: 'Speaks many languages', supported_voices: ['alloy', 'echo'] },
-  { id: 'test/clone', name: 'Test Clone', description: 'Voice cloning', supported_voices: [] },
+  {
+    id: 'test/tts',
+    name: 'Test TTS',
+    description: 'Speaks many languages',
+    created: JAN_2026,
+    supported_voices: ['alloy', 'echo'],
+  },
+  { id: 'test/clone', name: 'Test Clone', description: 'Voice cloning', created: JUN_2026, supported_voices: [] },
   { id: 'google/test-tts', name: 'Test PCM TTS', supported_voices: ['Kore'] },
   { id: 'test/tts-open', name: 'Test TTS without ZDR', supported_voices: ['x'] },
   { id: 'test/tts-safety', name: 'Test TTS with safety retention', supported_voices: ['y'] },
 ];
 const MUSIC_MODELS = [
-  { id: 'test/lyria', name: 'Test Lyria', description: 'Music generation' },
-  { id: 'test/lyria-zdr', name: 'Test Lyria with ZDR', description: 'Music generation' },
+  { id: 'test/lyria', name: 'Test Lyria', description: 'Music generation', created: JAN_2026 },
+  { id: 'test/lyria-zdr', name: 'Test Lyria with ZDR', description: 'Music generation', created: MAR_2026 },
   { id: 'test/lyria-safety', name: 'Test Lyria with safety retention', description: 'Music generation' },
   { id: 'openai/gpt-audio', name: 'GPT Audio', description: 'music and chat' },
 ];

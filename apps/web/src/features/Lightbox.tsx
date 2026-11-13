@@ -8,7 +8,7 @@ import { Select } from '@/components/ui/select';
 import { deleteEntries, entryNotices, reuseSettings } from '@/lib/actions';
 import { canBeTransparent, downloadUrl, outUrl } from '@/lib/api';
 import { entryInfoRows } from '@/lib/labels';
-import { ASPECTS, preferredModel, toolModels, zdrState } from '@/lib/models';
+import { ASPECTS, isNewModel, preferredModel, releaseMonth, toolModels, zdrState } from '@/lib/models';
 import { runTool } from '@/lib/runs';
 import { useData, useSettings, useUi } from '@/lib/store';
 import { entryTitle, relightOptions } from '@/lib/tools';
@@ -324,9 +324,18 @@ function AiToolOptions({
   element: string;
   setElement: (name: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const name = useModelName();
   const elements = useData((s) => s.elements);
+  const label = (m: ImageModel) =>
+    [
+      name(m.id),
+      releaseMonth(m.created, i18n.resolvedLanguage ?? 'en'),
+      isNewModel(m.created) && t('models.new'),
+      t(`zdr.${zdrState(m.zdr)}`),
+    ]
+      .filter(Boolean)
+      .join(' · ');
   return (
     <>
       <Field label={t('tools.model')}>
@@ -334,7 +343,7 @@ function AiToolOptions({
           className="bg-panel"
           value={model}
           onValueChange={setModel}
-          options={candidates.map((m) => ({ value: m.id, label: `${name(m.id)} · ${t(`zdr.${zdrState(m.zdr)}`)}` }))}
+          options={candidates.map((m) => ({ value: m.id, label: label(m) }))}
         />
       </Field>
       <Field label={t('tools.element')}>

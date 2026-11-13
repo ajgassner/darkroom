@@ -34,6 +34,8 @@ export const OUT_DIR = path.resolve(ROOT, process.env.OUT_DIR ?? 'out');
 export const VOICES_DIR = path.resolve(ROOT, process.env.VOICES_DIR ?? 'voices');
 export const UPLOADS_DIR = path.join(OUT_DIR, 'uploads');
 export const MANIFEST = path.join(OUT_DIR, 'manifest.jsonl');
+/** Favorite models per kind (outside out/, so it is never served). */
+export const FAVORITES_FILE = path.join(ROOT, 'favorites.json');
 export const PRESETS_FILE = path.join(APP_DIR, 'presets.json');
 /** Built web UI (Vite output: index.html + assets/*); WEB_DIST_DIR overrides it (tests). */
 export const WEB_DIST_DIR = path.resolve(process.env.WEB_DIST_DIR ?? path.join(APP_DIR, 'dist', 'web'));

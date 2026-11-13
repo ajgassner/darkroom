@@ -4,13 +4,16 @@ import { api, readAsDataUrl } from './api';
 import { num } from './format';
 import { transcribeBlockedText } from './labels';
 import { elementOnLoad, existingElement } from './mentions';
+import { withFavorite } from './models';
 import { selectionAfterDelete } from './names';
 import { audioSettingsFrom, extraRefsFrom, imageSettingsFrom } from './reuse';
 import { type DEFAULT_SETTINGS, useData, useSettings, useUi } from './store';
 import type {
   ElementInfo,
+  Favorites,
   ImageModel,
   ManifestEntry,
+  ModelKind,
   MusicModel,
   Notice,
   Preset,
@@ -134,6 +137,25 @@ async function loadAudioData() {
     useData.setState({ speechModels, musicModels, voices });
   } catch (err) {
     toast.error(t('toast.audioModelsFailed', { error: errorMessage(err) }));
+  }
+}
+
+/** Set a model's favorite mark in its list (which re-sorts it). */
+function markFavorite(kind: ModelKind, id: string, favorite: boolean) {
+  const d = useData.getState();
+  if (kind === 'image') useData.setState({ models: withFavorite(d.models, id, favorite) });
+  else if (kind === 'speech') useData.setState({ speechModels: withFavorite(d.speechModels, id, favorite) });
+  else useData.setState({ musicModels: withFavorite(d.musicModels, id, favorite) });
+}
+
+/** Add or remove a favorite right away; when the server refuses, the mark is undone and a toast says why. */
+export async function toggleFavorite(kind: ModelKind, id: string, favorite: boolean): Promise<void> {
+  markFavorite(kind, id, favorite);
+  try {
+    await api<Favorites>('/api/favorites', { body: { kind, model: id, favorite } });
+  } catch (err) {
+    markFavorite(kind, id, !favorite);
+    toast.error(t('toast.favoriteFailed', { error: errorMessage(err) }));
   }
 }
 

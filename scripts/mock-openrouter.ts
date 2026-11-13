@@ -60,10 +60,25 @@ const COLORS: [number, number, number][] = [
 let counter = 0;
 
 const refs = { type: 'range', min: 0, max: 8 };
+/** Release dates (Unix seconds) as OpenRouter lists them; the newest is always 9 days old, so it counts as new. */
+const date = (iso: string) => Date.parse(iso) / 1000;
+const RECENT = Math.floor(Date.now() / 1000) - 9 * 86_400;
 const MODELS = [
+  {
+    // A recommended model id, so the curated order shows up in the UI
+    id: 'google/gemini-3.1-flash-image',
+    name: 'Mock: Gemini 3.1 Flash Image',
+    created: date('2026-02-26'),
+    supported_parameters: {
+      aspect_ratio: { type: 'enum', values: ['1:1', '3:4', '4:3', '16:9', '9:16'] },
+      resolution: { type: 'enum', values: ['1K', '2K', '4K'] },
+      input_references: refs,
+    },
+  },
   {
     id: 'mock/image',
     name: 'Mock: Image',
+    created: RECENT,
     supported_parameters: {
       aspect_ratio: { type: 'enum', values: ['1:1', '3:4', '4:3', '16:9', '9:16'] },
       resolution: { type: 'enum', values: ['1K', '2K'] },
@@ -71,10 +86,24 @@ const MODELS = [
       n: { type: 'range', min: 1, max: 4 },
     },
   },
-  { id: 'mock/image-slow', name: 'Mock: Slow image (5 s)', supported_parameters: { input_references: refs } },
+  {
+    id: 'mock/image-slow',
+    name: 'Mock: Slow image (5 s)',
+    created: date('2025-08-14'),
+    supported_parameters: { input_references: refs },
+  },
+  // No release date: listed last
   { id: 'mock/image-error', name: 'Mock: Always fails', supported_parameters: { input_references: refs } },
 ];
-const ZDR = ['mock/image', 'mock/image-slow', 'mock/image-error', 'mock/tts', 'mock/clone'].map((id) => ({
+const ZDR = [
+  'google/gemini-3.1-flash-image',
+  'mock/image',
+  'mock/image-slow',
+  'mock/image-error',
+  'elevenlabs/eleven-v4',
+  'mock/tts',
+  'mock/clone',
+].map((id) => ({
   model_id: id,
   tag: `${id}-zdr`,
   provider_name: 'Mock',
@@ -82,9 +111,19 @@ const ZDR = ['mock/image', 'mock/image-slow', 'mock/image-error', 'mock/tts', 'm
 }));
 const SPEECH = [
   {
+    // A recommended model id (and the CLI's default speech model)
+    id: 'elevenlabs/eleven-v4',
+    name: 'Mock: Eleven v4',
+    description: 'Speaks many languages',
+    created: date('2026-05-20'),
+    supported_voices: ['de-DE-Mock', 'en-US-Mock'],
+    pricing: { prompt: '0.00003' },
+  },
+  {
     id: 'mock/tts',
     name: 'Mock TTS',
     description: 'Speaks many languages',
+    created: date('2025-11-03'),
     supported_voices: ['de-DE-Mock', 'en-US-Mock'],
     pricing: { prompt: '0.000015' },
   },
@@ -92,11 +131,15 @@ const SPEECH = [
     id: 'mock/clone',
     name: 'Mock Voice Clone',
     description: 'Voice cloning',
+    created: RECENT,
     supported_voices: [],
     pricing: { prompt: '0.00003' },
   },
 ];
-const MUSIC = [{ id: 'mock/lyria', name: 'Mock Lyria', description: 'Music generation' }];
+const MUSIC = [
+  { id: 'mock/lyria', name: 'Mock Lyria', description: 'Music generation', created: date('2026-03-12') },
+  { id: 'mock/song', name: 'Mock Song', description: 'Music generation, $0.04 per song', created: RECENT },
+];
 
 type Reply = { status?: number; type?: string; headers?: Record<string, string>; body: string | Buffer };
 

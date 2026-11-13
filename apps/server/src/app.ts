@@ -8,6 +8,7 @@ import { abortActiveWork, errorBody, localOnly, statusOf } from './http.ts';
 import { elementRoutes } from './routes/elements.ts';
 import { fileRoutes } from './routes/files.ts';
 import { metaRoutes } from './routes/meta.ts';
+import { modelRoutes } from './routes/models.ts';
 import { runRoutes } from './routes/runs.ts';
 import { voiceRoutes } from './routes/voices.ts';
 
@@ -47,6 +48,7 @@ export async function buildApp() {
   await app.register(fastifyStatic, { root: OUT_DIR, serve: false });
 
   await app.register(metaRoutes);
+  await app.register(modelRoutes);
   await app.register(elementRoutes);
   await app.register(voiceRoutes);
   await app.register(runRoutes);

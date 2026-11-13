@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
-  byRecommendation,
   estimateImagePrice,
   estimateRunCost,
   estimateSpeechPrice,
   imagePriceLabel,
+  isNewModel,
   privacyAllows,
+  rankModels,
+  releaseMonth,
   speechPriceLabel,
   zdrStatus,
 } from './catalog.ts';
@@ -50,14 +52,47 @@ describe('model catalog rules', () => {
     expect(zdrStatus([])).toBe('no ZDR');
   });
 
-  it('sorts recommended models first, then by name', () => {
+  it('orders favorites (newest first), recommended in curated order, then newest first, undated last by name', () => {
     const models = [
-      { id: 'z', name: 'Alpha' },
-      { id: 'r2', name: 'Zeta' },
-      { id: 'y', name: 'Beta' },
-      { id: 'r1', name: 'Omega' },
+      { id: 'undated/z', name: 'Zeta' },
+      { id: 'old', name: 'Old', created: 100 },
+      { id: 'google/gemini-3.1-flash-image', name: 'Flash', created: 900 },
+      { id: 'undated/a', name: 'Alpha' },
+      { id: 'fav/old', name: 'Fav old', created: 10 },
+      { id: 'new', name: 'New', created: 500 },
+      { id: 'google/gemini-3-pro-image', name: 'Pro' },
+      { id: 'bytedance-seed/seedream-5-5', name: 'Seedream', created: 20 },
     ];
-    expect(byRecommendation(models, ['r1', 'r2']).map((m) => m.id)).toEqual(['r1', 'r2', 'z', 'y']);
+    const ranked = rankModels(models, 'image', ['fav/old', 'bytedance-seed/seedream-5-5', 'gone/model']);
+    expect(ranked.map((m) => m.id)).toEqual([
+      'bytedance-seed/seedream-5-5',
+      'fav/old',
+      'google/gemini-3-pro-image',
+      'google/gemini-3.1-flash-image',
+      'new',
+      'old',
+      'undated/a',
+      'undated/z',
+    ]);
+    expect(ranked[0]).toMatchObject({ favorite: true, recommended: true, rank: 6 });
+    expect(ranked[2]).toMatchObject({ favorite: false, recommended: true, rank: 0 });
+    expect(ranked[4]).toEqual({ id: 'new', name: 'New', created: 500, favorite: false, recommended: false });
+    // Music has no curated list: only favorites and release dates count
+    expect(
+      rankModels(models, 'music', [])
+        .map((m) => m.id)
+        .slice(0, 2),
+    ).toEqual(['google/gemini-3.1-flash-image', 'new']);
+  });
+
+  it('formats the release month and marks models of the last 30 days as new', () => {
+    const oct2026 = Date.UTC(2026, 9, 31, 23) / 1000;
+    expect(releaseMonth(oct2026)).toBe('Oct 2026');
+    expect(releaseMonth(undefined)).toBeNull();
+    const now = Date.UTC(2026, 10, 13) / 1000;
+    expect(isNewModel(now - 29 * 86_400, now)).toBe(true);
+    expect(isNewModel(now - 31 * 86_400, now)).toBe(false);
+    expect(isNewModel(undefined, now)).toBe(false);
   });
 
   it('labels list prices', () => {

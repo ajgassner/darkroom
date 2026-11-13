@@ -17,16 +17,16 @@ import {
   FORMATS,
   maxRefs,
   QUALITIES,
-  RECOMMENDED_IMAGE,
   ratio,
   SIZES,
-  sortByRecommendation,
+  shortList,
+  sortModels,
 } from '@/lib/models';
 import { imageNotes } from '@/lib/notes';
 import { estimateImagePrice, historyAvg, type UnitPrice, unitPrice } from '@/lib/pricing';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { ImageModel } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { FavoriteStar, ModelRow, ModelTitle } from '../ModelMarks';
 import { Chip, DropZone, ElementThumb, NotesSection } from '../shared';
 import { useModelName } from '../useModelName';
 import { ZdrTag } from '../ZdrTag';
@@ -150,12 +150,8 @@ function ModelSection() {
   const name = useModelName();
 
   const { list, total } = useMemo(() => {
-    const sorted = sortByRecommendation(
-      models.filter((m) => maxRefs(m) > 0),
-      RECOMMENDED_IMAGE,
-    );
-    const visible = (m: ImageModel) => RECOMMENDED_IMAGE.includes(m.id) || selected.includes(m.id);
-    return { list: showAll ? sorted : sorted.filter(visible), total: sorted.length };
+    const sorted = sortModels(models.filter((m) => maxRefs(m) > 0));
+    return { list: showAll ? sorted : shortList(sorted, selected), total: sorted.length };
   }, [models, showAll, selected]);
 
   const toggle = (id: string, on: boolean) => {
@@ -178,31 +174,34 @@ function ModelSection() {
           const checked = selected.includes(m.id);
           const allowed = allowedByPrivacy(m.zdr, privacy);
           return (
-            <Tooltip key={m.id} content={allowed ? m.id : t('models.blocked', { id: m.id })}>
-              <label
-                htmlFor={`model-${m.id}`}
-                className={cn(
-                  'grid cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 rounded-lg border border-transparent px-2 py-1.5 hover:bg-panel-2',
-                  checked && 'border-line bg-panel-2',
-                  !allowed && 'opacity-45',
-                )}
-              >
-                <Checkbox
-                  id={`model-${m.id}`}
-                  className="mt-[3px]"
-                  checked={checked}
-                  onCheckedChange={(v) => toggle(m.id, v === true)}
-                />
-                <div className="min-w-0">
-                  <div className="text-[13px] [overflow-wrap:anywhere]">{name(m.id)}</div>
-                  <div className="mt-px text-[11px] leading-[1.35] text-muted [overflow-wrap:anywhere]">
-                    {m.id} · {t('models.maxRefs', { count: maxRefs(m) })}
+            <ModelRow
+              key={m.id}
+              checked={checked}
+              blocked={!allowed}
+              favorite={<FavoriteStar kind="image" id={m.id} favorite={m.favorite} />}
+            >
+              <Tooltip content={allowed ? m.id : t('models.blocked', { id: m.id })}>
+                <label
+                  htmlFor={`model-${m.id}`}
+                  className="grid min-w-0 flex-1 cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 py-1.5 pl-2"
+                >
+                  <Checkbox
+                    id={`model-${m.id}`}
+                    className="mt-[3px]"
+                    checked={checked}
+                    onCheckedChange={(v) => toggle(m.id, v === true)}
+                  />
+                  <div className="min-w-0">
+                    <ModelTitle name={name(m.id)} created={m.created} />
+                    <div className="mt-px text-[11px] leading-[1.35] text-muted [overflow-wrap:anywhere]">
+                      {m.id} · {t('models.maxRefs', { count: maxRefs(m) })}
+                    </div>
+                    <PriceLine m={m} />
                   </div>
-                  <PriceLine m={m} />
-                </div>
-                <ZdrTag zdr={m.zdr} />
-              </label>
-            </Tooltip>
+                  <ZdrTag zdr={m.zdr} />
+                </label>
+              </Tooltip>
+            </ModelRow>
           );
         })}
       </div>

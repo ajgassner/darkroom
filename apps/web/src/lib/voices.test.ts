@@ -23,6 +23,8 @@ const model = (id: string, description = ''): SpeechModel => ({
   cloning: false,
   multiRef: false,
   zdr: [],
+  favorite: false,
+  recommended: false,
 });
 
 describe('voiceLang', () => {

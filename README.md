@@ -19,6 +19,7 @@ A self-hosted alternative to getimg.ai and similar subscription services. Upload
 
 - **Elements**: reusable reference sets (person, logo, object, location, style) with their own instructions. Mention them in a prompt with `@name`.
 - **Many models in parallel**: the same prompt and references go to several models at once for a direct comparison.
+- **Model lists that stay current**: every list shows your favorites first (star a model in the web UI or use `darkroom favorites add <model>`), then the recommended models, then all others newest first, each with its release month and a "new" badge for the last 30 days. The recommendations are strong in current blind-vote rankings (LMArena, Artificial Analysis), recent and ZDR-capable where possible (reviewed November 2026).
 - **Parameters that fit each model**: aspect ratios, sizes, formats and reference limits come live from the OpenRouter catalog; unsupported values snap to the closest supported one.
 - **Privacy by default**: image, speech and transcription requests only go to Zero Data Retention endpoints unless you switch it off; music uses them whenever the model has one.
 - **Image tools**: upscale, expand canvas, relight and clean up backgrounds with AI; resize, crop and remove backgrounds locally for free.
@@ -124,7 +125,7 @@ Available in the detail view of every image:
 
 ## CLI
 
-Run `darkroom` without a command in a terminal for an interactive menu: image, speech, music, model lists, elements and voices, costs and the web UI. It asks for the privacy mode, models (type to search; recommended first, with price and ZDR status), element, aspect ratio and size (only values the chosen models support), the number of images and the prompt, shows a summary with the estimated cost and runs after you confirm. Afterwards it prints the same run as a command line (to reuse it or give it to an agent) and offers to open the result, run again, change settings or go back to the menu. Escape goes back one question, Ctrl+C quits. Your last choices (not prompts or texts) are remembered in `.cli-state.json` in your data folder.
+Run `darkroom` without a command in a terminal for an interactive menu: image, speech, music, model lists, elements and voices, costs and the web UI. It asks for the privacy mode, models (type to search; favorites, then recommended, then newest first, with release month, price and ZDR status), element, aspect ratio and size (only values the chosen models support), the number of images and the prompt, shows a summary with the estimated cost and runs after you confirm. Afterwards it prints the same run as a command line (to reuse it or give it to an agent) and offers to open the result, run again, change settings, add the models to your favorites or go back to the menu. Escape goes back one question, Ctrl+C quits. Your last choices (not prompts or texts) are remembered in `.cli-state.json` in your data folder.
 
 `darkroom gen`, `darkroom speak` and `darkroom music` without a prompt or text start the same questions; options given on the command line are not asked again. Outside a terminal (scripts, AI agents) the CLI never asks: a missing prompt is an error.
 
@@ -133,7 +134,7 @@ Run `darkroom` without a command in a terminal for an interactive menu: image, s
 darkroom gen -e me -a 3:4 -s 2K "Business portrait in a bright office, suit, soft window light"
 
 # @mentions, three models in parallel, 2 images each
-darkroom gen -n 2 -m google/gemini-3.1-flash-image,google/gemini-3-pro-image,bytedance-seed/seedream-4.5 \
+darkroom gen -n 2 -m google/gemini-3.1-flash-image,google/gemini-3-pro-image,bytedance-seed/seedream-5-0-pro \
   "Outdoor portrait of @me in an autumn park"
 
 # keep editing a result: the path it printed, or just the file name from out/
@@ -151,13 +152,16 @@ darkroom music "calm acoustic guitar jingle, 120 bpm"
 darkroom models                    # image models: references, parameters, price, ZDR status
 darkroom models speech             # speech models: price, voices, voice cloning, ZDR status
 darkroom models music --privacy off --search lyria
+darkroom favorites                 # your favorite models; also: darkroom favorites image
+darkroom favorites add microsoft/mai-image-2.6   # kind found in the catalogs (or --kind image|speech|music)
+darkroom favorites remove microsoft/mai-image-2.6
 darkroom voices elevenlabs/eleven-v4   # a model's voices by language, plus your own voices
 darkroom voices                    # your own voices (voice:<name>)
 darkroom elements                  # reference sets
 darkroom costs                     # cost per model and in total
 ```
 
-`darkroom --help` and `darkroom gen --help` list all options. Options such as `-m` and `-r` take one value each; repeat them or separate models with commas. `darkroom models` checks the models against your privacy mode (`--privacy` to check another one). Result paths are printed so you can open them or pass them to `-r`. Ctrl+C cancels a running generation, including the upstream calls; a second Ctrl+C quits right away. A cancelled prompt or run exits with code 130.
+`darkroom --help` and `darkroom gen --help` list all options. Options such as `-m` and `-r` take one value each; repeat them or separate models with commas. `darkroom models` checks the models against your privacy mode (`--privacy` to check another one) and marks favorites (♥), recommended models (★), the release month and models released in the last 30 days (new). Result paths are printed so you can open them or pass them to `-r`. Ctrl+C cancels a running generation, including the upstream calls; a second Ctrl+C quits right away. A cancelled prompt or run exits with code 130.
 
 ## Privacy
 
@@ -169,7 +173,7 @@ Your photos, voice samples and results stay on your disk. Only the data needed f
 | `zdr-strict`                     | only ZDR endpoints without safety retention                                                                                       |
 | `off`                            | normal OpenRouter routing                                                                                                         |
 
-For images, speech (including cloned voices) and API transcription, darkroom pins each request to the model's ZDR endpoints allowed by the mode, without fallbacks; models without one (e.g. GPT Image 2 or FLUX.2 as of November 2026) are not called in ZDR mode and the run shows an error instead. Local transcription with Whisper sends nothing. Music prompts usually contain no personal data, so music is never blocked: it is pinned to the ZDR endpoints the mode allows; in `zdr-strict` it falls back to ZDR endpoints with safety retention, and only a model without any ZDR endpoint runs unrestricted (both with a notice). Model ids that are not in the catalog (e.g. a typo) are rejected before any of this, so a typo never reaches OpenRouter. For extra safety, also enforce ZDR and disable training in your [OpenRouter privacy settings](https://openrouter.ai/settings/privacy).
+For images, speech (including cloned voices) and API transcription, darkroom pins each request to the model's ZDR endpoints allowed by the mode, without fallbacks; models without one (e.g. OpenAI's GPT Image 2.5 as of November 2026) are not called in ZDR mode and the run shows an error instead. Local transcription with Whisper sends nothing. Music prompts usually contain no personal data, so music is never blocked: it is pinned to the ZDR endpoints the mode allows; in `zdr-strict` it falls back to ZDR endpoints with safety retention, and only a model without any ZDR endpoint runs unrestricted (both with a notice). Model ids that are not in the catalog (e.g. a typo) are rejected before any of this, so a typo never reaches OpenRouter. For extra safety, also enforce ZDR and disable training in your [OpenRouter privacy settings](https://openrouter.ai/settings/privacy).
 
 ## Configuration
 
@@ -197,6 +201,7 @@ refs/<element>/   reference images + element.json
 voices/<voice>/   voice samples + voice.json
 out/              images, audio, manifest.jsonl, uploads/ and debug/
 models/           local Whisper models
+favorites.json    your favorite models (web UI and CLI)
 ```
 
 Costs come from OpenRouter's `usage.cost`; with several images per call the amount is split evenly. Deleting a result removes the file but only marks the manifest entry, so the cost total stays correct. Speech costs are reported a few seconds after generation and added automatically.

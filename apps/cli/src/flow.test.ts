@@ -1,4 +1,4 @@
-import type { MusicModel, SpeechModel, VoiceInfo } from '@darkroom/core/contract';
+import type { MusicModelInfo, SpeechModelInfo, VoiceInfo } from '@darkroom/core/contract';
 import { describe, expect, it, vi } from 'vitest';
 import type { CatalogImageModel } from './choices.ts';
 import {
@@ -48,6 +48,7 @@ function scripted(answers: Answer[]) {
 }
 
 const zdr = [{ tag: 'p/zdr', provider: 'P', safetyRetention: false }];
+const marks = { favorite: false, recommended: false };
 const image = (id: string, extra: Partial<CatalogImageModel> = {}): CatalogImageModel => ({
   id,
   name: id,
@@ -58,6 +59,7 @@ const image = (id: string, extra: Partial<CatalogImageModel> = {}): CatalogImage
   },
   zdr,
   price: { cost: 0.04, unit: 'image', variants: {} },
+  ...marks,
   ...extra,
 });
 
@@ -82,9 +84,9 @@ describe('question steps', () => {
 });
 
 function musicAsk(over: Partial<MusicAsk> = {}): MusicAsk {
-  const models: MusicModel[] = [
-    { id: 'g/lyria', name: 'Lyria', description: '', zdr: [] },
-    { id: 'g/lyria-pro', name: 'Lyria Pro', description: '', zdr: [] },
+  const models: MusicModelInfo[] = [
+    { id: 'g/lyria', name: 'Lyria', description: '', zdr: [], ...marks },
+    { id: 'g/lyria-pro', name: 'Lyria Pro', description: '', zdr: [], ...marks },
   ];
   return {
     fixed: {},
@@ -182,7 +184,7 @@ describe('image questions', () => {
   });
 });
 
-const speechModels: SpeechModel[] = [
+const speechModels: SpeechModelInfo[] = [
   {
     id: 'google/tts',
     name: 'Gemini TTS',
@@ -192,9 +194,30 @@ const speechModels: SpeechModel[] = [
     cloning: false,
     multiRef: false,
     zdr,
+    ...marks,
   },
-  { id: 'x/clone', name: 'Clone', description: '', pricing: {}, voices: [], cloning: true, multiRef: false, zdr },
-  { id: 'x/plain', name: 'Plain', description: '', pricing: {}, voices: [], cloning: false, multiRef: false, zdr },
+  {
+    id: 'x/clone',
+    name: 'Clone',
+    description: '',
+    pricing: {},
+    voices: [],
+    cloning: true,
+    multiRef: false,
+    zdr,
+    ...marks,
+  },
+  {
+    id: 'x/plain',
+    name: 'Plain',
+    description: '',
+    pricing: {},
+    voices: [],
+    cloning: false,
+    multiRef: false,
+    zdr,
+    ...marks,
+  },
 ];
 const ownVoices: VoiceInfo[] = [{ name: 'me', label: 'Me', transcript: '', transcripts: {}, samples: ['a.wav'] }];
 
@@ -276,7 +299,7 @@ describe('music questions', () => {
   });
 
   it('takes the only model without asking and explains a blocked privacy mode', async () => {
-    const one = async () => [{ id: 'g/lyria', name: 'Lyria', description: '', zdr }];
+    const one = async () => [{ id: 'g/lyria', name: 'Lyria', description: '', zdr, ...marks }];
     const a = scripted([KEEP, 'song', true]);
     expect(await askMusic(a.ui, musicAsk({ models: one }))).toMatchObject({ model: 'g/lyria' });
 
@@ -305,6 +328,15 @@ describe('session', () => {
     expect(await session(ui, { ask, run }, vi.fn())).toBe('quit');
     expect(run).toHaveBeenCalledTimes(1);
     expect(calls[0].options).not.toContain('open');
+  });
+
+  it('adds the models of the run to the favorites when the mode offers it', async () => {
+    const favorite = vi.fn(async (r: string) => `Added ${r}`);
+    const { ui, calls, infos } = scripted(['favorite', 'quit']);
+    expect(await session(ui, { ask: async () => 'first', run: async () => [], favorite })).toBe('quit');
+    expect(calls[0].options).toEqual(['again', 'change', 'favorite', 'menu', 'quit']);
+    expect(favorite).toHaveBeenCalledWith('first');
+    expect(infos).toEqual(['Added first']);
   });
 
   it('returns BACK when the first question is left', async () => {

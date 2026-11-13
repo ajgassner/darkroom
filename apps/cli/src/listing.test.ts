@@ -1,8 +1,9 @@
 import { stripVTControlCharacters as plain } from 'node:util';
-import type { SpeechModel } from '@darkroom/core/contract';
+import { rankModels } from '@darkroom/core/catalog';
+import type { SpeechModelInfo } from '@darkroom/core/contract';
 import { describe, expect, it } from 'vitest';
 import type { CatalogImageModel } from './choices.ts';
-import { imageModelBlocks, musicModelBlocks, speechModelBlocks, voiceBlocks } from './listing.ts';
+import { favoriteBlocks, imageModelBlocks, musicModelBlocks, speechModelBlocks, voiceBlocks } from './listing.ts';
 
 const zdr = [{ tag: 'p/zdr', provider: 'P', safetyRetention: false }];
 const image = (id: string, extra: Partial<CatalogImageModel> = {}): CatalogImageModel => ({
@@ -15,9 +16,11 @@ const image = (id: string, extra: Partial<CatalogImageModel> = {}): CatalogImage
   },
   zdr,
   price: { cost: 0.04, unit: 'image', variants: {} },
+  favorite: false,
+  recommended: false,
   ...extra,
 });
-const speech = (id: string, extra: Partial<SpeechModel> = {}): SpeechModel => ({
+const speech = (id: string, extra: Partial<SpeechModelInfo> = {}): SpeechModelInfo => ({
   id,
   name: `Name ${id}`,
   description: '',
@@ -26,20 +29,26 @@ const speech = (id: string, extra: Partial<SpeechModel> = {}): SpeechModel => ({
   cloning: false,
   multiRef: false,
   zdr,
+  favorite: false,
+  recommended: false,
   ...extra,
 });
 const text = (blocks: string[]) => blocks.map(plain);
 
 describe('model listings', () => {
   it('lists image models with references, price, parameters and privacy status', () => {
-    const models = [
-      image('z/model', { zdr: [{ tag: 't', provider: 'P', safetyRetention: true }] }),
-      image('openai/gpt-image-2', { price: null }),
-      image('no/refs', { supported_parameters: {} }),
-    ];
+    const models = rankModels(
+      [
+        image('z/model', { zdr: [{ tag: 't', provider: 'P', safetyRetention: true }] }),
+        image('google/gemini-3-pro-image', { price: null }),
+        image('no/refs', { supported_parameters: {} }),
+      ],
+      'image',
+      [],
+    );
     const blocks = text(imageModelBlocks(models, { privacy: 'zdr-strict' }));
     expect(blocks).toHaveLength(2);
-    expect(blocks[0]).toContain('openai/gpt-image-2  ★ recommended');
+    expect(blocks[0]).toContain('google/gemini-3-pro-image  ★ recommended');
     expect(blocks[0]).toContain('price n/a  refs 0–8  n –');
     expect(blocks[0]).toContain('aspect 1:1 3:4');
     expect(blocks[0]).toContain('ZDR p/zdr  usable with --privacy zdr-strict');
@@ -57,13 +66,31 @@ describe('model listings', () => {
     expect(blocks[0]).toContain('price $0.020/1k chars  voices model default  cloning yes (voice:<name>)');
     expect(blocks[1]).toContain('voices 2  cloning no');
     expect(blocks[1]).toContain('no ZDR  blocked with --privacy zdr');
-    const music = text(
-      musicModelBlocks([{ id: 'g/lyria', name: 'Lyria', description: '', zdr: [] }], { privacy: 'off' }),
-    );
+    const lyria = { id: 'g/lyria', name: 'Lyria', description: '', zdr: [], favorite: false, recommended: false };
+    const music = text(musicModelBlocks([lyria], { privacy: 'off' }));
     expect(music[0]).toContain('usable with --privacy off');
-    expect(
-      musicModelBlocks([{ id: 'g/lyria', name: 'Lyria', description: '', zdr: [] }], { privacy: 'off', search: 'x' }),
-    ).toEqual([]);
+    expect(musicModelBlocks([lyria], { privacy: 'off', search: 'x' })).toEqual([]);
+  });
+
+  it('marks favorites, the release month and new models', () => {
+    const now = Date.now() / 1000;
+    const models = rankModels(
+      [
+        speech('x/old', { created: Date.UTC(2025, 9, 15) / 1000 }),
+        speech('x/fresh', { created: now - 3 * 86_400 }),
+        speech('elevenlabs/eleven-v4'),
+      ],
+      'speech',
+      ['x/old'],
+    );
+    const blocks = text(speechModelBlocks(models, { privacy: 'zdr' }));
+    expect(blocks[0]).toMatch(/^x\/old {2}♥ favorite {2}Oct 2025 {2}Name x\/old/);
+    expect(blocks[1]).toMatch(/^elevenlabs\/eleven-v4 {2}★ recommended {2}Name/);
+    expect(blocks[2]).toMatch(/^x\/fresh {2}\w{3} \d{4} {2}new/);
+    expect(text(favoriteBlocks({ image: ['a/b'], speech: [], music: [] }, ['image', 'speech']))).toEqual([
+      'image favorites (1)\na/b',
+      'speech favorites (0)\nnone',
+    ]);
   });
 
   it('lists a model’s voices by language together with the own voices', () => {
