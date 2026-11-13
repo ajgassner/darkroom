@@ -35,6 +35,9 @@ export const en = {
     privacyStrict: 'Zero Data Retention (strict)',
     privacyOff: 'Off (all providers)',
     language: 'Language',
+    update: 'Update {{version}}',
+    updateHint:
+      'A new version is available. To install it, run in a terminal: {{command}}. Click for the release notes.',
     keyOk: 'API key ok',
     keyMissing: 'API key missing',
     totalCost_one: '{{cost}} · {{count}} result',

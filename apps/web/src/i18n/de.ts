@@ -39,6 +39,9 @@ export const de: Bundle<typeof en> = {
     privacyStrict: 'Zero Data Retention (strikt)',
     privacyOff: 'Aus (alle Anbieter)',
     language: 'Sprache',
+    update: 'Update {{version}}',
+    updateHint:
+      'Eine neue Version ist verfügbar. Zum Installieren im Terminal ausführen: {{command}}. Klick öffnet die Release-Notes.',
     keyOk: 'API-Key ok',
     keyMissing: 'API-Key fehlt',
     totalCost_one: '{{cost}} · {{count}} Ergebnis',

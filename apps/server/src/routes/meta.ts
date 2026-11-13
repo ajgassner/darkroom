@@ -17,6 +17,7 @@ import { costSummary, markDeleted, readEntries, removeFiles } from '@darkroom/co
 import { imagePrices, listImageModels, zdrEndpoints } from '@darkroom/core/openrouter';
 import { DEFAULT_INSTRUCTIONS } from '@darkroom/core/refs';
 import { RELIGHT_PRESETS } from '@darkroom/core/tools';
+import { checkForUpdate } from '@darkroom/core/update-check';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -45,6 +46,8 @@ export async function metaRoutes(fastify: FastifyInstance) {
     await saveApiKey(req.body.key);
     return { ok: true };
   });
+
+  app.get('/api/update', () => checkForUpdate());
 
   app.get('/api/models', { schema: { querystring: z.object({ refresh: z.string().optional() }) } }, async (req) => {
     const [models, zdr, prices] = await Promise.all([

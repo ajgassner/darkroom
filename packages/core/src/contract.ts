@@ -190,6 +190,12 @@ export interface Preset {
 }
 
 /** GET /api/status */
+/** GET /api/update: a newer release, if there is one. */
+export interface UpdateResponse {
+  current: string;
+  update: { version: string; url: string; command: string } | null;
+}
+
 export interface StatusResponse {
   hasKey: boolean;
   /** Where the key is stored when entered in the UI */

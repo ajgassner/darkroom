@@ -9,6 +9,7 @@ import type {
   PrivacyMode,
   SpeechModel,
   Status,
+  UpdateResponse,
   VoiceInfo,
 } from './types';
 
@@ -90,6 +91,8 @@ interface DataState {
   speechModels: SpeechModel[];
   musicModels: MusicModel[];
   voices: VoiceInfo[];
+  /** Newer release, if any (checked after loading) */
+  update: UpdateResponse['update'];
 }
 
 export const useData = create<DataState>()(() => ({
@@ -101,6 +104,7 @@ export const useData = create<DataState>()(() => ({
   speechModels: [],
   musicModels: [],
   voices: [],
+  update: null,
 }));
 
 // ---------------------------------------------------------------- UI state (not persisted)

@@ -6,7 +6,7 @@ darkroom is a local, private studio for images, speech, cloned voices and music 
 
 ## Commands
 
-Tools come from mise (`mise install`: Node 26, corepack/pnpm, agent-browser). `pnpm install` is also run by `orca.yaml` for new worktrees.
+Tools come from mise (`mise install`: Node 26, corepack/pnpm, agent-browser, gh); CI installs Node and corepack from the same `mise.toml` via `jdx/mise-action`. `pnpm install` is also run by `orca.yaml` for new worktrees.
 
 End users install with `install.sh` / `install.ps1`: they download Node 26 and the source into `~/.darkroom`, run pnpm install + build, and add a `darkroom` wrapper (the CLI with `DARKROOM_HOME=~/darkroom`) to the PATH. Keep both scripts in sync, and keep `pnpm cli <cmd>` and `darkroom <cmd>` equivalent. Test the installer without touching the real setup: `SHELL=/bin/sh DARKROOM_DIR=<tmp>/app DARKROOM_HOME=<tmp>/data DARKROOM_SOURCE=file://<tarball> bash install.sh`.
 
@@ -30,6 +30,10 @@ pnpm mock                    # fake OpenRouter on :5299 for trying the UI withou
 Run the UI against the mock with an empty data folder:
 `DARKROOM_HOME=$(mktemp -d) PORT=5199 OPENROUTER_API_KEY=test OPENROUTER_BASE=http://127.0.0.1:5299/api/v1 pnpm start`.
 The `agent-browser` project skill drives the UI in a real browser for UI verification.
+
+## CI and releases
+
+`.github/workflows/ci.yml` runs on push/PR (typecheck, lint, coverage, fallow, build) and installs this commit with both installers on Linux, macOS and Windows. `main` is protected by a ruleset: changes go in through a branch and pull request (`gh pr create`), CI must pass, and pull requests are squash-merged, so the PR title and body become the commit on `main`. Label each PR `enhancement`, `bug` or `documentation`; the release notes are generated from the merged PRs and grouped by these labels (`.github/release.yml`). Releases are only made by `.github/workflows/release.yml` (workflow_dispatch with a version bump), whose release commit is pushed with the `RELEASE_DEPLOY_KEY` deploy key, the ruleset's only bypass: never tag or bump the version by hand. The version lives in the root `package.json` (`APP_VERSION`); the update check (`core/src/update-check.ts`) compares it with the latest GitHub release.
 
 ## Stop hook and quality gates
 
@@ -69,4 +73,4 @@ Tests sit next to the code (`*.test.ts`). The node project's setup (`packages/co
 ## Conventions
 
 - Biome: 2-space indent, line width 120, single quotes, semicolons, trailing commas (`.editorconfig` matches).
-- Commit messages: imperative summary line, then a bullet list of the changes grouped by area.
+- Commit messages and PRs: imperative summary line (PR title), then a bullet list of the changes grouped by area (PR body).

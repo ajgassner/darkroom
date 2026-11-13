@@ -3,7 +3,14 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import * as p from '@clack/prompts';
-import { DEFAULT_MODEL, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode, parsePrivacy } from '@darkroom/core/config';
+import {
+  APP_VERSION,
+  DEFAULT_MODEL,
+  DEFAULT_PRIVACY,
+  OUT_DIR,
+  type PrivacyMode,
+  parsePrivacy,
+} from '@darkroom/core/config';
 import type { ManifestEntry, RunEvent } from '@darkroom/core/contract';
 import { runGeneration } from '@darkroom/core/generate';
 import { costSummary, readEntries } from '@darkroom/core/manifest';
@@ -107,7 +114,21 @@ async function chooseElement(prompt: string): Promise<string | null> {
 const program = new Command()
   .name('darkroom')
   .description('Local, private images and audio with your own references via OpenRouter')
+  .version(APP_VERSION)
   .showHelpAfterError();
+
+// The installed darkroom command handles these itself (they replace or remove the app the CLI runs from);
+// they only reach the CLI in a git checkout.
+const checkoutHint = (what: string, how: string) => () =>
+  p.log.info(`This is a git checkout, not an installed darkroom. To ${what}: ${how}`);
+program
+  .command('update')
+  .description('Update to the latest release (keeps your data)')
+  .action(checkoutHint('update', 'git pull && pnpm install && pnpm build'));
+program
+  .command('uninstall')
+  .description('Remove darkroom (keeps your data)')
+  .action(checkoutHint('uninstall', 'delete the checkout folder'));
 
 program
   .command('gen')

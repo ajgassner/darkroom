@@ -25,5 +25,7 @@ for (const key of [
 process.env.OPENROUTER_API_KEY = 'test-key';
 process.env.OPENROUTER_BASE = 'http://openrouter.test/api/v1';
 process.env.LOG_LEVEL = 'silent';
+// No update check against GitHub (tests that cover it switch it on)
+process.env.DARKROOM_UPDATE_CHECK = 'off';
 
 afterAll(() => fs.rmSync(home, { recursive: true, force: true }));

@@ -1,0 +1,90 @@
+# Checks every push and pull request; the release workflow runs it too before publishing.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: Typecheck, lint, test, analyze, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Node and corepack from mise.toml, like locally; corepack provides the pnpm version from package.json
+      - uses: jdx/mise-action@v5
+        with:
+          install_args: node npm:corepack # agent-browser is only needed for local UI checks
+      - run: corepack enable
+      - name: Locate the pnpm store
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >>"$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      # Coverage, not just the tests: fallow uses it for the CRAP scores
+      - run: pnpm coverage
+      - run: pnpm analyze
+      - run: pnpm build
+
+  install:
+    name: Installer (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      DARKROOM_UPDATE_CHECK: "off"
+    steps:
+      - uses: actions/checkout@v7
+
+      # Install this commit (not the latest release) with the installer, as a user would, then start the UI
+      - name: Install and start (macOS, Linux)
+        if: runner.os != 'Windows'
+        run: |
+          git archive --format=tar.gz --prefix=darkroom/ -o "$RUNNER_TEMP/src.tar.gz" HEAD
+          mkdir -p "$HOME/darkroom" && echo 'OPENROUTER_API_KEY=ci' >"$HOME/darkroom/.env"
+          DARKROOM_SOURCE="file://$RUNNER_TEMP/src.tar.gz" bash install.sh
+          darkroom="$HOME/.darkroom/bin/darkroom"
+          test "$("$darkroom" --version)" = "$(node -p "require('./package.json').version")"
+          "$darkroom" start &
+          for _ in $(seq 60); do curl -sf http://localhost:5177/api/status >/dev/null && break; sleep 1; done
+          curl -sf http://localhost:5177/ | grep -q '<title>darkroom</title>'
+          "$darkroom" uninstall
+          test ! -e "$HOME/.darkroom" && test -f "$HOME/darkroom/.env"
+
+      - name: Install and start (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $src = Join-Path $env:RUNNER_TEMP 'src.zip'
+          git archive --format=zip --prefix=darkroom/ -o $src HEAD
+          New-Item -ItemType Directory -Force "$HOME\darkroom" | Out-Null
+          Set-Content "$HOME\darkroom\.env" 'OPENROUTER_API_KEY=ci'
+          $env:DARKROOM_SOURCE = $src
+          ./install.ps1
+          $darkroom = "$HOME\.darkroom\bin\darkroom.cmd"
+          $version = & $darkroom --version
+          if ($version -ne (node -p "require('./package.json').version")) { throw "Unexpected version: $version" }
+          Start-Process -FilePath $darkroom -ArgumentList 'start' -NoNewWindow
+          $ok = $false
+          foreach ($i in 1..60) {
+            try { Invoke-WebRequest http://localhost:5177/api/status -UseBasicParsing | Out-Null; $ok = $true; break } catch { Start-Sleep 1 }
+          }
+          if (-not $ok) { throw 'Server did not start' }
+          if ((Invoke-WebRequest http://localhost:5177/ -UseBasicParsing).Content -notmatch '<title>darkroom</title>') { throw 'UI not served' }

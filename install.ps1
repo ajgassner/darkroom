@@ -2,18 +2,26 @@
 #
 #   irm https://raw.githubusercontent.com/ajgassner/darkroom/main/install.ps1 | iex
 #
-# Run it again to update. Optional environment variables:
+# Run it again (or "darkroom update") to update. Optional environment variables:
 #   DARKROOM_DIR     where darkroom and its Node.js are installed (default: ~\.darkroom)
 #   DARKROOM_HOME    where your data lives: .env, refs\, voices\, out\ (default: ~\darkroom)
-#   DARKROOM_REF     branch or tag to install (default: main)
-#   DARKROOM_SOURCE  URL of a source zip, overrides DARKROOM_REF
+#   DARKROOM_REF     branch or tag to install (default: the latest release, or main before the first one)
+#   DARKROOM_SOURCE  URL or local path of a source zip, overrides DARKROOM_REF (e.g. for testing)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue' # Invoke-WebRequest is very slow with the progress bar
 
 $NodeMajor = 26
 $InstallDir = if ($env:DARKROOM_DIR) { $env:DARKROOM_DIR } else { Join-Path $HOME '.darkroom' }
 $DataDir = if ($env:DARKROOM_HOME) { $env:DARKROOM_HOME } else { Join-Path $HOME 'darkroom' }
-$Ref = if ($env:DARKROOM_REF) { $env:DARKROOM_REF } else { 'main' }
+$Ref = $env:DARKROOM_REF
+if (-not $Ref -and -not $env:DARKROOM_SOURCE) {
+  try {
+    $Ref = (Invoke-RestMethod 'https://api.github.com/repos/ajgassner/darkroom/releases/latest').tag_name
+  } catch {
+    $Ref = $null # no release yet
+  }
+}
+if (-not $Ref) { $Ref = 'main' }
 $Source = if ($env:DARKROOM_SOURCE) { $env:DARKROOM_SOURCE } else { "https://github.com/ajgassner/darkroom/archive/$Ref.zip" }
 
 function Say($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
@@ -48,7 +56,7 @@ try {
   # darkroom itself (your data lives in DataDir, so replacing the app keeps it)
   Say "Downloading darkroom ($Ref)"
   $srcZip = Join-Path $tmp 'darkroom.zip'
-  Invoke-WebRequest $Source -OutFile $srcZip -UseBasicParsing
+  if (Test-Path $Source) { Copy-Item $Source $srcZip } else { Invoke-WebRequest $Source -OutFile $srcZip -UseBasicParsing }
   $srcDir = Join-Path $tmp 'src'
   Expand-Archive $srcZip -DestinationPath $srcDir
   $appDir = Join-Path $InstallDir 'app'
@@ -77,6 +85,8 @@ try {
 @echo off
 setlocal
 if /i "%~1"=="uninstall" goto uninstall
+rem One block: cmd parses it completely before the installer rewrites this file
+if /i "%~1"=="update" (set "DARKROOM_DIR=$InstallDir" & set "DARKROOM_HOME=$DataDir" & powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/ajgassner/darkroom/main/install.ps1 | iex" && exit /b 0 || exit /b 1)
 if not defined DARKROOM_HOME set "DARKROOM_HOME=$DataDir"
 "$nodeDir\node.exe" "$appDir\apps\cli\src\cli.ts" %*
 exit /b %errorlevel%
@@ -92,10 +102,10 @@ echo darkroom is uninstalled. Your data is still in $DataDir; delete that folder
     [Environment]::SetEnvironmentVariable('Path', (@($binDir, $userPath) | Where-Object { $_ }) -join ';', 'User')
   }
 
-  # OpenRouter API key, asked once
+  # OpenRouter API key, asked once (only with a real console; the web UI asks for it too)
   $envFile = Join-Path $DataDir '.env'
   $hasKey = (Test-Path $envFile) -and (Select-String -Path $envFile -Pattern '^OPENROUTER_API_KEY=.' -Quiet)
-  if (-not $hasKey) {
+  if (-not $hasKey -and -not [Console]::IsInputRedirected) {
     $key = Read-Host "`nOpenRouter API key (https://openrouter.ai/settings/keys), or Enter to add it later"
     if ($key) {
       Add-Content -Encoding ASCII $envFile "OPENROUTER_API_KEY=$key"
@@ -112,6 +122,7 @@ echo darkroom is uninstalled. Your data is still in $DataDir; delete that folder
   Write-Host 'Open a new terminal, then:'
   Write-Host '    darkroom start      web UI on http://localhost:5177'
   Write-Host '    darkroom --help     all commands'
+  Write-Host '    darkroom update     update to the latest release (keeps your data)'
   Write-Host '    darkroom uninstall  remove darkroom (keeps your data)'
 } finally {
   Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
