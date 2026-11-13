@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/dist", "!**/node_modules", "!.claude/skills"]
+    "includes": ["**", "!**/dist", "!**/node_modules", "!.claude/skills", "!.claude/worktrees"]
   },
   "formatter": {
     "enabled": true,
