@@ -41,4 +41,23 @@ describe('CLI process', () => {
     expect(res.code).toBe(1);
     expect(res.output).toContain('Network error');
   });
+
+  it('never asks outside a terminal: missing input is an error, plain darkroom prints the help', async () => {
+    const gen = await cli(['gen', '-m', 'a/b']);
+    expect(gen.code).toBe(1);
+    expect(gen.output).toContain('Prompt (missing argument)');
+    const speak = await cli(['speak']);
+    expect(speak.output).toContain('Text (missing argument)');
+    const plain = await cli([]);
+    expect(plain.code).toBe(1);
+    expect(plain.output).toContain('Usage: darkroom');
+  });
+
+  it('validates the speed and names the web UI port', async () => {
+    const speed = await cli(['speak', '--speed', 'abc', 'hello']);
+    expect(speed.code).toBe(1);
+    expect(speed.output).toContain('must be a number from 0.25 to 4');
+    const help = await cli(['--help'], { PORT: '5199' });
+    expect(help.output).toContain('http://localhost:5199');
+  });
 });
