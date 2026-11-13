@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { folderName, newItem, selectionAfterDelete, slugify } from './names';
 
-// Same rule as validName() in packages/core/src/refs.ts (the web UI may not import code from core)
+// Same rule as validName() in packages/core/src/elements/refs.ts (the web UI may not import code from core)
 const validName = (name: string) => /^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,63}$/.test(name) && !name.includes('..');
 
 describe('slugify', () => {

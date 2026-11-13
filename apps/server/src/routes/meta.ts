@@ -1,6 +1,5 @@
 // Status, presets, history, deletion and debug records.
 import fs from 'node:fs/promises';
-import { saveApiKey } from '@darkroom/core/api-key';
 import {
   DEFAULT_MODEL,
   DEFAULT_PRIVACY,
@@ -12,11 +11,12 @@ import {
   TRANSCRIBE_MODEL,
 } from '@darkroom/core/config';
 import type { StatusResponse } from '@darkroom/core/contract';
-import { deleteDebug, readDebug } from '@darkroom/core/debug';
-import { costSummary, markDeleted, readEntries, removeFiles, unusedDebugIds } from '@darkroom/core/manifest';
-import { DEFAULT_INSTRUCTIONS } from '@darkroom/core/refs';
-import { RELIGHT_PRESETS } from '@darkroom/core/tools';
-import { checkForUpdate } from '@darkroom/core/update-check';
+import { DEFAULT_INSTRUCTIONS } from '@darkroom/core/elements/refs';
+import { RELIGHT_PRESETS } from '@darkroom/core/image/tools';
+import { saveApiKey } from '@darkroom/core/openrouter/api-key';
+import { deleteDebug, readDebug } from '@darkroom/core/storage/debug';
+import { costSummary, markDeleted, readEntries, removeFiles, unusedDebugIds } from '@darkroom/core/storage/manifest';
+import { checkForUpdate } from '@darkroom/core/system/update-check';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';

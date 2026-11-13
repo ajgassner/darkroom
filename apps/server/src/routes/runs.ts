@@ -1,10 +1,10 @@
 // Runs (streamed as NDJSON): image generation, tools, speech, music; plus importing own images.
 
+import { runMusic } from '@darkroom/core/audio/music';
+import { runSpeech } from '@darkroom/core/audio/speech';
 import { parsePrivacy } from '@darkroom/core/config';
-import { runGeneration } from '@darkroom/core/generate';
-import { runMusic } from '@darkroom/core/music';
-import { runSpeech } from '@darkroom/core/speech';
-import { importImage, LOCAL_TOOLS, runTool } from '@darkroom/core/tools';
+import { runGeneration } from '@darkroom/core/image/generate';
+import { importImage, LOCAL_TOOLS, runTool } from '@darkroom/core/image/tools';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';

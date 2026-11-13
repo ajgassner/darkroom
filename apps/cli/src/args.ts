@@ -1,7 +1,7 @@
 // Parsing of CLI arguments (kept separate from the commands so it can be tested).
 import fs from 'node:fs';
 import path from 'node:path';
-import type { ExtraRef } from '@darkroom/core/generate';
+import type { ExtraRef } from '@darkroom/core/image/generate';
 import { InvalidArgumentError } from 'commander';
 
 /** Commander parser for repeatable options: `-m a -m b` gives ['a', 'b']. */

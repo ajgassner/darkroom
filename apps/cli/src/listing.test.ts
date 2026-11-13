@@ -1,6 +1,6 @@
 import { stripVTControlCharacters as plain } from 'node:util';
-import { rankModels } from '@darkroom/core/catalog';
 import type { SpeechModelInfo } from '@darkroom/core/contract';
+import { rankModels } from '@darkroom/core/models/catalog';
 import { describe, expect, it } from 'vitest';
 import type { CatalogImageModel } from './choices.ts';
 import { favoriteBlocks, imageModelBlocks, musicModelBlocks, speechModelBlocks, voiceBlocks } from './listing.ts';

@@ -1,5 +1,5 @@
-import { rankModels } from '@darkroom/core/catalog';
 import type { ImageModel, SpeechModelInfo } from '@darkroom/core/contract';
+import { rankModels } from '@darkroom/core/models/catalog';
 import { describe, expect, it } from 'vitest';
 import {
   aspectChoices,

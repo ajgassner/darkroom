@@ -14,8 +14,8 @@ import {
 } from '@darkroom/core/config';
 import type { ManifestEntry, ModelKind } from '@darkroom/core/contract';
 import { AppError } from '@darkroom/core/errors';
-import { MODEL_KINDS } from '@darkroom/core/favorites';
-import { costSummary, readEntries } from '@darkroom/core/manifest';
+import { MODEL_KINDS } from '@darkroom/core/models/favorites';
+import { costSummary, readEntries } from '@darkroom/core/storage/manifest';
 import { Argument, Command, CommanderError, InvalidArgumentError, Option } from 'commander';
 import pc from 'picocolors';
 import { collect, explicitOptions, floatArg, intArg, parseModels, resolveRefs, sizeArg } from './args.ts';

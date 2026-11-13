@@ -6,9 +6,21 @@
 
   // Architecture: core holds the logic; server and CLI build on it; the web UI talks to the server over HTTP
   // and may only use core's types (the shared API contract), never its runtime code.
+  // Inside core, the domain folders build on the shared base (contract, config, errors and the test helpers).
+  // image and elements import each other: refs.ts uses image/heic.ts, generation and prompts use the elements.
   "boundaries": {
     "zones": [
-      { "name": "core", "patterns": ["packages/core/**"] },
+      {
+        "name": "core",
+        "patterns": ["packages/core/src/{config,config.test,contract,errors}.ts", "packages/core/test/**"]
+      },
+      { "name": "core-openrouter", "patterns": ["packages/core/src/openrouter/**"] },
+      { "name": "core-models", "patterns": ["packages/core/src/models/**"] },
+      { "name": "core-image", "patterns": ["packages/core/src/image/**"] },
+      { "name": "core-elements", "patterns": ["packages/core/src/elements/**"] },
+      { "name": "core-audio", "patterns": ["packages/core/src/audio/**"] },
+      { "name": "core-storage", "patterns": ["packages/core/src/storage/**"] },
+      { "name": "core-system", "patterns": ["packages/core/src/system/**"] },
       { "name": "server", "patterns": ["apps/server/**"] },
       { "name": "cli", "patterns": ["apps/cli/**"] },
       { "name": "web", "patterns": ["apps/web/**"] },
@@ -16,8 +28,39 @@
     ],
     "rules": [
       { "from": "core", "allow": [] },
-      { "from": "server", "allow": ["core"] },
-      { "from": "cli", "allow": ["core"] },
+      { "from": "core-storage", "allow": ["core"] },
+      { "from": "core-system", "allow": ["core"] },
+      { "from": "core-openrouter", "allow": ["core", "core-storage"] },
+      { "from": "core-elements", "allow": ["core", "core-storage", "core-image"] },
+      { "from": "core-image", "allow": ["core", "core-storage", "core-system", "core-openrouter", "core-elements"] },
+      { "from": "core-models", "allow": ["core", "core-storage", "core-openrouter", "core-image"] },
+      { "from": "core-audio", "allow": ["core", "core-storage", "core-system", "core-openrouter", "core-elements"] },
+      {
+        "from": "server",
+        "allow": [
+          "core",
+          "core-openrouter",
+          "core-models",
+          "core-image",
+          "core-elements",
+          "core-audio",
+          "core-storage",
+          "core-system"
+        ]
+      },
+      {
+        "from": "cli",
+        "allow": [
+          "core",
+          "core-openrouter",
+          "core-models",
+          "core-image",
+          "core-elements",
+          "core-audio",
+          "core-storage",
+          "core-system"
+        ]
+      },
       { "from": "web", "allow": [], "allowTypeOnly": ["core"] },
       { "from": "scripts", "allow": [] }
     ]

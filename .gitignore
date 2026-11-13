@@ -5,7 +5,7 @@ voices/
 out/
 node_modules/
 .DS_Store
-models/
+/models/
 .update-check.json
 .cli-state.json
 favorites.json

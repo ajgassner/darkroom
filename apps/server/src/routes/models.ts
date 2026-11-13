@@ -1,10 +1,11 @@
 // Model catalogs (image, speech, music) in list order with favorite/recommended marks, and the favorites.
-import { listMusicModels, listSpeechModels } from '@darkroom/core/audio-models';
-import { rankModels } from '@darkroom/core/catalog';
+
 import type { ImageModelInfo, MusicModelInfo, SpeechModelInfo } from '@darkroom/core/contract';
 import { unknownModel } from '@darkroom/core/errors';
-import { inCatalog, MODEL_KINDS, readFavorites, setFavorite } from '@darkroom/core/favorites';
-import { imagePrices, listImageModels, zdrEndpoints } from '@darkroom/core/openrouter';
+import { rankModels } from '@darkroom/core/models/catalog';
+import { inCatalog, MODEL_KINDS, readFavorites, setFavorite } from '@darkroom/core/models/favorites';
+import { listMusicModels, listSpeechModels } from '@darkroom/core/openrouter/audio-models';
+import { imagePrices, listImageModels, zdrEndpoints } from '@darkroom/core/openrouter/openrouter';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';

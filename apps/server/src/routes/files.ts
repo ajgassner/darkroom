@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { OUT_DIR, WEB_DIST_DIR } from '@darkroom/core/config';
-import { stripMetadata } from '@darkroom/core/strip';
+import { stripMetadata } from '@darkroom/core/image/strip';
 import fastifyStatic from '@fastify/static';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';

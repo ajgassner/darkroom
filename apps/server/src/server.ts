@@ -1,7 +1,7 @@
 // Entry point: local HTTP API and web UI on 127.0.0.1 only.
-import { retryMissingCosts } from '@darkroom/core/audio-run';
+import { retryMissingCosts } from '@darkroom/core/audio/audio-run';
 import { ENV_FILE, hasApiKey, PORT } from '@darkroom/core/config';
-import { checkForUpdate } from '@darkroom/core/update-check';
+import { checkForUpdate } from '@darkroom/core/system/update-check';
 import { buildApp } from './app.ts';
 import { listenErrorMessage, signalHandler } from './lifecycle.ts';
 

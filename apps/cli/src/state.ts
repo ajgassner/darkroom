@@ -2,7 +2,7 @@
 // (outside out/, so the server never serves it). Prompts and texts are not stored.
 import path from 'node:path';
 import { type PrivacyMode, parsePrivacy, ROOT } from '@darkroom/core/config';
-import { readJsonObject, writeJsonAtomic } from '@darkroom/core/json-file';
+import { readJsonObject, writeJsonAtomic } from '@darkroom/core/storage/json-file';
 import type { ImageRun, MusicRun, SpeechRun } from './command-line.ts';
 
 export interface CliState {
