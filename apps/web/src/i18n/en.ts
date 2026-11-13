@@ -118,7 +118,7 @@ export const en = {
   },
   uploads: {
     title: 'Previous uploads',
-    hint: 'Images you added as additional references. Pick one to use it again. An upload is removed together with the last run that used it.',
+    hint: 'Images you added as additional references. Pick one to use it again. You can delete an upload once no run uses it anymore.',
     empty:
       'No uploads yet. Images you drop or paste under “Additional references” show up here once you generate with them.',
     failed: 'The uploads could not be loaded.',
@@ -130,8 +130,8 @@ export const en = {
     picked: 'Added',
     delete: 'Delete upload',
     confirm: 'Delete this upload?',
-    confirmUsed_one: 'It is used in {{count}} run, which keeps its result but loses this reference.',
-    confirmUsed_other: 'It is used in {{count}} runs, which keep their results but lose this reference.',
+    deleteLocked_one: 'Used in {{count}} run: delete that run first',
+    deleteLocked_other: 'Used in {{count}} runs: delete those runs first',
     done: 'Done',
   },
   notes: {
@@ -519,6 +519,7 @@ export const en = {
     element_no_photos: 'Element “@{{name}}” has no photos yet',
     voice_not_found: 'Voice “{{name}}” no longer exists',
     upload_not_found: 'The upload {{name}} no longer exists',
+    upload_in_use: 'This upload is still used in {{count}} run(s): delete those runs first',
     invalid_upload: 'Invalid upload name “{{name}}”',
     voice_config_invalid: 'voices/{{name}}/voice.json is damaged and was left unchanged. Fix or delete it.',
     element_config_invalid: 'refs/{{name}}/element.json is damaged and was left unchanged. Fix or delete it.',

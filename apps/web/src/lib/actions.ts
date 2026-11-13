@@ -181,9 +181,9 @@ export async function deleteEntries(
 ): Promise<boolean> {
   if (confirmText && !window.confirm(confirmText)) return false;
   try {
-    const r = await api<{ entries: number; files: string[]; uploads?: string[] }>('/api/delete', { body });
+    const r = await api<{ entries: number; files: string[] }>('/api/delete', { body });
     // Results and uploads that went with them can no longer be sent as references
-    useUi.setState((s) => ({ extraRefs: withoutOutRefs(s.extraRefs, [...r.files, ...(r.uploads ?? [])]) }));
+    useUi.setState((s) => ({ extraRefs: withoutOutRefs(s.extraRefs, r.files) }));
     await refreshHistory();
     toast.success(r.files.length ? t('toast.deleted', { count: r.files.length }) : t('toast.removed'));
     return true;

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { OUT_DIR, UPLOADS_DIR } from '../config.ts';
 import type { ManifestEntry } from '../contract.ts';
-import { deleteUpload, entryUploads, existingUpload, listUploads, removeUploads } from './uploads.ts';
+import { deleteUpload, entryUploads, existingUpload, listUploads } from './uploads.ts';
 
 const A = '0123456789abcdef.jpg';
 const B = 'fedcba9876543210.jpg';
@@ -50,13 +50,16 @@ describe('uploads', () => {
   it('deletes only valid upload names inside the uploads folder', async () => {
     await fs.writeFile(path.join(OUT_DIR, 'keep.jpg'), 'x');
     for (const name of ['../keep.jpg', 'keep.jpg', '..', `${A}/../../keep.jpg`, 'ABCDEF0123456789.jpg']) {
-      await expect(deleteUpload(name)).rejects.toMatchObject({ code: 'invalid_upload' });
+      await expect(deleteUpload(name, [])).rejects.toMatchObject({ code: 'invalid_upload' });
     }
     await expect(existingUpload('aaaaaaaaaaaaaaaa.jpg')).rejects.toMatchObject({ code: 'upload_not_found' });
-    await expect(deleteUpload('1111111111111111.jpg')).rejects.toMatchObject({ code: 'upload_not_found' });
-    await deleteUpload(A);
+    await expect(deleteUpload('1111111111111111.jpg', [])).rejects.toMatchObject({ code: 'upload_not_found' });
+    // A run still uses B (deleted entries do not count): it stays
+    const entries = [entry('r1', [`uploads/${B}`]), entry('r2', [`uploads/${A}`], 'earlier')];
+    await expect(deleteUpload(B, entries)).rejects.toMatchObject({ code: 'upload_in_use', params: { count: 1 } });
+    await deleteUpload(A, entries);
     await expect(fs.stat(path.join(UPLOADS_DIR, A))).rejects.toThrow();
-    expect(await removeUploads([B, '../keep.jpg', A])).toEqual([`uploads/${B}`]);
+    expect(await fs.stat(path.join(UPLOADS_DIR, B))).toBeTruthy();
     expect(await fs.readFile(path.join(OUT_DIR, 'keep.jpg'), 'utf8')).toBe('x');
   });
 });

@@ -12,7 +12,6 @@ import {
   readEntries,
   removeFiles,
   unusedDebugIds,
-  unusedUploads,
   updateEntry,
 } from './manifest.ts';
 
@@ -228,18 +227,5 @@ describe('manifest', () => {
     const second = await markDeleted((e) => e.id === 's2');
     expect(await unusedDebugIds(second)).toEqual(['dbg-shared']);
     expect(await unusedDebugIds([])).toEqual([]);
-  });
-
-  it('finds uploads that only the deleted entries used', () => {
-    const a = 'uploads/0123456789abcdef.jpg';
-    const b = 'uploads/fedcba9876543210.jpg';
-    const deleted = [
-      entry({ id: 'd1', deleted: 'now', extraRefs: [a, b, 'result.png', 'uploads/../manifest.jsonl'] }),
-      entry({ id: 'd2', deleted: 'now', extraRefs: [b] }),
-    ];
-    const remaining = [entry({ id: 'r', extraRefs: [b] }), entry({ id: 'old', deleted: 'earlier', extraRefs: [a] })];
-    expect(unusedUploads(deleted, [...deleted, ...remaining])).toEqual(['0123456789abcdef.jpg']);
-    expect(unusedUploads(deleted, deleted).sort()).toEqual(['0123456789abcdef.jpg', 'fedcba9876543210.jpg']);
-    expect(unusedUploads([entry({ extraRefs: ['a.png'] })], [])).toEqual([]);
   });
 });
