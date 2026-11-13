@@ -1,10 +1,9 @@
 import { type ReactNode, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/misc';
-import { errorMessage } from '@/lib/actions';
+import { toastError } from '@/lib/actions';
 import { newItem } from '@/lib/names';
 import { cn } from '@/lib/utils';
 
@@ -103,7 +102,7 @@ function CreateForm({
       await onCreate(item.name, item.label);
       setValue('');
     } catch (err) {
-      toast.error(errorMessage(err));
+      toastError(err);
     }
   };
 

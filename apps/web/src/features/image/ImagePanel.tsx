@@ -1,12 +1,20 @@
 import type { TFunction } from 'i18next';
 import { XIcon } from 'lucide-react';
-import { useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Checkbox, SectionTitle, Tooltip } from '@/components/ui/misc';
+import { Checkbox, InfoTip, SectionTitle, Tooltip } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
 import { addExtraFiles } from '@/lib/actions';
 import { outUrl } from '@/lib/api';
+import {
+  chipState,
+  fallbackText,
+  imageCapabilities,
+  type ParamKey,
+  type ValueSupport,
+  valueSupport,
+} from '@/lib/capabilities';
 import { usd } from '@/lib/format';
 import { promptMentions } from '@/lib/mentions';
 import {
@@ -22,12 +30,11 @@ import {
   shortList,
   sortModels,
 } from '@/lib/models';
-import { imageNotes } from '@/lib/notes';
 import { estimateImagePrice, historyAvg, type UnitPrice, unitPrice } from '@/lib/pricing';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { ImageModel } from '@/lib/types';
 import { FavoriteStar, ModelRow, ModelTitle } from '../ModelMarks';
-import { Chip, DropZone, ElementThumb, NotesSection } from '../shared';
+import { Chip, DropZone, ElementThumb, PanelNotes } from '../shared';
 import { useModelName } from '../useModelName';
 import { ZdrTag } from '../ZdrTag';
 
@@ -38,7 +45,7 @@ export function ImagePanel() {
       <ModelSection />
       <ParamSections />
       <ExtraRefsSection />
-      <ImageNotes />
+      <PanelNotes />
     </div>
   );
 }
@@ -140,6 +147,36 @@ function PriceLine({ m }: { m: ImageModel }) {
   );
 }
 
+/** "1K–4K · 5 ratios · max 8 refs · PNG/JPEG"; the ratio count opens the full list (hover, focus or tap). */
+function CapabilityLine({ m }: { m: ImageModel }) {
+  const { t } = useTranslation();
+  const caps = imageCapabilities(m);
+  const parts: { key: string; node: ReactNode }[] = [];
+  if (caps.sizes) parts.push({ key: 'sizes', node: caps.sizes });
+  if (caps.aspects.length) {
+    parts.push({
+      key: 'aspects',
+      node: (
+        <InfoTip content={t('models.aspectsHint', { list: caps.aspects.join(', ') })}>
+          {t('models.aspects', { count: caps.aspects.length })}
+        </InfoTip>
+      ),
+    });
+  }
+  parts.push({ key: 'refs', node: t('models.maxRefs', { count: caps.refs }) });
+  if (caps.formats.length) parts.push({ key: 'formats', node: caps.formats.join('/') });
+  return (
+    <div className="mt-px text-[11px] leading-[1.35] text-muted">
+      {parts.map((p, i) => (
+        <span key={p.key} className="whitespace-nowrap">
+          {i > 0 && ' · '}
+          {p.node}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function ModelSection() {
   const { t } = useTranslation();
   const models = useData((s) => s.models);
@@ -180,7 +217,7 @@ function ModelSection() {
               blocked={!allowed}
               favorite={<FavoriteStar kind="image" id={m.id} favorite={m.favorite} />}
             >
-              <Tooltip content={allowed ? m.id : t('models.blocked', { id: m.id })}>
+              <Tooltip content={allowed ? undefined : t('models.blocked', { id: m.id })}>
                 <label
                   htmlFor={`model-${m.id}`}
                   className="grid min-w-0 flex-1 cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 py-1.5 pl-2"
@@ -193,9 +230,8 @@ function ModelSection() {
                   />
                   <div className="min-w-0">
                     <ModelTitle name={name(m.id)} created={m.created} />
-                    <div className="mt-px text-[11px] leading-[1.35] text-muted [overflow-wrap:anywhere]">
-                      {m.id} · {t('models.maxRefs', { count: maxRefs(m) })}
-                    </div>
+                    <div className="mt-px text-[11px] leading-[1.35] text-muted [overflow-wrap:anywhere]">{m.id}</div>
+                    <CapabilityLine m={m} />
                     <PriceLine m={m} />
                   </div>
                   <ZdrTag zdr={m.zdr} />
@@ -220,122 +256,123 @@ function ParamSections() {
   const { t } = useTranslation();
   const s = useSettings();
   const models = useData((d) => d.models);
+  const name = useModelName();
   const selected = models.filter((m) => s.models.includes(m.id));
+  const autoLabel = (v: string) => v || t('params.auto');
+  const groups: ChipGroup[] = [
+    {
+      key: 'aspect_ratio',
+      title: t('params.aspect'),
+      values: ASPECTS,
+      current: s.aspect,
+      label: (v) => v,
+      render: (v) => (
+        <>
+          <AspectIcon value={v} />
+          {v}
+        </>
+      ),
+      chipClassName: 'flex h-14 min-w-[52px] flex-col items-center justify-end gap-1',
+      alwaysSelectable: true,
+      onPick: (v) => s.set({ aspect: v }),
+    },
+    {
+      key: 'resolution',
+      title: t('params.size'),
+      values: SIZES,
+      current: s.size,
+      label: autoLabel,
+      onPick: (v) => s.set({ size: v }),
+    },
+  ];
+  if (selected.some((m) => enumVals(m, 'quality'))) {
+    groups.push({
+      key: 'quality',
+      title: t('params.quality'),
+      values: QUALITIES,
+      current: s.quality,
+      label: (v) => (v ? t(`params.${v as 'low' | 'medium' | 'high'}`) : t('params.auto')),
+      onPick: (v) => s.set({ quality: v }),
+    });
+  }
+  groups.push({
+    key: 'output_format',
+    title: t('params.format'),
+    values: FORMATS,
+    current: s.format,
+    label: (v) => (v ? v.toUpperCase() : t('params.auto')),
+    onPick: (v) => s.set({ format: v }),
+  });
 
-  const support = (key: string) => (v: string | number) => {
-    if (v === '' || !selected.length) return 'all';
-    const n = selected.filter((m) => enumVals(m, key)?.includes(String(v))).length;
-    return n === selected.length ? 'all' : n === 0 ? 'none' : 'partial';
-  };
-  const aspectSupport = support('aspect_ratio');
-  const sizeSupport = support('resolution');
-  const qualitySupport = support('quality');
-  const formatSupport = support('output_format');
-  const anyQuality = selected.some((m) => enumVals(m, 'quality'));
-  const hint = (st: string) =>
-    st === 'partial' ? t('params.partial') : st === 'none' ? t('params.unsupported') : undefined;
-
+  const rows = groups.map((g) => ({ g, supports: g.values.map((v) => valueSupport(selected, g.key, v, name)) }));
+  const anyPartial = rows.some(({ g, supports }) =>
+    supports.some((sup, i) => chipState(sup, g.values[i] === g.current, g.alwaysSelectable).partial),
+  );
   return (
     <>
+      {rows.map(({ g, supports }) => (
+        <ParamGroup key={g.key} group={g} supports={supports} />
+      ))}
       <section>
-        <SectionTitle>{t('params.aspect')}</SectionTitle>
+        <SectionTitle>{t('params.count')}</SectionTitle>
         <div className="flex flex-wrap gap-1.5">
-          {ASPECTS.map((a) => {
-            // Aspect ratios are always adjusted to the nearest supported one, so "none" is shown as "partial"
-            const st = aspectSupport(a) === 'none' ? 'partial' : aspectSupport(a);
-            return (
-              <Chip
-                key={a}
-                active={s.aspect === a}
-                partial={st === 'partial'}
-                title={hint(st)}
-                onClick={() => s.set({ aspect: a })}
-                className="flex h-14 min-w-[52px] flex-col items-center justify-end gap-1"
-              >
-                <AspectIcon value={a} />
-                {a}
-              </Chip>
-            );
-          })}
+          {COUNTS.map((n) => (
+            <Chip key={n} active={s.count === n} onClick={() => s.set({ count: n })}>
+              {String(n)}
+            </Chip>
+          ))}
         </div>
+        {anyPartial && <p className="mt-2.5 text-[11px] leading-[1.4] text-muted">{t('params.legend')}</p>}
       </section>
-      <ChipSection
-        title={t('params.size')}
-        values={SIZES}
-        current={s.size}
-        label={(v) => v || t('params.auto')}
-        support={sizeSupport}
-        hint={hint}
-        onPick={(v) => s.set({ size: String(v) })}
-      />
-      {anyQuality && (
-        <ChipSection
-          title={t('params.quality')}
-          values={QUALITIES}
-          current={s.quality}
-          label={(v) => (v ? t(`params.${v as 'low' | 'medium' | 'high'}`) : t('params.auto'))}
-          support={qualitySupport}
-          hint={hint}
-          onPick={(v) => s.set({ quality: String(v) })}
-        />
-      )}
-      <ChipSection
-        title={t('params.format')}
-        values={FORMATS}
-        current={s.format}
-        label={(v) => (v ? String(v).toUpperCase() : t('params.auto'))}
-        support={formatSupport}
-        hint={hint}
-        onPick={(v) => s.set({ format: String(v) })}
-      />
-      <ChipSection
-        title={t('params.count')}
-        values={COUNTS}
-        current={s.count}
-        label={(v) => String(v)}
-        onPick={(v) => s.set({ count: Number(v) })}
-      />
     </>
   );
 }
 
-function ChipSection<V extends string | number>({
-  title,
-  values,
-  current,
-  label,
-  support,
-  hint,
-  onPick,
-}: {
+interface ChipGroup {
+  key: ParamKey;
   title: string;
-  values: V[];
-  current: V;
-  label: (v: V) => string;
-  support?: (v: V) => string;
-  hint?: (st: string) => string | undefined;
-  onPick: (v: V) => void;
-}) {
+  values: string[];
+  current: string;
+  /** Text of a value (also used in the hints). */
+  label: (v: string) => string;
+  /** Chip content, if it is more than the label. */
+  render?: (v: string) => ReactNode;
+  chipClassName?: string;
+  alwaysSelectable?: boolean;
+  onPick: (v: string) => void;
+}
+
+/**
+ * Chips of one parameter. A ≈ chip names the models that can't take the value in its tooltip; for the current value
+ * the same text stays visible below the chips (touch screens have no tooltips).
+ */
+function ParamGroup({ group: g, supports }: { group: ChipGroup; supports: ValueSupport[] }) {
+  const { t } = useTranslation();
+  const hint = (i: number) => fallbackText(t, g.key, g.label(g.values[i]), supports[i].fallbacks);
+  const currentIndex = g.values.indexOf(g.current);
+  const currentHint = currentIndex >= 0 ? hint(currentIndex) : '';
   return (
     <section>
-      <SectionTitle>{title}</SectionTitle>
+      <SectionTitle>{g.title}</SectionTitle>
       <div className="flex flex-wrap gap-1.5">
-        {values.map((v) => {
-          const st = support ? support(v) : 'all';
+        {g.values.map((v, i) => {
+          const st = chipState(supports[i], v === g.current, g.alwaysSelectable);
           return (
             <Chip
-              key={String(v)}
-              active={v === current}
-              partial={st === 'partial'}
-              disabled={st === 'none' && v !== current}
-              title={hint?.(st)}
-              onClick={() => onPick(v)}
+              key={v}
+              active={v === g.current}
+              partial={st.partial}
+              disabled={st.disabled}
+              title={hint(i) || undefined}
+              onClick={() => g.onPick(v)}
+              className={g.chipClassName}
             >
-              {label(v)}
+              {g.render ? g.render(v) : g.label(v)}
             </Chip>
           );
         })}
       </div>
+      {currentHint && <p className="mt-1.5 text-[11px] leading-[1.4] text-warn">≈ {currentHint}</p>}
     </section>
   );
 }
@@ -376,14 +413,4 @@ function ExtraRefsSection() {
       )}
     </section>
   );
-}
-
-function ImageNotes() {
-  const settings = useSettings();
-  const { models, elements, status } = useData();
-  const prompt = useUi((u) => u.prompt);
-  const extraRefCount = useUi((u) => u.extraRefs.length);
-  const modelName = useModelName();
-  const notes = imageNotes({ status, settings, models, elements, prompt, extraRefCount, modelName });
-  return <NotesSection notes={notes} />;
 }

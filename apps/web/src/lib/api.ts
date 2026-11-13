@@ -24,6 +24,11 @@ function unreachable(): ApiError {
   );
 }
 
+/** Toast id for an error: "not reachable" errors share one, so several calls failing together show a single toast. */
+export function errorToastId(err: unknown): string | undefined {
+  return (err as { code?: unknown } | null)?.code === 'server_unreachable' ? 'server_unreachable' : undefined;
+}
+
 /** Run a network step; a TypeError (no connection) becomes the coded server_unreachable error. */
 async function network<T>(step: () => Promise<T>): Promise<T> {
   try {

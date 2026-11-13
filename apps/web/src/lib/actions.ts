@@ -1,6 +1,6 @@
 import { toast } from 'sonner';
 import i18n from '@/i18n';
-import { api, readAsDataUrl } from './api';
+import { api, errorToastId, readAsDataUrl } from './api';
 import { num } from './format';
 import { transcribeBlockedText } from './labels';
 import { elementOnLoad, existingElement } from './mentions';
@@ -32,6 +32,17 @@ export function errorMessage(err: unknown): string {
   const { code, params } = (err ?? {}) as { code?: unknown; params?: Record<string, unknown> };
   if (typeof code === 'string' && i18n.exists(`error.${code}`)) return tDynamic(`error.${code}`, params);
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Error toast. "darkroom is not reachable" gets a fixed id, so it shows once when several calls fail together, and
+ * comes without the context (which only says which call failed).
+ */
+export function toastError(err: unknown, withContext: (message: string) => string = (m) => m) {
+  const id = errorToastId(err);
+  const message = errorMessage(err);
+  if (id) toast.error(message, { id });
+  else toast.error(withContext(message));
 }
 
 /** Translate a key that is only known at runtime (server codes); typed keys use `t` directly. */
@@ -136,7 +147,7 @@ async function loadAudioData() {
     ]);
     useData.setState({ speechModels, musicModels, voices });
   } catch (err) {
-    toast.error(t('toast.audioModelsFailed', { error: errorMessage(err) }));
+    toastError(err, (error) => t('toast.audioModelsFailed', { error }));
   }
 }
 
@@ -155,7 +166,7 @@ export async function toggleFavorite(kind: ModelKind, id: string, favorite: bool
     await api<Favorites>('/api/favorites', { body: { kind, model: id, favorite } });
   } catch (err) {
     markFavorite(kind, id, !favorite);
-    toast.error(t('toast.favoriteFailed', { error: errorMessage(err) }));
+    toastError(err, (error) => t('toast.favoriteFailed', { error }));
   }
 }
 
@@ -175,7 +186,7 @@ export async function deleteEntries(
     toast.success(r.files.length ? t('toast.deleted', { count: r.files.length }) : t('toast.removed'));
     return true;
   } catch (err) {
-    toast.error(errorMessage(err));
+    toastError(err);
     return false;
   }
 }
@@ -216,7 +227,7 @@ export async function importImages(files: File[]) {
     try {
       last = await api<ManifestEntry>('/api/import', { body: { filename: f.name, dataUrl: await readAsDataUrl(f) } });
     } catch (err) {
-      toast.error(`${f.name}: ${errorMessage(err)}`);
+      toastError(err, (m) => `${f.name}: ${m}`);
     }
   }
   if (!last) return;
@@ -237,7 +248,7 @@ export async function uploadPhotos(name: string, files: File[]) {
       });
       n++;
     } catch (err) {
-      toast.error(`${f.name}: ${errorMessage(err)}`);
+      toastError(err, (m) => `${f.name}: ${m}`);
     }
   }
   await reloadElements();
@@ -253,10 +264,10 @@ export async function deleteElement(el: ElementInfo) {
     toast.success(t('toast.elementDeleted', { label: el.label }));
     useUi.setState({ editingElement: selectionAfterDelete(names, el.name) });
   } catch (err) {
-    toast.error(errorMessage(err));
+    toastError(err);
   }
   // Also clears the element selection if it pointed to the deleted element
-  await reloadElements().catch((err: unknown) => toast.error(errorMessage(err)));
+  await reloadElements().catch(toastError);
 }
 
 // ---------------------------------------------------------------- Voices
@@ -273,9 +284,9 @@ export async function deleteVoice(v: VoiceInfo) {
     const voice = voiceAfterDelete(s.voice, v.name);
     if (voice !== s.voice) s.set({ voice });
   } catch (err) {
-    toast.error(errorMessage(err));
+    toastError(err);
   }
-  await reloadVoices().catch((err: unknown) => toast.error(errorMessage(err)));
+  await reloadVoices().catch(toastError);
 }
 
 export async function transcribe(name: string, file: string) {
@@ -293,10 +304,10 @@ export async function transcribe(name: string, file: string) {
     // A privacy-blocked API transcription points to the local engine (one toast for several blocked samples)
     const blocked = transcribeBlockedText(t, err, engine, settings.privacy);
     if (blocked) toast.error(blocked, { id: 'transcribe-blocked' });
-    else toast.error(errorMessage(err));
+    else toastError(err);
   } finally {
     useUi.setState((s) => ({ transcribing: s.transcribing.filter((k) => k !== key) }));
-    await reloadVoices().catch((err: unknown) => toast.error(errorMessage(err)));
+    await reloadVoices().catch(toastError);
   }
 }
 
@@ -312,7 +323,7 @@ async function uploadSample(name: string, f: File): Promise<string | null> {
     else if (seconds < 5) toast.warning(t('toast.sampleShort', { name: f.name, sec: num(seconds, 1) }));
     return r.file;
   } catch (err) {
-    toast.error(`${label}: ${errorMessage(err)}`);
+    toastError(err, (m) => `${label}: ${m}`);
     return null;
   }
 }

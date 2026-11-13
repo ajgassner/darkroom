@@ -8,6 +8,7 @@ import {
   addSample,
   deleteSample,
   deleteVoice,
+  existingVoice,
   getVoice,
   listVoices,
   samplePath,
@@ -31,8 +32,13 @@ export async function voiceRoutes(fastify: FastifyInstance) {
     '/api/voices',
     { schema: { body: z.object({ name: z.string(), label: z.string().optional() }) } },
     async (req) => {
-      if (!validName(req.body.name)) throw invalidName(req.body.name);
-      return saveVoice(req.body.name, { label: req.body.label || req.body.name });
+      const { name: n, label } = req.body;
+      if (!validName(n)) throw invalidName(n);
+      // Creating never overwrites: an existing folder (also one differing only in case) is refused
+      const taken = await existingVoice(n);
+      if (taken)
+        throw new HttpError(409, 'voice_exists', `Voice "${taken}" already exists (voices/${taken}/)`, { name: taken });
+      return saveVoice(n, { label: label || n });
     },
   );
 

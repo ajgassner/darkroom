@@ -5,7 +5,8 @@ export const SIZES = ['', '512', '1K', '2K', '4K'];
 export const QUALITIES = ['', 'low', 'medium', 'high'];
 export const FORMATS = ['', 'png', 'jpeg', 'webp'];
 export const COUNTS = [1, 2, 3, 4, 6, 8];
-const RES_ORDER = ['512', '768', '1K', '1.5K', '2K', '4K'];
+/** Image sizes from small to large (the order nearestSize measures distances in). */
+export const RES_ORDER = ['512', '768', '1K', '1.5K', '2K', '4K'];
 
 export function enumVals(
   m: { supported_parameters?: Record<string, ParamSpec> } | undefined,

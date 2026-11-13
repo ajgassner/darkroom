@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
-import { deleteElement, errorMessage, reloadElements, uploadPhotos } from '@/lib/actions';
+import { deleteElement, reloadElements, toastError, uploadPhotos } from '@/lib/actions';
 import { api } from '@/lib/api';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { ElementInfo, ElementType } from '@/lib/types';
@@ -85,7 +85,7 @@ function ElementEditor({ el }: { el: ElementInfo }) {
       await reloadElements();
       toast.success(t('toast.saved'));
     } catch (err) {
-      toast.error(errorMessage(err));
+      toastError(err);
     }
   };
 
@@ -95,7 +95,7 @@ function ElementEditor({ el }: { el: ElementInfo }) {
       await api(`/api/elements/${encodeURIComponent(el.name)}/photos/${encodeURIComponent(f)}`, { method: 'DELETE' });
       await reloadElements();
     } catch (err) {
-      toast.error(errorMessage(err));
+      toastError(err);
     }
   };
 

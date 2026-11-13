@@ -6,7 +6,7 @@ import type { VoiceInfo } from './contract.ts';
 import { AppError } from './errors.ts';
 import { safeBaseName } from './files.ts';
 import { readJsonObject, serialized, writeJsonAtomic } from './json-file.ts';
-import { removeNamedDir, validName } from './refs.ts';
+import { existingFolder, removeNamedDir, validName } from './refs.ts';
 import { parseWav, pcmToWav, type WavInfo } from './wav.ts';
 
 export type { VoiceInfo };
@@ -94,6 +94,11 @@ export async function saveVoice(
     });
   });
   return getVoice(name);
+}
+
+/** Folder name of the voice called `name` (ignoring case), or null if there is none. */
+export function existingVoice(name: string): Promise<string | null> {
+  return existingFolder(VOICES_DIR, name);
 }
 
 /** Deletes an own voice: voices/<name>/ with its samples and voice.json. */

@@ -85,6 +85,9 @@ export const de: Bundle<typeof en> = {
     favoriteAdd: 'Zu Favoriten hinzufügen',
     favoriteRemove: 'Aus Favoriten entfernen',
     maxRefs: 'max {{count}} Refs',
+    aspects_one: '{{count}} Verhältnis',
+    aspects_other: '{{count}} Verhältnisse',
+    aspectsHint: 'Seitenverhältnisse: {{list}}',
     blocked: '{{id}}: im aktuellen Datenschutz-Modus nicht verfügbar',
     estimate: '≈ {{price}}/Bild',
     history: 'Ø {{price}} bei dir ({{count}})',
@@ -105,8 +108,13 @@ export const de: Bundle<typeof en> = {
     low: 'niedrig',
     medium: 'mittel',
     high: 'hoch',
-    partial: 'Nicht von allen gewählten Modellen unterstützt, wird dort angepasst',
-    unsupported: 'Von keinem gewählten Modell unterstützt',
+    uses: '{{model}} nutzt {{value}}',
+    ignoresAspect: '{{model}} ignoriert das Seitenverhältnis',
+    ignoresSize: '{{model}} ignoriert die Größe',
+    ignoresQuality: '{{model}} ignoriert die Qualität',
+    ignoresFormat: '{{model}} liefert sein Standardformat',
+    legend:
+      '≈ nicht von allen gewählten Modellen unterstützt – sie nutzen den nächstliegenden Wert oder ihren Standard',
   },
   refs: {
     title: 'Zusätzliche Referenzen',
@@ -125,6 +133,7 @@ export const de: Bundle<typeof en> = {
     refsOver:
       '{{model}}: max. {{max}} Referenzen. {{count}} Bild(er) werden weggelassen, verteilt auf die Elemente (jedes behält mindestens eines).',
     aspectAdjusted: '{{model}}: {{from}} → {{to}}',
+    aspectUnsupported: '{{model}}: Seitenverhältnis nicht wählbar, Modell nutzt sein Standardformat.',
     sizeUnsupported: '{{model}}: Größe nicht wählbar, Modell nutzt Standardgröße.',
     sizeAdjusted: '{{model}}: Größe {{from}} → {{to}}',
     formatUnsupported: '{{model}}: Dateiformat nicht wählbar, liefert Standardformat.',
@@ -191,9 +200,10 @@ export const de: Bundle<typeof en> = {
     langsInclDe: 'inkl. Deutsch',
     clone: 'Klon',
     cloneHint: 'Kann eigene Stimmen klonen',
+    followsInstructions: 'folgt Anweisungen',
     pricePerChars: '{{value}}/1.000 Zeichen',
     pricePerUnit: '{{value}} pro Einheit',
-    priceNa: 'Preis n/a',
+    priceNa: 'Preis unbekannt',
   },
   gallery: {
     empty: 'Noch keine Bilder. Element anlegen, Modell wählen, Prompt eingeben.',
@@ -434,7 +444,8 @@ export const de: Bundle<typeof en> = {
   },
   newItem: {
     folder: 'Ordner: {{path}}',
-    empty: 'Der Name braucht mindestens einen Buchstaben oder eine Ziffer.',
+    empty:
+      'Ordnernamen nutzen nur lateinische Buchstaben und Ziffern. Namen in anderer Schrift (z. B. Kyrillisch, Chinesisch) bitte lateinisch schreiben.',
     taken: '{{path}} gibt es schon. Wähle einen anderen Namen.',
   },
   layout: {
@@ -490,6 +501,8 @@ export const de: Bundle<typeof en> = {
     no_model: 'Kein Modell ausgewählt',
     prompt_missing: 'Der Prompt fehlt',
     text_missing: 'Der Text fehlt',
+    element_exists: 'Ein Element „@{{name}}“ gibt es schon. Wähle einen anderen Namen.',
+    voice_exists: 'Eine Stimme „{{name}}“ gibt es schon. Wähle einen anderen Namen.',
     element_not_found: 'Element „@{{name}}“ gibt es nicht mehr',
     element_no_photos: 'Element „@{{name}}“ hat noch keine Fotos',
     voice_not_found: 'Stimme „{{name}}“ gibt es nicht mehr',

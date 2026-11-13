@@ -11,6 +11,7 @@ import {
   deletePhoto,
   elementReferences,
   encodeImage,
+  existingElement,
   findMentions,
   getElement,
   isTemplate,
@@ -147,6 +148,18 @@ describe('element storage', () => {
 
   it.each(['../element.json', 'a/b.jpg', '.hidden.jpg', 'notes.txt'])('rejects photo path %j', (file) => {
     expect(() => photoPath('photos', file)).toThrow();
+  });
+});
+
+describe('existingElement', () => {
+  it('finds an element folder ignoring case', async () => {
+    await saveElement('Mixed_Case', { label: 'Mixed' });
+    expect(await existingElement('mixed_case')).toBe('Mixed_Case');
+    expect(await existingElement('MIXED_CASE')).toBe('Mixed_Case');
+    expect(await existingElement('other')).toBeNull();
+    // Files are not elements
+    await fs.writeFile(path.join(REFS_DIR, 'notes.txt'), 'x');
+    expect(await existingElement('notes.txt')).toBeNull();
   });
 });
 

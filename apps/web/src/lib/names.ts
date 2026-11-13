@@ -1,16 +1,30 @@
 // Folder names of new elements and voices, derived from the display name the user types.
 
-const SPELLED_OUT: Record<string, string> = { ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss' };
+// Spelled out the usual way: German umlauts, and letters Unicode does not split into a base letter plus accent
+const SPELLED_OUT: Record<string, string> = {
+  ä: 'ae',
+  ö: 'oe',
+  ü: 'ue',
+  ß: 'ss',
+  æ: 'ae',
+  ø: 'oe',
+  œ: 'oe',
+  ł: 'l',
+  đ: 'd',
+  ð: 'd',
+  þ: 'th',
+};
 
 /**
- * Folder name for a display name: lowercase, umlauts spelled out (ä → ae, ß → ss), other accents dropped, every
- * other run of characters becomes one '-', no '-' at the ends, at most 64 characters. The result is either empty or
- * a name the server accepts (letters, digits, _ - and no leading dot) and that works as an @mention.
+ * Folder name for a display name: lowercase, umlauts and similar letters spelled out (ä → ae, ß → ss, ø → oe,
+ * þ → th), other accents dropped, every other run of characters becomes one '-', no '-' at the ends, at most 64
+ * characters. The result is either empty or a name the server accepts (letters, digits, _ - and no leading dot) and
+ * that works as an @mention. Names in other scripts (Cyrillic, CJK, …) give an empty result.
  */
 export function slugify(label: string): string {
   return label
     .toLowerCase()
-    .replace(/[äöüß]/g, (c) => SPELLED_OUT[c])
+    .replace(/[äöüßæøœłđðþ]/g, (c) => SPELLED_OUT[c])
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9_]+/g, '-')

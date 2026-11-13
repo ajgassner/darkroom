@@ -29,9 +29,12 @@ export function money(v: number, minDigits: number, maxDigits = minDigits, lang 
   }).format(v);
 }
 
-/** Cost of a result or run: 4 decimals below 10 cents, otherwise 3. */
+/** Placeholder for a missing value, the same dash as `common.none` in both languages. */
+const NONE = '–';
+
+/** Cost of a result or run: 4 decimals below 10 cents, otherwise 3; a missing cost is shown as the dash. */
 export function usd(v: number | null | undefined, lang = uiLang): string {
-  if (v === null || v === undefined) return 'n/a';
+  if (v === null || v === undefined) return NONE;
   return money(v, v < 0.1 ? 4 : 3, undefined, lang);
 }
 

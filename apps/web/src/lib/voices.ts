@@ -138,6 +138,13 @@ export function demoText(l: VoiceLang, uiLang: string): string {
 
 export const SPEEDS = [0.8, 0.9, 1, 1.1, 1.2];
 
+/** Providers whose speech models follow free-text instructions (the others ignore them). */
+const INSTRUCTION_PROVIDERS = /^(google|fish-audio|openai)\//;
+
+export function followsInstructions(modelId: string): boolean {
+  return INSTRUCTION_PROVIDERS.test(modelId);
+}
+
 /** Language codes of a model's voices (models without preset voices count as one voice). */
 export function speechLangs(m: SpeechModel): Set<string> {
   return new Set((m.voices.length ? m.voices : ['']).map((v) => voiceLang(m, v).code));

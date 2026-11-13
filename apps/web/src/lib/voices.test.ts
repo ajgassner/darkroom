@@ -3,6 +3,7 @@ import type { SpeechModel, VoiceInfo } from './types';
 import {
   demoText,
   fallbackVoice,
+  followsInstructions,
   langName,
   langRank,
   pricePerThousandChars,
@@ -72,6 +73,11 @@ describe('speech model summary', () => {
       value: '$0.02',
     });
     expect(speechPrice(model('x'))).toBeNull();
+  });
+
+  it('knows which providers follow instructions', () => {
+    expect(['google/gemini-tts', 'openai/gpt-4o-mini-tts', 'fish-audio/s1'].every(followsInstructions)).toBe(true);
+    expect(followsInstructions('elevenlabs/v3')).toBe(false);
   });
 });
 

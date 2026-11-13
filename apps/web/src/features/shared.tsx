@@ -7,6 +7,7 @@ import { fmtTime } from '@/lib/format';
 import type { Note, NoteKey } from '@/lib/notes';
 import type { ElementInfo } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { usePanelNotes } from './usePanelNotes';
 
 /** Compact audio player with play/pause, seek slider and time; only one plays at a time. */
 export function AudioPlayer({ src, className }: { src: string; className?: string }) {
@@ -142,7 +143,11 @@ export function Chip({
       )}
     >
       {children}
-      {partial && <span className="absolute -top-[7px] -right-1 text-[11px] text-warn">≈</span>}
+      {partial && (
+        <span aria-hidden className="absolute -top-[7px] -right-1 text-[11px] text-warn">
+          ≈
+        </span>
+      )}
     </button>
   );
   return title ? <Tooltip content={title}>{button}</Tooltip> : button;
@@ -217,22 +222,35 @@ export function DropZone({
 }
 
 /** "Notes" section of a side panel; renders nothing without notes. */
-export function NotesSection({ notes }: { notes: Note[] }) {
+function NotesSection({ notes }: { notes: Note[] }) {
   const { t } = useTranslation();
   if (!notes.length) return null;
+  return (
+    <section>
+      <SectionTitle>{t('notes.title')}</SectionTitle>
+      <NoteList notes={notes} />
+    </section>
+  );
+}
+
+/** Notes as a list, warnings and errors in their colors. */
+export function NoteList({ notes }: { notes: Note[] }) {
+  const { t } = useTranslation();
   // The key is typed, but i18next can't match params to a union of keys, so translate via a plain signature
   const translate = t as unknown as (key: `notes.${NoteKey}`, params?: Note['params']) => string;
   const items = notes.map((n) => ({ tone: n.tone, text: translate(`notes.${n.key}`, n.params) }));
   return (
-    <section>
-      <SectionTitle>{t('notes.title')}</SectionTitle>
-      <ul className="m-0 list-disc pl-[18px] text-xs text-muted">
-        {items.map((n) => (
-          <li key={n.text} className={cn(n.tone === 'warn' && 'text-warn', n.tone === 'err' && 'text-err')}>
-            {n.text}
-          </li>
-        ))}
-      </ul>
-    </section>
+    <ul className="m-0 list-disc pl-[18px] text-xs text-muted">
+      {items.map((n) => (
+        <li key={n.text} className={cn(n.tone === 'warn' && 'text-warn', n.tone === 'err' && 'text-err')}>
+          {n.text}
+        </li>
+      ))}
+    </ul>
   );
+}
+
+/** Notes section of the open side panel. */
+export function PanelNotes() {
+  return <NotesSection notes={usePanelNotes()} />;
 }
