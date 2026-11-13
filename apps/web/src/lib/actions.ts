@@ -18,7 +18,10 @@ import { MAX_SAMPLE_SEC, toWav } from './wav';
 
 const t = i18n.t.bind(i18n);
 
+/** Text of an error: translated when the server sent a known code, otherwise its message. */
 export function errorMessage(err: unknown): string {
+  const { code, params } = (err ?? {}) as { code?: unknown; params?: Record<string, unknown> };
+  if (typeof code === 'string' && i18n.exists(`error.${code}`)) return tDynamic(`error.${code}`, params);
   return err instanceof Error ? err.message : String(err);
 }
 
@@ -58,6 +61,12 @@ export async function reloadElements() {
 
 export async function reloadVoices() {
   useData.setState({ voices: await api<VoiceInfo[]>('/api/voices') });
+}
+
+/** Store the OpenRouter key entered on first start; the status then lets the app through. */
+export async function saveApiKey(key: string) {
+  await api<{ ok: true }>('/api/key', { body: { key } });
+  useData.setState({ status: await api<Status>('/api/status') });
 }
 
 const hadSettings = (() => {

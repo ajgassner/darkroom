@@ -68,14 +68,22 @@ try {
     Pop-Location
   }
 
-  # The command itself: runs the CLI with darkroom's own Node.js and your data folder
+  # The command itself: runs the CLI with darkroom's own Node.js and your data folder.
+  # "darkroom uninstall" is handled here, since it removes the app the CLI runs from:
+  # it drops the PATH entry, then deletes the install folder after the batch file has exited ((goto) trick).
   $binDir = Join-Path $InstallDir 'bin'
   New-Item -ItemType Directory -Force $binDir | Out-Null
   Set-Content -Encoding ASCII (Join-Path $binDir 'darkroom.cmd') @"
 @echo off
 setlocal
+if /i "%~1"=="uninstall" goto uninstall
 if not defined DARKROOM_HOME set "DARKROOM_HOME=$DataDir"
 "$nodeDir\node.exe" "$appDir\apps\cli\src\cli.ts" %*
+exit /b %errorlevel%
+:uninstall
+powershell -NoProfile -Command "`$p = [Environment]::GetEnvironmentVariable('Path', 'User'); [Environment]::SetEnvironmentVariable('Path', ((`$p -split ';') | Where-Object { `$_ -and `$_ -ne '$binDir' }) -join ';', 'User')"
+echo darkroom is uninstalled. Your data is still in $DataDir; delete that folder if you don't need it anymore.
+(goto) 2>nul & rmdir /s /q "$InstallDir"
 "@
 
   # Put the command on the user's PATH
@@ -104,6 +112,7 @@ if not defined DARKROOM_HOME set "DARKROOM_HOME=$DataDir"
   Write-Host 'Open a new terminal, then:'
   Write-Host '    darkroom start      web UI on http://localhost:5177'
   Write-Host '    darkroom --help     all commands'
+  Write-Host '    darkroom uninstall  remove darkroom (keeps your data)'
 } finally {
   Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 }

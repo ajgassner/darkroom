@@ -1,8 +1,10 @@
 // Status, model catalog, presets, history, deletion and debug records.
 import fs from 'node:fs/promises';
+import { saveApiKey } from '@darkroom/core/api-key';
 import {
   DEFAULT_MODEL,
   DEFAULT_PRIVACY,
+  ENV_FILE,
   hasApiKey,
   PRESETS_FILE,
   REF_MAX_SIDE,
@@ -27,6 +29,7 @@ export async function metaRoutes(fastify: FastifyInstance) {
     '/api/status',
     async (): Promise<StatusResponse> => ({
       hasKey: hasApiKey(),
+      envFile: ENV_FILE,
       defaultModel: DEFAULT_MODEL,
       defaultPrivacy: DEFAULT_PRIVACY,
       refMaxSide: REF_MAX_SIDE,
@@ -36,6 +39,12 @@ export async function metaRoutes(fastify: FastifyInstance) {
       costs: costSummary(await readEntries()),
     }),
   );
+
+  // First start without a key: the UI asks for it (the server only accepts local requests)
+  app.post('/api/key', { schema: { body: z.object({ key: z.string().max(500) }) } }, async (req) => {
+    await saveApiKey(req.body.key);
+    return { ok: true };
+  });
 
   app.get('/api/models', { schema: { querystring: z.object({ refresh: z.string().optional() }) } }, async (req) => {
     const [models, zdr, prices] = await Promise.all([

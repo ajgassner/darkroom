@@ -77,26 +77,43 @@ build_log=$(pnpm build 2>&1) || {
   fail "building the web UI failed"
 }
 
-# The command itself: runs the CLI with darkroom's own Node.js and your data folder
-mkdir -p "$INSTALL_DIR/bin"
-cat >"$INSTALL_DIR/bin/darkroom" <<EOF
-#!/bin/sh
-export DARKROOM_HOME="\${DARKROOM_HOME:-$DATA_DIR}"
-exec "$INSTALL_DIR/node/bin/node" "$INSTALL_DIR/app/apps/cli/src/cli.ts" "\$@"
-EOF
-chmod +x "$INSTALL_DIR/bin/darkroom"
-
-# Put the command on the PATH via the shell's startup file
+# Shell startup file that puts the command on the PATH
 path_line="export PATH=\"$INSTALL_DIR/bin:\$PATH\""
 case "$(basename "${SHELL:-}")" in
   zsh) rc="$HOME/.zshrc" ;;
   bash) if [ "$os" = darwin ]; then rc="$HOME/.bash_profile"; else rc="$HOME/.bashrc"; fi ;;
   *) rc="" ;;
 esac
-if [ -n "$rc" ]; then
-  if ! grep -qsF "$INSTALL_DIR/bin" "$rc"; then
-    printf '\n# darkroom\n%s\n' "$path_line" >>"$rc"
+
+# The command itself: runs the CLI with darkroom's own Node.js and your data folder.
+# "darkroom uninstall" is handled here, since it removes the app the CLI runs from.
+quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+mkdir -p "$INSTALL_DIR/bin"
+{
+  echo '#!/bin/sh'
+  echo "install_dir=$(quote "$INSTALL_DIR")"
+  echo "data_dir=$(quote "$DATA_DIR")"
+  echo "rc=$(quote "$rc")"
+  echo "path_line=$(quote "$path_line")"
+  cat <<'WRAPPER'
+if [ "$1" = uninstall ]; then
+  if [ -n "$rc" ] && [ -f "$rc" ]; then
+    # Rewrite in place, so a symlinked startup file stays a symlink
+    kept=$(grep -vxF -e '# darkroom' -e "$path_line" "$rc" || true)
+    printf '%s\n' "$kept" >"$rc"
   fi
+  rm -rf "$install_dir"
+  echo "darkroom is uninstalled. Your data is still in $data_dir; delete that folder if you don't need it anymore."
+  exit 0
+fi
+export DARKROOM_HOME="${DARKROOM_HOME:-$data_dir}"
+exec "$install_dir/node/bin/node" "$install_dir/app/apps/cli/src/cli.ts" "$@"
+WRAPPER
+} >"$INSTALL_DIR/bin/darkroom"
+chmod +x "$INSTALL_DIR/bin/darkroom"
+
+if [ -n "$rc" ] && ! grep -qsF "$INSTALL_DIR/bin" "$rc"; then
+  printf '\n# darkroom\n%s\n' "$path_line" >>"$rc"
 fi
 
 # OpenRouter API key, asked once (reads from the terminal even when piped from curl)
@@ -124,3 +141,4 @@ else
 fi
 echo "    darkroom start      web UI on http://localhost:5177"
 echo "    darkroom --help     all commands"
+echo "    darkroom uninstall  remove darkroom (keeps your data)"

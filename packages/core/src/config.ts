@@ -60,7 +60,7 @@ export function apiKey(): string {
   if (!k) {
     throw new AppError(
       'api_key_missing',
-      `OPENROUTER_API_KEY is missing. Add it to ${ENV_FILE} or set it as an environment variable.`,
+      `OPENROUTER_API_KEY is missing. Enter it in the web UI (darkroom start), add it to ${ENV_FILE} or set it as an environment variable.`,
     );
   }
   return k;

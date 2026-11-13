@@ -133,6 +133,7 @@ function music(): Reply {
 type Handler = (body: Record<string, unknown>) => Reply | Promise<Reply>;
 
 const GET: [RegExp, Handler][] = [
+  [/^\/key$/, () => json({ data: { label: 'mock' } })], // every key is valid
   [/^\/images\/models$/, () => json({ data: MODELS })],
   [/^\/endpoints\/zdr$/, () => json({ data: ZDR })],
   [

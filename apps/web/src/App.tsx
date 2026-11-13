@@ -7,28 +7,30 @@ import { DebugDialog } from '@/features/DebugDialog';
 import { ElementsDialog } from '@/features/ElementsDialog';
 import { Gallery } from '@/features/Gallery';
 import { ImagePanel } from '@/features/image/ImagePanel';
+import { KeySetup } from '@/features/KeySetup';
 import { Lightbox } from '@/features/Lightbox';
 import { LoadingScreen } from '@/features/LoadingScreen';
 import { PasteDialog, usePasteHandler } from '@/features/PasteDialog';
 import { Topbar } from '@/features/Topbar';
 import { VoicesDialog } from '@/features/VoicesDialog';
 import { loadAll } from '@/lib/actions';
-import { useSettings, useUi } from '@/lib/store';
+import { useData, useSettings, useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
 export function App() {
   const mode = useSettings((s) => s.mode);
   const ready = useUi((s) => s.load.state === 'ready');
+  const needsKey = useData((s) => s.status?.hasKey === false);
   const [dragOver, setDragOver] = useState(false);
   usePasteHandler();
   useEffect(() => {
     void loadAll();
   }, []);
 
-  if (!ready) {
+  if (!ready || needsKey) {
     return (
       <>
-        <LoadingScreen />
+        {ready ? <KeySetup /> : <LoadingScreen />}
         <AppToaster />
       </>
     );

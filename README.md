@@ -2,7 +2,7 @@
 
 **A private, local studio for AI photos of yourself, your voice and your music, powered by [OpenRouter](https://openrouter.ai).**
 
-Upload a few photos of a person, a logo or a product once, then generate realistic images with them across many models side by side. Edit results with AI and local tools, speak text in your own cloned voice and create music. Everything runs on your machine; you pay OpenRouter per use, no subscription.
+A self-hosted alternative to getimg.ai and similar subscription services. Upload a few photos of a person, a logo or a product once, then generate realistic images with them across many models side by side. Edit results with AI and local tools, speak text in your own cloned voice and create music. Everything runs on your machine; you pay OpenRouter per use, no subscription.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node.js 26+](https://img.shields.io/badge/node-%E2%89%A526-339933?logo=node.js&logoColor=white)
@@ -38,14 +38,15 @@ curl -fsSL https://raw.githubusercontent.com/ajgassner/darkroom/main/install.sh 
 irm https://raw.githubusercontent.com/ajgassner/darkroom/main/install.ps1 | iex
 ```
 
-The installer asks for your API key, puts darkroom into `~/.darkroom` and adds the `darkroom` command to your PATH. Your data (elements, voices, results and the key in `.env`) lives in `~/darkroom`. Open a new terminal, then:
+The installer asks for your API key (you can also enter it in the web UI on first start), puts darkroom into `~/.darkroom` and adds the `darkroom` command to your PATH. Your data (elements, voices, results and the key in `.env`) lives in `~/darkroom`. Open a new terminal, then:
 
 ```bash
 darkroom start      # web UI on http://localhost:5177, Ctrl+C stops it
 darkroom --help     # all commands
+darkroom uninstall  # remove darkroom; your data stays in ~/darkroom
 ```
 
-To update, run the install line again; your data stays untouched. To uninstall, delete `~/.darkroom` and remove the darkroom line from your shell's startup file (Windows: from your user PATH). `~/darkroom` holds your data; delete it only if you don't need it anymore.
+To update, run the install line again; your data stays untouched. `darkroom uninstall` removes the app and the PATH entry; `~/darkroom` holds your data, delete it only if you don't need it anymore.
 
 ### From source
 
@@ -56,9 +57,8 @@ git clone https://github.com/ajgassner/darkroom.git
 cd darkroom
 mise install                # Node 26 and corepack (pnpm); or install Node 26 yourself and run: corepack enable
 pnpm install
-cp .env.example .env        # add your OPENROUTER_API_KEY
 pnpm build                  # build the web UI
-pnpm start                  # open http://localhost:5177
+pnpm start                  # open http://localhost:5177 and enter your API key
 ```
 
 In a checkout, `pnpm cli <command>` runs the same commands as `darkroom <command>`, and the data lives in the checkout itself. Node runs the TypeScript backend and CLI directly; only the web UI is built. The server only listens on `127.0.0.1`.
@@ -213,4 +213,4 @@ darkroom makes it easy to create realistic images and voices of real people. Onl
 
 The optional local background removal uses [`@imgly/background-removal-node`](https://github.com/imgly/background-removal-js), which is licensed under **AGPL-3.0** and downloads a model of about 130 MB. If that license doesn't suit your use, remove it with `pnpm --filter @darkroom/core remove @imgly/background-removal-node`; all other features keep working.
 
-darkroom is not affiliated with OpenRouter or any model provider.
+darkroom is not affiliated with OpenRouter, getimg.ai or any model provider.

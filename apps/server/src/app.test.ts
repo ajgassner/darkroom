@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { OUT_DIR } from '@darkroom/core/config';
+import { ENV_FILE, OUT_DIR } from '@darkroom/core/config';
 import { fakeOpenRouter, testImage } from '@darkroom/core/test/fake-openrouter';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -60,6 +60,20 @@ describe('API', () => {
   it('reports the status', async () => {
     const res = await get('/api/status');
     expect(res.json()).toMatchObject({ hasKey: true, defaultPrivacy: 'zdr', costs: { total: 0, images: 0 } });
+  });
+
+  it('stores an API key entered in the UI', async () => {
+    fakeOpenRouter();
+    const before = process.env.OPENROUTER_API_KEY;
+    try {
+      delete process.env.OPENROUTER_API_KEY;
+      expect((await get('/api/status')).json()).toMatchObject({ hasKey: false });
+      expect((await post('/api/key', { key: 'sk-or-v1-abc' })).json()).toEqual({ ok: true });
+      expect((await get('/api/status')).json()).toMatchObject({ hasKey: true });
+    } finally {
+      process.env.OPENROUTER_API_KEY = before;
+      await fs.rm(ENV_FILE, { force: true });
+    }
   });
 
   it('validates request bodies', async () => {

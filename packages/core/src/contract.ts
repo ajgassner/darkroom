@@ -192,6 +192,8 @@ export interface Preset {
 /** GET /api/status */
 export interface StatusResponse {
   hasKey: boolean;
+  /** Where the key is stored when entered in the UI */
+  envFile: string;
   defaultModel: string;
   defaultPrivacy: PrivacyMode;
   refMaxSide: number;

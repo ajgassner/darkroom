@@ -1,6 +1,17 @@
 import type { RunEvent } from './types';
 
-class ApiError extends Error {}
+/** Server error: English message plus the machine-readable code the UI translates. */
+class ApiError extends Error {
+  readonly code?: string;
+  readonly params?: Record<string, unknown>;
+  constructor(data: { error?: string; code?: string; params?: Record<string, unknown> }, status: number) {
+    super(data.error || `HTTP ${status}`);
+    this.code = data.code;
+    this.params = data.params;
+  }
+}
+
+type ErrorBody = { error?: string; code?: string; params?: Record<string, unknown> };
 
 /** JSON request against the local server. Throws ApiError with the server's message on failure. */
 export async function api<T>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
@@ -9,8 +20,8 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
     headers: opts.body ? { 'Content-Type': 'application/json' } : undefined,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
-  const data = (await res.json().catch(() => ({}))) as { error?: string };
-  if (!res.ok) throw new ApiError(data.error || `HTTP ${res.status}`);
+  const data = (await res.json().catch(() => ({}))) as ErrorBody;
+  if (!res.ok) throw new ApiError(data, res.status);
   return data as T;
 }
 
@@ -28,8 +39,8 @@ export async function streamEvents(
     signal,
   });
   if (!res.ok || !res.body) {
-    const data = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(data.error || `HTTP ${res.status}`);
+    const data = (await res.json().catch(() => ({}))) as ErrorBody;
+    throw new ApiError(data, res.status);
   }
   await readNdjson(res.body, (line) => onEvent(JSON.parse(line) as RunEvent));
 }

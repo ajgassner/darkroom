@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/misc';
@@ -10,8 +11,7 @@ export function LoadingScreen() {
   const load = useUi((s) => s.load);
 
   return (
-    <div className="flex h-full min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="text-lg font-semibold tracking-tight">darkroom</div>
+    <Splash>
       {load.state === 'failed' ? (
         <>
           <div className="max-w-md space-y-1.5">
@@ -33,6 +33,16 @@ export function LoadingScreen() {
           <p className="text-sm text-muted">{t('boot.loading')}</p>
         </div>
       )}
+    </Splash>
+  );
+}
+
+/** Full-screen, centered frame for the screens shown before the app (loading, key setup). */
+export function Splash({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex h-full min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+      <div className="text-lg font-semibold tracking-tight">darkroom</div>
+      {children}
     </div>
   );
 }

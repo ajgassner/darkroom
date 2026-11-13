@@ -124,6 +124,8 @@ interface FakeOptions {
   speech?: Handler;
   music?: Handler;
   transcription?: Handler;
+  /** GET /key: checks the API key */
+  key?: Response;
   models?: ImageModel[];
 }
 
@@ -132,6 +134,7 @@ const transcriptionOk: Handler = () => json({ text: ' Hello world. ', usage: { c
 /** Routes of the fake: exact paths or patterns, with a fixed response or a handler. */
 function routes(opts: FakeOptions): [string | RegExp, () => Handler | Response][] {
   return [
+    ['/key', () => opts.key ?? json({ data: { label: 'test' } })],
     ['/images/models', () => json({ data: opts.models ?? MODELS })],
     ['/endpoints/zdr', () => json({ data: ZDR })],
     [/^\/images\/models\/.+\/endpoints$/, () => json({ endpoints: [] })],
