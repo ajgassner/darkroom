@@ -30,11 +30,21 @@ describe('mentions', () => {
   const names = ['Max', 'ag-logo', 'office.v2'];
 
   it('finds known elements case-insensitively, once each, in prompt order', () => {
-    expect(findMentions('Put the @AG-LOGO next to @max and @max again', names)).toEqual(['ag-logo', 'Max']);
+    expect(findMentions('Put the @AG-LOGO next to @max and @max again', names).known).toEqual(['ag-logo', 'Max']);
   });
 
-  it('ignores unknown names and trailing punctuation', () => {
-    expect(findMentions('Hi @max. Meet @nobody, see @office.v2!', names)).toEqual(['Max', 'office.v2']);
+  it('reports unknown names separately and ignores trailing punctuation', () => {
+    expect(findMentions('Hi @max. Meet @nobody, see @office.v2! @Nobody again', names)).toEqual({
+      known: ['Max', 'office.v2'],
+      unknown: ['nobody'],
+    });
+  });
+
+  it('does not treat e-mail addresses as mentions', () => {
+    expect(findMentions('Mail max@office.v2 or a@b.com, then (@max)', names)).toEqual({
+      known: ['Max'],
+      unknown: [],
+    });
   });
 
   it('replaces mentions by label and keeps unknown ones', () => {
@@ -42,8 +52,8 @@ describe('mentions', () => {
       ['max', 'Max Mustermann'],
       ['ag-logo', '[logo, reference image 3]'],
     ]);
-    expect(replaceMentions('@Max with @ag-logo and @other', labels)).toBe(
-      'Max Mustermann with [logo, reference image 3] and @other',
+    expect(replaceMentions('@Max with @ag-logo and @other, mail max@ag-logo now', labels)).toBe(
+      'Max Mustermann with [logo, reference image 3] and @other, mail max@ag-logo now',
     );
   });
 });

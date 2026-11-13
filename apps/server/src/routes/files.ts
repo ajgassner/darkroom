@@ -47,16 +47,24 @@ function isPrivate(file: string): boolean {
   return rel.startsWith('manifest.jsonl') || (rel.startsWith('debug/') && rel.endsWith('.json'));
 }
 
-/** Results only display as images or play as audio; <img>/<audio> in the UI are not affected by this policy. */
-const RESULT_CSP = "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox";
+/**
+ * Results only display as images or play as audio; <img>/<audio> in the UI are not affected by this policy.
+ * default-src 'none' without script-src already keeps scripts (e.g. in an SVG) from running. `sandbox` is added on
+ * top for everything but audio: browsers do not play audio in a sandboxed document opened in its own tab.
+ */
+const RESULT_CSP = "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'";
+
+function resultCsp(file: string): string {
+  return MIME[path.extname(file).toLowerCase()]?.startsWith('audio/') ? RESULT_CSP : `${RESULT_CSP}; sandbox`;
+}
 
 export async function fileRoutes(app: FastifyInstance) {
   const query = z.object({ download: z.string().optional(), clean: z.string().optional() });
 
   app.get('/out/*', async (req, reply) => {
-    // Results come from models (an SVG may contain scripts): opened in a tab they must not run code on this origin
-    reply.header('Content-Security-Policy', RESULT_CSP).header('X-Content-Type-Options', 'nosniff');
     const file = inside(OUT_DIR, (req.params as { '*': string })['*']);
+    // Results come from models (an SVG may contain scripts): opened in a tab they must not run code on this origin
+    reply.header('Content-Security-Policy', resultCsp(file)).header('X-Content-Type-Options', 'nosniff');
     if (isPrivate(file)) throw new HttpError(404, 'not_found', 'Not found');
     const q = query.parse(req.query);
     // Download (optionally without metadata): serve as attachment

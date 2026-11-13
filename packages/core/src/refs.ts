@@ -46,17 +46,24 @@ export function isTemplate(instructions: string): boolean {
   return instructions.includes('{prompt}');
 }
 
-const MENTION = /@([A-Za-z0-9_](?:[A-Za-z0-9_.-]*[A-Za-z0-9_])?)/g;
+/** @name mentions; not after a word character, "." or "@", so e-mail addresses are no mentions (same rule as the UI). */
+const MENTION = /(?<![A-Za-z0-9_.@-])@([A-Za-z0-9_](?:[A-Za-z0-9_.-]*[A-Za-z0-9_])?)/g;
 
-/** @mentions in the prompt that match existing elements (case-insensitive). */
-export function findMentions(prompt: string, names: string[]): string[] {
+/**
+ * @mentions in the prompt, in prompt order and once each: `known` are existing elements (case-insensitive, with the
+ * element's spelling), `unknown` the names no element has (as written).
+ */
+export function findMentions(prompt: string, names: string[]): { known: string[]; unknown: string[] } {
   const byLower = new Map(names.map((n) => [n.toLowerCase(), n]));
-  const found: string[] = [];
+  const known: string[] = [];
+  const unknown: string[] = [];
   for (const m of prompt.matchAll(MENTION)) {
     const n = byLower.get(m[1].toLowerCase());
-    if (n && !found.includes(n)) found.push(n);
+    if (n) {
+      if (!known.includes(n)) known.push(n);
+    } else if (!unknown.some((u) => u.toLowerCase() === m[1].toLowerCase())) unknown.push(m[1]);
   }
-  return found;
+  return { known, unknown };
 }
 
 /** Replace @name in the prompt with the display name. */

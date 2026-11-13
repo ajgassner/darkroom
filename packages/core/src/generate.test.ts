@@ -272,4 +272,63 @@ describe('runGeneration', () => {
     await expect(runGeneration({ prompt: 'p', models: [] })).rejects.toMatchObject({ code: 'no_model' });
     expect(api.calls).toHaveLength(0);
   });
+
+  it('rejects unknown models before the privacy check, without calling them', async () => {
+    const api = fakeOpenRouter();
+    const before = (await readEntries()).length;
+    for (const privacy of ['zdr', 'off'] as const) {
+      await expect(runGeneration({ prompt: 'p', models: ['test/zdr', 'test/imagex'], privacy })).rejects.toMatchObject({
+        code: 'unknown_model',
+        params: { model: 'test/imagex' },
+        message: expect.stringContaining('darkroom models'),
+      });
+    }
+    expect(api.imageCalls()).toHaveLength(0);
+    expect(await readEntries()).toHaveLength(before);
+  });
+
+  it('keeps extra images of a call under their own names', async () => {
+    // test/safety allows n up to 4; the provider returns one image more than asked for in every call
+    fakeOpenRouter({
+      images: async (body) => {
+        const b64 = (await testImage()).toString('base64');
+        const n = (typeof body.n === 'number' ? body.n : 1) + 1;
+        return json({ data: Array.from({ length: n }, () => ({ b64_json: b64 })), usage: { cost: 0.06 } });
+      },
+    });
+    const entries = await runGeneration({ prompt: 'p', models: ['test/safety'], count: 2, privacy: 'off' });
+    expect(entries.map((e) => e.ok)).toEqual([true, true, true]);
+    const names = entries.map((e) => (e.file as string).replace(/^.*_test_safety_/, ''));
+    expect(names).toEqual(['1.png', '2.png', '1-3.png']);
+    for (const e of entries) await expect(fs.stat(path.join(OUT_DIR, e.file as string))).resolves.toBeTruthy();
+    expect(entries.reduce((s, e) => s + (e.cost ?? 0), 0)).toBeCloseTo(0.06);
+  });
+
+  it('does not let extra images take the names of the next call', async () => {
+    // test/zdr allows n=1, so count 2 needs two calls; each returns two images
+    fakeOpenRouter({
+      images: async () => {
+        const b64 = (await testImage()).toString('base64');
+        return json({ data: [{ b64_json: b64 }, { b64_json: b64 }], usage: { cost: 0.04 } });
+      },
+    });
+    const entries = await runGeneration({ prompt: 'p', models: ['test/zdr'], count: 2 });
+    expect(entries.every((e) => e.ok)).toBe(true);
+    const names = entries.map((e) => (e.file as string).replace(/^.*_test_zdr_/, '')).sort();
+    expect(names).toEqual(['1-2.png', '1.png', '2-2.png', '2.png']);
+  });
+
+  it('warns about @mentions without an element', async () => {
+    await saveElement('lena', { label: 'Lena' });
+    await addPhoto('lena', 'p.png', await testImage());
+    const api = fakeOpenRouter();
+    const [entry] = await runGeneration({
+      prompt: 'photo of @lena and @nobody, mail info@example.com',
+      models: ['test/zdr'],
+    });
+    expect(api.imageCalls()).toHaveLength(1);
+    expect(entry).toMatchObject({ ok: true, elements: ['lena'], refCount: 1 });
+    expect(entry.notices).toEqual([{ code: 'element_mention_unknown', params: { name: 'nobody' } }]);
+    expect(entry.warnings).toEqual(['@nobody: no element with this name, mention ignored']);
+  });
 });

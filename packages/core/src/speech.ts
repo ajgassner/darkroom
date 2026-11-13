@@ -6,7 +6,7 @@ import { listSpeechModels } from './audio-models.ts';
 import { audioEntry, finish, lookupCostLater } from './audio-run.ts';
 import { apiKey, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode } from './config.ts';
 import type { RunEvent, SpeechModel, VoiceInfo } from './contract.ts';
-import { AppError, addWarning, errorFields, type WarningList } from './errors.ts';
+import { AppError, addWarning, errorFields, unknownModel, type WarningList } from './errors.ts';
 import { runStamp, slug } from './files.ts';
 import type { ManifestEntry } from './manifest.ts';
 import { modelRestriction, privacyBlocked, providerField } from './privacy.ts';
@@ -54,8 +54,8 @@ interface VoicePart {
  * Own voice: always exactly ONE clip. With several clips some models (Seed Audio) require placeholders
  * like @Audio1 in the text, so several WAV samples are combined into one clip.
  */
-async function cloneVoice(v: VoiceInfo, model: SpeechModel | undefined, notes: WarningList): Promise<VoicePart> {
-  if (model && !model.cloning) {
+async function cloneVoice(v: VoiceInfo, model: SpeechModel, notes: WarningList): Promise<VoicePart> {
+  if (!model.cloning) {
     addWarning(notes, 'clone_not_flagged', 'Model is not flagged as capable of voice cloning, trying anyway');
   }
   const clip = await combinedSample(v);
@@ -183,6 +183,7 @@ export async function runSpeech(
   apiKey();
   const privacy = o.privacy ?? DEFAULT_PRIVACY;
   const model = (await listSpeechModels()).find((m) => m.id === o.model);
+  if (!model) throw unknownModel(o.model);
   const runId = crypto.randomUUID();
   onEvent({ type: 'start', runId, plan: [{ model: o.model, count: 1 }] });
 

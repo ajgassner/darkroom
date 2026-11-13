@@ -5,7 +5,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { apiKey, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode, REF_MAX_SIDE, resolveOut, UPLOADS_DIR } from './config.ts';
 import type { RunEvent } from './contract.ts';
-import { AppError, addWarning, errorFields, type WarningList } from './errors.ts';
+import { AppError, addWarning, errorFields, unknownModel, type WarningList } from './errors.ts';
 import { runStamp, slug } from './files.ts';
 import { decodable } from './heic.ts';
 import { appendEntry, type ManifestEntry, newEntry } from './manifest.ts';
@@ -58,6 +58,8 @@ interface Run {
   privacy: PrivacyMode;
   extras: { label: string; url: string }[];
   elements: { info: ElementInfo; urls: string[] }[];
+  /** @mentions in the prompt that match no element (generated without references, with a notice). */
+  unknownMentions: string[];
   catalog: Map<string, ImageModel>;
   zdr: Map<string, ZdrEndpoint[]>;
   /** Manifest fields that are the same for every entry of the run. */
@@ -173,6 +175,9 @@ function planModel(run: Run, modelId: string): ModelPlan {
   const model = run.catalog.get(modelId);
   const { params, warnings, notices } = fitParams(model, run.o);
   const notes: WarningList = { warnings, notices };
+  for (const name of run.unknownMentions) {
+    addWarning(notes, 'element_mention_unknown', `@${name}: no element with this name, mention ignored`, { name });
+  }
   const { refs, extraCount, perElement } = distributeRefs(run, model, notes);
   const fullPrompt = composePrompt(
     run.prompt,
@@ -244,12 +249,21 @@ function sniffExt(buf: Buffer): string {
   return 'png';
 }
 
+/**
+ * Number in the result file name. A call fills the images startIndex+1 … startIndex+n of its model; images beyond
+ * n (a provider can return more than asked for, and they are paid for) are kept as "<first>-<k>", so they never
+ * take a name from another call's range.
+ */
+function imageNumber(call: { n: number; startIndex: number }, i: number): string {
+  return i < call.n ? String(call.startIndex + i + 1) : `${call.startIndex + 1}-${i + 1}`;
+}
+
 /** Save the images of one call; each saved image is pushed to `saved` right away (see callModel). */
 async function saveImages(
   run: Run,
   plan: ModelPlan,
   res: ImageResult,
-  startIndex: number,
+  call: { n: number; startIndex: number },
   durationMs: number,
   saved: ManifestEntry[],
 ): Promise<void> {
@@ -258,7 +272,7 @@ async function saveImages(
   for (const [i, img] of res.images.entries()) {
     const buf = Buffer.from(img.b64, 'base64');
     const ext = (img.mediaType && EXT[img.mediaType]) || sniffExt(buf);
-    const file = `${run.stamp}_${slug(plan.modelId)}_${startIndex + i + 1}.${ext}`;
+    const file = `${run.stamp}_${slug(plan.modelId)}_${imageNumber(call, i)}.${ext}`;
     // 'wx': never overwrite an existing result
     await fs.writeFile(path.join(OUT_DIR, file), buf, { flag: 'wx' });
     saved.push(
@@ -296,18 +310,18 @@ function recordFailure(
   });
 }
 
-async function callModel(run: Run, plan: ModelPlan, n: number, startIndex: number): Promise<ManifestEntry[]> {
+async function callModel(run: Run, plan: ModelPlan, call: { n: number; startIndex: number }): Promise<ManifestEntry[]> {
   const t0 = performance.now();
   const elapsed = () => Math.round(performance.now() - t0);
   let res: ImageResult;
   try {
-    res = await generateImages(imageRequest(plan, n), run.abort);
+    res = await generateImages(imageRequest(plan, call.n), run.abort);
   } catch (err) {
     return [await recordFailure(run, plan, err, elapsed(), failedCallInfo(err))];
   }
   const saved: ManifestEntry[] = [];
   try {
-    await saveImages(run, plan, res, startIndex, elapsed(), saved);
+    await saveImages(run, plan, res, call, elapsed(), saved);
     return saved;
   } catch (err) {
     // The call was paid in full: the error entry keeps the cost of the images that could not be saved
@@ -318,21 +332,24 @@ async function callModel(run: Run, plan: ModelPlan, n: number, startIndex: numbe
 
 function modelJobs(run: Run, plan: ModelPlan): Promise<ManifestEntry[]>[] {
   if (plan.blocked) return [record(run, plan, plan.blocked).then((e) => [e])];
-  return calls(run.count, Math.min(maxN(plan.model), run.count)).map((c) => callModel(run, plan, c.n, c.startIndex));
+  return calls(run.count, Math.min(maxN(plan.model), run.count)).map((c) => callModel(run, plan, c));
 }
 
 // ---------------------------------------------------------------- Run
 
 async function prepare(
   o: GenerateOptions,
+  models: string[],
   prompt: string,
   onEvent: (e: RunEvent) => void,
   abort?: AbortSignal,
 ): Promise<Run> {
   const privacy = o.privacy ?? DEFAULT_PRIVACY;
   const maxSide = o.maxSide ?? REF_MAX_SIDE;
-  const [catalog, zdr, extras, allElements] = await Promise.all([
-    listImageModels(),
+  const catalog = await listImageModels();
+  const unknown = models.find((id) => !catalog.some((m) => m.id === id));
+  if (unknown) throw unknownModel(unknown);
+  const [zdr, extras, allElements] = await Promise.all([
     privacy === 'off' ? new Map<string, ZdrEndpoint[]>() : zdrEndpoints(),
     Promise.all((o.extraRefs ?? []).map((r) => resolveExtra(r, maxSide))),
     listElements(),
@@ -342,7 +359,7 @@ async function prepare(
     prompt,
     allElements.map((e) => e.name),
   );
-  const names = [...new Set([...(o.element ? [o.element] : []), ...mentioned])];
+  const names = [...new Set([...(o.element ? [o.element] : []), ...mentioned.known])];
   const elements = await Promise.all(names.map((n) => elementReferences(n, maxSide)));
   const runId = crypto.randomUUID();
   return {
@@ -354,6 +371,7 @@ async function prepare(
     privacy,
     extras,
     elements,
+    unknownMentions: mentioned.unknown,
     catalog: new Map(catalog.map((m) => [m.id, m])),
     zdr,
     base: {
@@ -383,7 +401,7 @@ export async function runGeneration(
   const models = [...new Set(o.models.filter(Boolean))];
   if (!models.length) throw new AppError('no_model', 'No model selected');
 
-  const run = await prepare(o, prompt, onEvent, abort);
+  const run = await prepare(o, models, prompt, onEvent, abort);
   onEvent({ type: 'start', runId: run.runId, plan: models.map((model) => ({ model, count: run.count })) });
   const jobs = models.flatMap((id) => modelJobs(run, planModel(run, id)));
   const all = (await Promise.all(jobs)).flat();

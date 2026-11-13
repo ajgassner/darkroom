@@ -55,7 +55,11 @@ describe('audio model catalogs', () => {
 
   it('lists only music models (no chat audio models)', async () => {
     fakeOpenRouter();
-    expect((await listMusicModels(true)).map((m) => m.id)).toEqual(['test/lyria', 'test/lyria-zdr']);
+    expect((await listMusicModels(true)).map((m) => m.id)).toEqual([
+      'test/lyria',
+      'test/lyria-zdr',
+      'test/lyria-safety',
+    ]);
   });
 });
 
@@ -368,9 +372,31 @@ describe('runSpeech', () => {
   it('requires a text', async () => {
     await expect(runSpeech({ text: ' ', model: 'test/tts' })).rejects.toMatchObject({ code: 'text_missing' });
   });
+
+  it('rejects unknown models before the privacy check, without calling them', async () => {
+    const api = fakeOpenRouter();
+    for (const privacy of ['zdr', 'off'] as const) {
+      await expect(runSpeech({ text: 'Hi', model: 'test/ttsx', privacy })).rejects.toMatchObject({
+        code: 'unknown_model',
+        params: { model: 'test/ttsx' },
+      });
+    }
+    expect(api.callsTo('/audio/speech')).toHaveLength(0);
+  });
 });
 
 describe('runMusic', () => {
+  it('rejects unknown models, also chat models with audio output', async () => {
+    const api = fakeOpenRouter();
+    for (const model of ['test/lyriax', 'openai/gpt-audio']) {
+      await expect(runMusic({ prompt: 'calm guitar', model, privacy: 'off' })).rejects.toMatchObject({
+        code: 'unknown_model',
+        params: { model },
+      });
+    }
+    expect(api.callsTo('/chat/completions')).toHaveLength(0);
+  });
+
   it('collects the streamed audio, model text and cost', async () => {
     const api = fakeOpenRouter();
     const [entry] = await runMusic({ prompt: 'calm guitar', model: 'test/lyria' });

@@ -2,10 +2,11 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { listMusicModels } from './audio-models.ts';
 import { audioEntry, finish } from './audio-run.ts';
 import { apiKey, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode, REQUEST_TIMEOUT_MS } from './config.ts';
 import type { RunEvent } from './contract.ts';
-import { AppError, addWarning, errorFields, type WarningList } from './errors.ts';
+import { AppError, addWarning, errorFields, unknownModel, type WarningList } from './errors.ts';
 import { runStamp, slug } from './files.ts';
 import type { ManifestEntry } from './manifest.ts';
 import { modelRestriction, providerField } from './privacy.ts';
@@ -129,6 +130,7 @@ export async function runMusic(
   if (!prompt) throw new AppError('prompt_missing', 'Prompt is missing');
   apiKey();
   const privacy = o.privacy ?? DEFAULT_PRIVACY;
+  if (!(await listMusicModels()).some((m) => m.id === o.model)) throw unknownModel(o.model);
   const runId = crypto.randomUUID();
   onEvent({ type: 'start', runId, plan: [{ model: o.model, count: 1 }] });
   const { notes, restriction } = await musicPrivacy(o.model, privacy);

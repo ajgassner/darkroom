@@ -20,10 +20,10 @@ A self-hosted alternative to getimg.ai and similar subscription services. Upload
 - **Elements**: reusable reference sets (person, logo, object, location, style) with their own instructions. Mention them in a prompt with `@name`.
 - **Many models in parallel**: the same prompt and references go to several models at once for a direct comparison.
 - **Parameters that fit each model**: aspect ratios, sizes, formats and reference limits come live from the OpenRouter catalog; unsupported values snap to the closest supported one.
-- **Privacy by default**: requests only go to Zero Data Retention endpoints unless you switch it off.
+- **Privacy by default**: image, speech and transcription requests only go to Zero Data Retention endpoints unless you switch it off; music uses them whenever the model has one.
 - **Image tools**: upscale, expand canvas, relight and clean up backgrounds with AI; resize, crop and remove backgrounds locally for free.
 - **Audio**: text-to-speech with 39 models, cloned voices from your own samples, and music with Google Lyria.
-- **Web UI and CLI** with the same features. The UI is available in English and German.
+- **Web UI and CLI**: the CLI generates images, speech and music (interactively or scripted) and lists models, elements, voices and costs; image tools, editing elements and voices, transcription and metadata removal are in the web UI, which is available in English and German.
 - **Full record**: every result lands in `out/` together with a manifest of prompt, model, parameters, provider, cost and duration, plus the exact request and response for debugging.
 
 ## Install
@@ -50,7 +50,7 @@ darkroom --help     # all commands
 darkroom uninstall  # remove darkroom; your data stays in ~/darkroom
 ```
 
-The installer installs the latest [release](https://github.com/ajgassner/darkroom/releases). When a newer one is out, the web UI shows an **Update** badge and `darkroom start` prints a note (darkroom asks GitHub at most once a day; `DARKROOM_UPDATE_CHECK=off` disables it). `darkroom update` installs it; your data stays untouched. `darkroom uninstall` removes the app and the PATH entry; `~/darkroom` holds your data, delete it only if you don't need it anymore.
+The installer installs the latest [release](https://github.com/ajgassner/darkroom/releases). When a newer one is out, the web UI shows an **Update** badge and `darkroom start` prints a note (darkroom asks GitHub at most once a day; `DARKROOM_UPDATE_CHECK=off` disables it). `darkroom update` installs it; your data stays untouched, and if the update fails, the previous version keeps working. `darkroom uninstall` removes the app and the PATH entry; `~/darkroom` holds your data, delete it only if you don't need it anymore.
 
 ### From source
 
@@ -59,13 +59,14 @@ For development, or if you prefer to run darkroom from a git checkout with Node.
 ```bash
 git clone https://github.com/ajgassner/darkroom.git
 cd darkroom
-mise install                # Node 26 and corepack (pnpm); or install Node 26 yourself and run: corepack enable
+mise install                # Node 26 and corepack (pnpm); without mise: install Node 26, then
+                            # npm install -g corepack && corepack enable  (Node 25+ no longer ships corepack)
 pnpm install
 pnpm build                  # build the web UI
 pnpm start                  # open http://localhost:5177 and enter your API key
 ```
 
-In a checkout, `pnpm cli <command>` runs the same commands as `darkroom <command>`, and the data lives in the checkout itself. Node runs the TypeScript backend and CLI directly; only the web UI is built. The server only listens on `127.0.0.1`.
+In a checkout, `pnpm cli <command>` runs the same commands as `darkroom <command>` (except `update` and `uninstall`, which only say what to do in a checkout: `git pull && pnpm install && pnpm build`, or delete the folder), and the data lives in the checkout itself. Node runs the TypeScript backend and CLI directly; only the web UI is built. The server only listens on `127.0.0.1`.
 
 ## First steps
 
@@ -91,7 +92,7 @@ An element is a folder `refs/<name>/` with images and an `element.json`, editabl
 | Location         | used as the setting                                                      |
 | Style            | only look and mood, not the content                                      |
 
-Mention elements in the prompt with `@name` (suggestions appear as you type), for example: _"A picture of @max in the office with the @companylogo in the top right"_. The element selected in the dropdown is always included; mentioned ones are added.
+Mention elements in the prompt with `@name` (suggestions appear as you type), for example: _"A picture of @max in the office with the @companylogo in the top right"_. The element selected in the dropdown is always included; mentioned ones are added. A mention without a matching element is sent as plain text and the result carries a notice; e-mail addresses such as `max@example.com` are not mentions.
 
 Before sending, darkroom downscales the reference images and tells the model which images belong to which element, together with the rules of its type and your instruction. Logos, objects, locations and styles are referred to by image number, so the model doesn't write the element name into the picture. If a model accepts fewer references than you have, the images are distributed round-robin and every element keeps at least one.
 
@@ -117,7 +118,7 @@ Available in the detail view of every image:
 
 - **Speech**: choose a model and voice, optionally add a style instruction (e.g. "calm and friendly"; Gemini, Fish Audio and OpenAI) and the speed.
 - **Your own voice**: under **Own voices**, record or upload a 10–30 s sample. Samples are transcribed automatically, either locally with Whisper (offline, about 250 MB downloaded on first use) or via the API, and you can correct the transcript. Voice cloning works with Fish Audio, Seed Audio and HeyGen.
-- **Music**: Google Lyria 3 (a 30 s clip costs about $0.04, a full song with Pro about $0.08). Lyria has no Zero Data Retention, so keep personal details out of music prompts.
+- **Music**: Google Lyria 3 (a 30 s clip costs about $0.04, a full song with Pro about $0.08). A music prompt goes to a ZDR endpoint when the model has one; otherwise it is sent without Zero Data Retention (with a notice), so keep personal details out of music prompts.
 
 ## CLI
 
@@ -157,11 +158,11 @@ Your photos, voice samples and results stay on your disk. Only the data needed f
 | `zdr-strict`                     | only ZDR endpoints without safety retention                                                                                       |
 | `off`                            | normal OpenRouter routing                                                                                                         |
 
-For images, speech (including cloned voices) and API transcription, darkroom pins each request to the model's ZDR endpoints allowed by the mode, without fallbacks; models without one (e.g. GPT Image 2 or FLUX.2 as of November 2026) are skipped in ZDR mode. Music contains no personal data: it is pinned to ZDR endpoints when the model has one and otherwise runs with a notice. For extra safety, also enforce ZDR and disable training in your [OpenRouter privacy settings](https://openrouter.ai/settings/privacy).
+For images, speech (including cloned voices) and API transcription, darkroom pins each request to the model's ZDR endpoints allowed by the mode, without fallbacks; models without one (e.g. GPT Image 2 or FLUX.2 as of November 2026) are not called in ZDR mode and the run shows an error instead. Local transcription with Whisper sends nothing. Music prompts usually contain no personal data, so music is never blocked: it is pinned to the ZDR endpoints the mode allows; in `zdr-strict` it falls back to ZDR endpoints with safety retention, and only a model without any ZDR endpoint runs unrestricted (both with a notice). Model ids that are not in the catalog (e.g. a typo) are rejected before any of this, so a typo never reaches OpenRouter. For extra safety, also enforce ZDR and disable training in your [OpenRouter privacy settings](https://openrouter.ai/settings/privacy).
 
 ## Configuration
 
-All settings are optional except the API key. Put them in `.env` in your data folder (see [`.env.example`](.env.example)):
+All settings are optional except the API key. Put them in `.env` in your data folder (see [`.env.example`](.env.example)) or set them as environment variables; `DARKROOM_HOME` works only as an environment variable, since it decides where `.env` is:
 
 | Variable                            | Default                                                 | Purpose                                                      |
 | ----------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
@@ -174,7 +175,8 @@ All settings are optional except the API key. Put them in `.env` in your data fo
 | `TRANSCRIBE`                        | `local`                                                 | `local` (Whisper offline) or `api`                           |
 | `WHISPER_MODEL`                     | `onnx-community/whisper-small`                          | local transcription model                                    |
 | `TRANSCRIBE_MODEL`                  | `openai/whisper-large-v3-turbo`                         | API transcription model                                      |
-| `DARKROOM_HOME`                     | `~/darkroom` (installed), repository root (from source) | folder holding `.env`, `refs/`, `voices/`, `out/`, `models/` |
+| `DARKROOM_UPDATE_CHECK`             | on                                                      | `off` disables the daily check for a new GitHub release      |
+| `DARKROOM_HOME`                     | `~/darkroom` (installed), repository root (from source) | environment only: folder holding `.env` and the data folders |
 | `OUT_DIR`, `REFS_DIR`, `VOICES_DIR` | `out`, `refs`, `voices`                                 | individual data folders, relative to `DARKROOM_HOME`         |
 
 Your data lives in these folders, all ignored by git:
@@ -216,7 +218,7 @@ Changes reach `main` only through pull requests that pass CI; they are squash-me
 
 [CI](.github/workflows/ci.yml) runs on every push and pull request: typecheck, Biome, tests with coverage, fallow and the UI build, plus a real installation with `install.sh` / `install.ps1` on Linux, macOS and Windows that starts the UI and uninstalls again.
 
-To publish a release, open **Actions → Release → Run workflow** on GitHub and choose the version bump (`patch`, `minor`, `major`, or `none` to release the current version). The [workflow](.github/workflows/release.yml) runs the full CI, bumps `package.json`, commits, tags `v<version>` and creates the GitHub release with notes generated from the merged pull requests. From then on the installers install it and running darkroom installations show the update. With the GitHub CLI: `gh workflow run release.yml -f bump=minor`.
+To publish a release, open **Actions → Release → Run workflow** on GitHub and choose the version bump (`patch`, `minor` (the default), `major`, or `none` to release the current version). The very first release is made with `none`, since `package.json` already says `0.1.0`. The [workflow](.github/workflows/release.yml) runs the full CI, bumps `package.json`, commits, tags `v<version>` and creates the GitHub release with notes generated from the merged pull requests. From then on the installers install it and running darkroom installations show the update. With the GitHub CLI: `gh workflow run release.yml -f bump=minor`.
 
 ## Responsible use
 
