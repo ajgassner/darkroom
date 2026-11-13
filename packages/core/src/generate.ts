@@ -81,6 +81,22 @@ interface ModelPlan {
 
 // ---------------------------------------------------------------- References
 
+/**
+ * Uploads are named by their content, so a complete existing file already holds these bytes. Otherwise the file
+ * is written to a temporary name and renamed into place, so a concurrent run never reads it half-written.
+ */
+async function writeUpload(file: string, data: Buffer): Promise<void> {
+  const st = await fs.stat(file).catch(() => null);
+  if (st?.size === data.length) return;
+  const tmp = `${file}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.tmp`;
+  try {
+    await fs.writeFile(tmp, data);
+    await fs.rename(tmp, file);
+  } finally {
+    await fs.rm(tmp, { force: true });
+  }
+}
+
 /** Resolve an additional reference; uploads are stored under out/uploads/ (for the manifest). */
 async function resolveExtra(ref: ExtraRef, maxSide: number): Promise<{ label: string; url: string }> {
   if ('outFile' in ref) return { label: ref.outFile, url: await encodeImage(resolveOut(ref.outFile), maxSide) };
@@ -93,7 +109,7 @@ async function resolveExtra(ref: ExtraRef, maxSide: number): Promise<{ label: st
   const hash = crypto.createHash('sha1').update(jpeg).digest('hex').slice(0, 16);
   await fs.mkdir(UPLOADS_DIR, { recursive: true });
   const file = path.join(UPLOADS_DIR, `${hash}.jpg`);
-  await fs.writeFile(file, jpeg);
+  await writeUpload(file, jpeg);
   return { label: `uploads/${hash}.jpg`, url: await encodeImage(file, maxSide) };
 }
 

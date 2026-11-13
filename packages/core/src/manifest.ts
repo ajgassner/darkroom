@@ -36,35 +36,60 @@ export function newEntry(
 
 // Writes to the manifest (appending during a generation vs. rewriting on delete) are serialized twice:
 // in-process by a promise chain, across processes (CLI and server at the same time) by an O_EXCL lock file.
+// The lock file holds a token unique to its holder, so a process only ever removes its own lock.
 const LOCK = `${MANIFEST}.lock`;
 /** A lock file older than this was left behind by a crashed process and is taken over. */
 const STALE_LOCK_MS = 10_000;
 
-async function staleLock(): Promise<boolean> {
+const newToken = () => `${process.pid}-${crypto.randomUUID()}`;
+const readLock = (file: string) => fs.readFile(file, 'utf8').catch(() => null);
+
+/**
+ * Remove a stale lock without racing another process that takes it over at the same time: the lock is first
+ * renamed to a name of our own (only one process can win that rename), then checked that it is still the stale
+ * one. A fresh lock grabbed by mistake (taken over and re-created in between) is put back if the name is free.
+ */
+async function breakStaleLock(): Promise<void> {
   const st = await fs.stat(LOCK).catch(() => null);
-  return st !== null && Date.now() - st.mtimeMs > STALE_LOCK_MS;
+  if (!st || Date.now() - st.mtimeMs <= STALE_LOCK_MS) return;
+  const stale = await readLock(LOCK);
+  const moved = `${LOCK}.${newToken()}.stale`;
+  const won = await fs.rename(LOCK, moved).then(
+    () => true,
+    () => false,
+  );
+  if (!won) return;
+  const taken = await readLock(moved);
+  if (taken !== stale) await fs.link(moved, LOCK).catch(() => {});
+  await fs.rm(moved, { force: true });
 }
 
-async function acquireFileLock(): Promise<void> {
+async function acquireFileLock(token: string): Promise<void> {
   for (;;) {
     try {
-      await fs.writeFile(LOCK, String(process.pid), { flag: 'wx' });
+      await fs.writeFile(LOCK, token, { flag: 'wx' });
       return;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
     }
-    if (await staleLock()) await fs.rm(LOCK, { force: true });
-    else await new Promise((r) => setTimeout(r, 10));
+    await breakStaleLock();
+    await new Promise((r) => setTimeout(r, 10));
   }
+}
+
+/** Remove the lock file only while it still holds our token (a stale-lock takeover may have replaced it). */
+async function releaseFileLock(token: string): Promise<void> {
+  if ((await readLock(LOCK)) === token) await fs.rm(LOCK, { force: true });
 }
 
 async function underFileLock<T>(fn: () => Promise<T>): Promise<T> {
   await fs.mkdir(OUT_DIR, { recursive: true });
-  await acquireFileLock();
+  const token = newToken();
+  await acquireFileLock(token);
   try {
     return await fn();
   } finally {
-    await fs.rm(LOCK, { force: true });
+    await releaseFileLock(token);
   }
 }
 
@@ -198,7 +223,8 @@ export async function readEntries(): Promise<ManifestEntry[]> {
 
 /**
  * Costs per model. Deleted results still count, and so do failed calls that were charged
- * (e.g. a response without an image); `images` counts only results.
+ * (e.g. a response without an image), voice previews and API transcriptions (`demo`); `images` counts only
+ * the results shown in the gallery.
  */
 export function costSummary(entries: ManifestEntry[]): CostSummary {
   const byModel: Record<string, { cost: number; images: number }> = {};
@@ -211,7 +237,7 @@ export function costSummary(entries: ManifestEntry[]): CostSummary {
     byModel[e.model] = m;
     total += c;
     m.cost += c;
-    if (e.ok) {
+    if (e.ok && !e.demo) {
       images++;
       m.images++;
     }

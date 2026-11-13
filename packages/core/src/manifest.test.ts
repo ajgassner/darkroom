@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MANIFEST, OUT_DIR } from './config.ts';
 import type { ManifestEntry } from './contract.ts';
 import {
@@ -101,6 +101,19 @@ describe('manifest', () => {
     expect(sum).toEqual({ total: expect.closeTo(0.07), images: 1, byModel: { m1: { cost: 0.07, images: 1 } } });
   });
 
+  it('counts the cost of voice previews and transcriptions, but not as results', () => {
+    const sum = costSummary([
+      entry({ model: 'tts', cost: 0.01 }),
+      entry({ model: 'tts', cost: 0.002, demo: true }),
+      entry({ model: 'whisper', cost: 0.001, demo: true, tool: 'transcribe' }),
+    ]);
+    expect(sum).toEqual({
+      total: expect.closeTo(0.013),
+      images: 1,
+      byModel: { tts: { cost: expect.closeTo(0.012), images: 1 }, whisper: { cost: 0.001, images: 0 } },
+    });
+  });
+
   it('starts a new line after a cut-off last line', async () => {
     await fs.rm(MANIFEST, { force: true });
     await appendEntry(entry({ id: 'before' }));
@@ -131,6 +144,50 @@ describe('manifest', () => {
     await expect(fs.stat(LOCK)).rejects.toThrow();
     // No temporary files are left over
     expect((await fs.readdir(OUT_DIR)).filter((f) => f.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('leaves a lock alone that another process took over meanwhile', async () => {
+    await fs.rm(MANIFEST, { force: true });
+    const append = fs.appendFile.bind(fs);
+    // While this process writes, another one takes over the lock (e.g. because it considered it stale)
+    const spy = vi.spyOn(fs, 'appendFile').mockImplementationOnce(async (...args: Parameters<typeof fs.appendFile>) => {
+      expect(await fs.readFile(LOCK, 'utf8')).toMatch(new RegExp(`^${process.pid}-`));
+      await fs.writeFile(LOCK, 'other-process');
+      return append(...args);
+    });
+    try {
+      await appendEntry(entry({ id: 'mine' }));
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await fs.readFile(LOCK, 'utf8')).toBe('other-process');
+    await fs.rm(LOCK);
+    expect((await readEntries()).map((e) => e.id)).toEqual(['mine']);
+  });
+
+  it('keeps a fresh lock that replaced the stale one before the takeover', async () => {
+    await fs.rm(MANIFEST, { force: true });
+    await fs.writeFile(LOCK, 'crashed');
+    const old = new Date(Date.now() - 60_000);
+    await fs.utimes(LOCK, old, old);
+    const rename = fs.rename.bind(fs);
+    // Between reading the stale lock and moving it, another process replaced it with its own fresh lock
+    const spy = vi.spyOn(fs, 'rename').mockImplementationOnce(async (from, to) => {
+      await fs.writeFile(LOCK, 'fresh-owner');
+      return rename(from, to);
+    });
+    let done = false;
+    const pending = appendEntry(entry({ id: 'later' })).then(() => {
+      done = true;
+    });
+    await tick();
+    spy.mockRestore();
+    expect(done).toBe(false);
+    expect(await fs.readFile(LOCK, 'utf8')).toBe('fresh-owner');
+    expect((await fs.readdir(OUT_DIR)).filter((f) => f.endsWith('.stale'))).toEqual([]);
+    await fs.rm(LOCK);
+    await pending;
+    expect((await readEntries()).map((e) => e.id)).toEqual(['later']);
   });
 
   it('keeps entries another process appends while this one rewrites', async () => {

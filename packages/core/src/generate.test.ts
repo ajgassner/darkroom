@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { fakeOpenRouter, json, MODELS, testImage } from '../test/fake-openrouter.ts';
-import { OUT_DIR } from './config.ts';
+import { OUT_DIR, UPLOADS_DIR } from './config.ts';
 import type { ElementInfo, RunEvent } from './contract.ts';
 import { runGeneration } from './generate.ts';
 import { readEntries } from './manifest.ts';
@@ -242,6 +242,26 @@ describe('runGeneration', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it('stores uploaded references once under their content hash, complete even for concurrent runs', async () => {
+    fakeOpenRouter();
+    const dataUrl = `data:image/png;base64,${(await testImage({ width: 64, height: 48 })).toString('base64')}`;
+    const opts = { prompt: 'p', models: ['test/zdr'], extraRefs: [{ dataUrl }] };
+    const runs = await Promise.all([1, 2, 3].map(() => runGeneration(opts)));
+    const labels = new Set(runs.flat().flatMap((e) => e.extraRefs));
+    expect(labels.size).toBe(1);
+    const [label] = labels;
+    expect(label).toMatch(/^uploads\/[0-9a-f]{16}\.jpg$/);
+    expect(await fs.readdir(UPLOADS_DIR)).toEqual([path.basename(label)]);
+    const file = path.join(UPLOADS_DIR, path.basename(label));
+    const complete = await fs.readFile(file);
+
+    // A file cut off earlier (e.g. by a crash) is replaced
+    await fs.writeFile(file, complete.subarray(0, 10));
+    await runGeneration(opts);
+    expect(await fs.readFile(file)).toEqual(complete);
+    expect(await fs.readdir(UPLOADS_DIR)).toEqual([path.basename(label)]);
   });
 
   it('validates the input before calling the API', async () => {

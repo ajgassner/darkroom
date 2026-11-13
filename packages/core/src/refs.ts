@@ -141,16 +141,16 @@ export async function deletePhoto(name: string, file: string): Promise<void> {
   await fs.unlink(photoPath(name, file));
 }
 
-/** Least recently used cache, bounded by the total length of its values. */
-export class SizedCache {
-  private readonly map = new Map<string, string>();
+/** Least recently used cache, bounded by the total length of its values (strings or buffers). */
+export class SizedCache<V extends { length: number } = string> {
+  private readonly map = new Map<string, V>();
   private chars = 0;
   private readonly maxChars: number;
   constructor(maxChars: number) {
     this.maxChars = maxChars;
   }
 
-  get(key: string): string | undefined {
+  get(key: string): V | undefined {
     const hit = this.map.get(key);
     if (hit !== undefined) {
       this.map.delete(key); // move to the end: most recently used
@@ -160,7 +160,7 @@ export class SizedCache {
   }
 
   /** Store a value and drop the least recently used ones beyond the limit (never the new one). */
-  set(key: string, value: string): void {
+  set(key: string, value: V): void {
     this.chars -= this.map.get(key)?.length ?? 0;
     this.map.delete(key);
     this.map.set(key, value);
@@ -171,6 +171,26 @@ export class SizedCache {
       this.chars -= v.length;
     }
   }
+}
+
+const HEIC_EXT = /\.hei[cf]$/i;
+/** HEIC/HEIF photos converted to JPEG, so thumbnails and new encodings don't run the converter again. */
+const heicCache = new SizedCache<Buffer>(64 * 1024 * 1024);
+
+/**
+ * Input sharp can read: the file path itself, or for HEIC/HEIF (e.g. iPhone photos copied into refs/ by hand,
+ * which sharp cannot decode) the photo converted to JPEG.
+ */
+async function sharpInput(input: Buffer | string): Promise<Buffer | string> {
+  if (typeof input !== 'string') return decodable(input);
+  if (!HEIC_EXT.test(input)) return input;
+  const st = await fs.stat(input);
+  const key = `${input}|${st.mtimeMs}|${st.size}`;
+  const hit = heicCache.get(key);
+  if (hit) return hit;
+  const jpeg = await decodable(await fs.readFile(input));
+  heicCache.set(key, jpeg);
+  return jpeg;
 }
 
 /** Encoded reference images (data URLs), so repeated runs don't re-encode the same photos. */
@@ -185,9 +205,10 @@ export async function encodeImage(input: Buffer | string, maxSide: number): Prom
     const hit = encodeCache.get(key);
     if (hit) return hit;
   }
+  const src = await sharpInput(input);
   // Send images with transparency (logos) as PNG, otherwise JPEG
-  const alpha = Boolean((await sharp(input).metadata()).hasAlpha);
-  let img = sharp(input).rotate().resize({ width: maxSide, height: maxSide, fit: 'inside', withoutEnlargement: true });
+  const alpha = Boolean((await sharp(src).metadata()).hasAlpha);
+  let img = sharp(src).rotate().resize({ width: maxSide, height: maxSide, fit: 'inside', withoutEnlargement: true });
   img = alpha ? img.png() : img.jpeg({ quality: 90 });
   const url = `data:image/${alpha ? 'png' : 'jpeg'};base64,${(await img.toBuffer()).toString('base64')}`;
   if (key) encodeCache.set(key, url);
@@ -205,13 +226,14 @@ export async function elementReferences(name: string, maxSide: number): Promise<
 
 /** Thumbnail; transparent images (logos) as PNG, fully visible instead of cropped. */
 export async function thumbnail(file: string, size = 320): Promise<Buffer> {
-  const alpha = Boolean((await sharp(file).metadata()).hasAlpha);
+  const src = await sharpInput(file);
+  const alpha = Boolean((await sharp(src).metadata()).hasAlpha);
   if (alpha) {
-    return sharp(file)
+    return sharp(src)
       .rotate()
       .resize({ width: size, height: size, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
   }
-  return sharp(file).rotate().resize({ width: size, height: size, fit: 'cover' }).jpeg({ quality: 80 }).toBuffer();
+  return sharp(src).rotate().resize({ width: size, height: size, fit: 'cover' }).jpeg({ quality: 80 }).toBuffer();
 }

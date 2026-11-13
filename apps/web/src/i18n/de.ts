@@ -409,6 +409,8 @@ export const de: Bundle<typeof en> = {
     clone_not_flagged: 'Modell ist nicht als Stimmklon-fähig markiert, Versuch trotzdem',
     samples_partial: 'Nur {{used}} von {{total}} Hörproben verwendet (unterschiedliche Formate oder 60-s-Grenze)',
     music_no_zdr: 'Kein ZDR-Endpoint: Musik-Prompt ging ohne Zero Data Retention an den Anbieter',
+    music_safety_retention:
+      'Kein ZDR-Endpoint ohne Safety Retention: Musik-Prompt ging an einen ZDR-Endpoint mit Safety Retention',
   },
   error: {
     privacy_blocked:
@@ -435,6 +437,8 @@ export const de: Bundle<typeof en> = {
     element_not_found: 'Element „@{{name}}“ gibt es nicht mehr',
     element_no_photos: 'Element „@{{name}}“ hat noch keine Fotos',
     voice_not_found: 'Stimme „{{name}}“ gibt es nicht mehr',
+    voice_config_invalid:
+      'voices/{{name}}/voice.json ist beschädigt und wurde nicht verändert. Bitte reparieren oder löschen.',
     invalid_name: 'Ungültiger Name „{{name}}“ (erlaubt: Buchstaben, Ziffern, _ - .)',
     invalid_filename: 'Ungültiger Dateiname',
     invalid_path: 'Ungültiger Pfad: {{path}}',
