@@ -1,4 +1,6 @@
 import fs from 'node:fs/promises';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { ENV_FILE, OUT_DIR } from '@darkroom/core/config';
 import { fakeOpenRouter, testImage } from '@darkroom/core/test/fake-openrouter';
@@ -221,5 +223,75 @@ describe('files below out/', () => {
     const res = await get('/');
     expect(res.statusCode).toBe(503);
     expect(res.body).toContain('UI not built yet');
+  });
+});
+
+describe('shutdown', () => {
+  /** Fake upstream call that only ends when it is aborted; `called` resolves once it was made. */
+  function hangingUpstream() {
+    let started = () => {};
+    const called = new Promise<void>((r) => {
+      started = r;
+    });
+    const handler = (_body: unknown, init: RequestInit | undefined) =>
+      new Promise<Response>((_resolve, reject) => {
+        started();
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+      });
+    return { called, handler };
+  }
+
+  /** POST over a real socket (not inject), so a hijacked stream has to end for close() to finish. */
+  function postOverSocket(port: number, url: string, body: unknown): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const req = http.request(
+        { port, method: 'POST', path: url, headers: { ...HOST, 'content-type': 'application/json' } },
+        (res) => {
+          let text = '';
+          res.on('data', (chunk) => {
+            text += chunk;
+          });
+          res.on('end', () => resolve(text));
+        },
+      );
+      req.on('error', reject);
+      req.end(JSON.stringify(body));
+    });
+  }
+
+  it('aborts a running generation and ends its stream when the server closes', async () => {
+    const upstream = hangingUpstream();
+    const fake = fakeOpenRouter({ images: upstream.handler });
+    const server = await buildApp();
+    await server.listen({ host: '127.0.0.1', port: 0 });
+    const { port } = server.server.address() as AddressInfo;
+    const body = postOverSocket(port, '/api/generate', { prompt: 'slow', models: ['test/zdr'] });
+    await upstream.called;
+
+    const t0 = performance.now();
+    await server.close();
+    expect(performance.now() - t0).toBeLessThan(2000);
+    expect(fake.imageCalls()[0].signal?.aborted).toBe(true);
+    const events = ndjson(await body);
+    expect(events.map((e) => e.type)).toEqual(['start', 'error', 'done']);
+    expect(events[1].entry).toMatchObject({ ok: false, errorCode: 'aborted' });
+  });
+
+  it('aborts a running transcription and saves no transcript', async () => {
+    const upstream = hangingUpstream();
+    fakeOpenRouter({ transcription: upstream.handler });
+    const server = await buildApp();
+    const req = (url: string, payload: object) => server.inject({ method: 'POST', url, payload, headers: HOST });
+    await req('/api/voices', { name: 'quiet' });
+    const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(40)]);
+    const dataUrl = `data:audio/wav;base64,${wav.toString('base64')}`;
+    const { file } = (await req('/api/voices/quiet/samples', { dataUrl, filename: 'a.wav' })).json();
+
+    const pending = req(`/api/voices/quiet/samples/${file}/transcribe`, { engine: 'api' });
+    await upstream.called;
+    await server.close();
+    expect((await pending).statusCode).toBeGreaterThanOrEqual(400);
+    const voice = (await get('/api/voices')).json().find((v: { name: string }) => v.name === 'quiet');
+    expect(voice.transcripts).toEqual({});
   });
 });

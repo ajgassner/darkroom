@@ -28,10 +28,11 @@ const LANG_WHISPER: Record<string, string> = {
   pt: 'portuguese',
 };
 
-async function transcribeLocal(file: string, language: string): Promise<Transcript> {
+async function transcribeLocal(file: string, language: string, abort?: AbortSignal): Promise<Transcript> {
   const args = LANG_WHISPER[language] ? [file, LANG_WHISPER[language]] : [file];
   const stdout = await runWorker('transcribe-worker.ts', args, {
     timeout: 600_000,
+    signal: abort,
     notInstalled: () =>
       new AppError(
         'transcribe_not_installed',
@@ -50,7 +51,13 @@ async function transcribeLocal(file: string, language: string): Promise<Transcri
   return { text: r.text ?? '', model: r.model ?? 'whisper (local)', cost: null };
 }
 
-async function transcribeApi(file: string, language: string, privacy: PrivacyMode, label: string): Promise<Transcript> {
+async function transcribeApi(
+  file: string,
+  language: string,
+  privacy: PrivacyMode,
+  label: string,
+  abort?: AbortSignal,
+): Promise<Transcript> {
   const model = TRANSCRIBE_MODEL;
   // Voice samples are personal data: only ZDR endpoints allowed by the mode, no fallback to other providers
   const restriction = await modelRestriction(model, privacy);
@@ -67,7 +74,7 @@ async function transcribeApi(file: string, language: string, privacy: PrivacyMod
       ...(language && language !== 'auto' ? { language } : {}),
       ...providerField(restriction),
     },
-    callSignal(),
+    callSignal(abort),
   ).then(ensureOk);
   const body = (await res.json().catch(() => ({}))) as { text?: string; usage?: { cost?: number } };
   const cost = typeof body.usage?.cost === 'number' ? body.usage.cost : null;
@@ -90,19 +97,21 @@ async function transcribeApi(file: string, language: string, privacy: PrivacyMod
   return { text: body.text ?? '', model, cost };
 }
 
-/** Transcribe a sample and save the text in voice.json. */
+/** Transcribe a sample and save the text in voice.json (not after a cancel: `abort` kills the local worker). */
 export async function transcribeSample(
   name: string,
   file: string,
   engine: TranscribeEngine,
   language: string,
   privacy: PrivacyMode = DEFAULT_PRIVACY,
+  abort?: AbortSignal,
 ): Promise<{ text: string; engine: TranscribeEngine; model: string; cost: number | null }> {
   const p = samplePath(name, file);
   const r =
     engine === 'local'
-      ? await transcribeLocal(p, language)
-      : await transcribeApi(p, language, privacy, `${name}/${file}`);
+      ? await transcribeLocal(p, language, abort)
+      : await transcribeApi(p, language, privacy, `${name}/${file}`, abort);
+  if (abort?.aborted) throw new AppError('aborted', 'Aborted');
   const text = r.text.trim();
   await saveVoice(name, { transcripts: { [file]: text } });
   return { text, engine, model: r.model, cost: r.cost };

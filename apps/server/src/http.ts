@@ -1,5 +1,6 @@
 // Shared HTTP helpers: error mapping, local-only security checks and NDJSON streaming.
 import path from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { hasApiKey, PORT } from '@darkroom/core/config';
 import { AppError, type MessageParams } from '@darkroom/core/errors';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -65,10 +66,50 @@ export async function localOnly(req: FastifyRequest) {
   }
 }
 
+/** Work bound to a request (a run, a transcription): aborted when the client goes away or the server closes. */
+interface ActiveWork {
+  controller: AbortController;
+  settled: Promise<unknown>;
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    activeWork: Set<ActiveWork>;
+  }
+}
+
 /**
- * NDJSON stream: one event per finished result. If the browser disconnects (cancel button, page closed),
- * the signal aborts the running API calls as well.
+ * Run `work` with an abort signal that fires when the browser disconnects before the response is complete
+ * (cancel button, page closed) or when the server shuts down (see abortActiveWork).
  */
+export async function withAbort<T>(reply: FastifyReply, work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  const res = reply.raw;
+  res.on('close', () => {
+    if (!res.writableFinished) controller.abort();
+  });
+  const promise = work(controller.signal);
+  const active = { controller, settled: promise.catch(() => {}) };
+  const all = reply.server.activeWork;
+  all.add(active);
+  try {
+    return await promise;
+  } finally {
+    all.delete(active);
+  }
+}
+
+/**
+ * On shutdown: abort all running work and give it `graceMs` to finish (aborted entries in the manifest, the
+ * last events of each stream), so streams end instead of keeping the server open.
+ */
+export async function abortActiveWork(active: Set<ActiveWork>, graceMs = 3000): Promise<void> {
+  if (!active.size) return;
+  for (const a of active) a.controller.abort();
+  await Promise.race([Promise.all([...active].map((a) => a.settled)), sleep(graceMs, undefined, { ref: false })]);
+}
+
+/** NDJSON stream: one event per finished result; disconnecting or closing the server aborts the run (withAbort). */
 export async function streamRun(
   reply: FastifyReply,
   run: (send: (ev: unknown) => void, signal: AbortSignal) => Promise<unknown>,
@@ -76,15 +117,11 @@ export async function streamRun(
   reply.hijack();
   const res = reply.raw;
   res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store' });
-  const ac = new AbortController();
-  res.on('close', () => {
-    if (!res.writableFinished) ac.abort();
-  });
   const send = (ev: unknown) => {
     if (!res.destroyed && !res.writableEnded) res.write(`${JSON.stringify(ev)}\n`);
   };
   try {
-    await run(send, ac.signal);
+    await withAbort(reply, (signal) => run(send, signal));
   } catch (e) {
     send({ type: 'fatal', ...errorBody(e) });
   }

@@ -115,17 +115,16 @@ function localEntry(fields: Partial<ManifestEntry> & Pick<ManifestEntry, 'runId'
   });
 }
 
-async function runLocal(t: ToolOptions, onEvent: (e: RunEvent) => void): Promise<ManifestEntry[]> {
-  const o = effectiveOptions(t.tool, t.options ?? {});
-  const runId = crypto.randomUUID();
-  const model = t.tool === 'removebg' ? 'local/background-removal' : 'local/sharp';
-  onEvent({ type: 'start', runId, plan: [{ model, count: 1 }] });
-
-  const t0 = performance.now();
-  let result: Partial<ManifestEntry>;
+/** Result fields of a local tool run; a result that only finished after a cancel is removed again. */
+async function localResult(t: ToolOptions, o: Options, runId: string, abort?: AbortSignal) {
   try {
-    const r: LocalResult = await LOCAL_TOOL_FNS[t.tool](resolveOut(t.source), o, runStamp(runId));
-    result = {
+    abort?.throwIfAborted();
+    const r: LocalResult = await LOCAL_TOOL_FNS[t.tool](resolveOut(t.source), o, runStamp(runId), abort);
+    if (abort?.aborted) {
+      await fs.rm(resolveOut(r.file), { force: true });
+      return errorFields(null, abort);
+    }
+    return {
       ok: true,
       file: r.file,
       prompt: r.label,
@@ -133,10 +132,20 @@ async function runLocal(t: ToolOptions, onEvent: (e: RunEvent) => void): Promise
       cost: 0,
       callCost: 0,
       mediaType: 'image/png',
-    };
+    } satisfies Partial<ManifestEntry>;
   } catch (err) {
-    result = errorFields(err);
+    return errorFields(err, abort);
   }
+}
+
+async function runLocal(t: ToolOptions, onEvent: (e: RunEvent) => void, abort?: AbortSignal): Promise<ManifestEntry[]> {
+  const o = effectiveOptions(t.tool, t.options ?? {});
+  const runId = crypto.randomUUID();
+  const model = t.tool === 'removebg' ? 'local/background-removal' : 'local/sharp';
+  onEvent({ type: 'start', runId, plan: [{ model, count: 1 }] });
+
+  const t0 = performance.now();
+  const result = await localResult(t, o, runId, abort);
   const entry = localEntry({
     runId,
     model,
@@ -149,7 +158,8 @@ async function runLocal(t: ToolOptions, onEvent: (e: RunEvent) => void): Promise
     durationMs: Math.round(performance.now() - t0),
     ...result,
   });
-  await appendEntry(entry);
+  // Cancelled local runs cost nothing, so they leave no trace in the manifest
+  if (!abort?.aborted) await appendEntry(entry);
   onEvent({ type: entry.ok ? 'image' : 'error', entry });
   onEvent({ type: 'done', runId, images: entry.ok ? 1 : 0, failed: entry.ok ? 0 : 1, cost: 0 });
   return [entry];
@@ -161,7 +171,7 @@ export async function runTool(
   abort?: AbortSignal,
 ): Promise<ManifestEntry[]> {
   const source = resolveOut(t.source);
-  if (LOCAL_TOOLS.has(t.tool)) return runLocal(t, onEvent);
+  if (LOCAL_TOOLS.has(t.tool)) return runLocal(t, onEvent, abort);
   const buildPrompt = AI_PROMPTS[t.tool];
   if (!buildPrompt) throw new AppError('unknown_tool', `Unknown tool: ${t.tool}`, { tool: t.tool });
 

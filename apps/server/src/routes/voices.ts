@@ -9,7 +9,7 @@ import { addSample, deleteSample, getVoice, listVoices, samplePath, saveVoice } 
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { decodeDataUrl, HttpError, invalidName, requireApiKey } from '../http.ts';
+import { decodeDataUrl, HttpError, invalidName, requireApiKey, withAbort } from '../http.ts';
 
 const name = z.string().refine(validName, { message: 'invalid_name' });
 const refresh = z.object({ refresh: z.string().optional() });
@@ -81,15 +81,13 @@ export async function voiceRoutes(fastify: FastifyInstance) {
         }),
       },
     },
-    async (req) => {
+    async (req, reply) => {
       const engine = req.body.engine ?? TRANSCRIBE_ENGINE;
       if (engine === 'api') requireApiKey();
-      return transcribeSample(
-        req.params.name,
-        req.params.file,
-        engine,
-        req.body.language,
-        parsePrivacy(req.body.privacy),
+      const { body, params } = req;
+      // Closing the page (or the server) stops the transcription, including the local Whisper worker
+      return withAbort(reply, (signal) =>
+        transcribeSample(params.name, params.file, engine, body.language, parsePrivacy(body.privacy), signal),
       );
     },
   );

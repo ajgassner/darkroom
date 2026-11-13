@@ -12,8 +12,13 @@ void checkForUpdate().then(({ current, update }) => {
   if (update) console.log(`darkroom ${update.version} is available (you have ${current}): ${update.command}`);
 });
 
+// First Ctrl+C: abort running work and shut down cleanly. Second one: quit right away.
+let stopping = false;
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
+    if (stopping) process.exit(signal === 'SIGINT' ? 130 : 143);
+    stopping = true;
+    console.log('Stopping darkroom… (press Ctrl+C again to quit immediately)');
     void app.close().then(() => process.exit(0));
   });
 }
