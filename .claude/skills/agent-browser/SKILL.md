@@ -21,7 +21,9 @@ allowed-tools: Bash(agent-browser:*)
 
    - `DARKROOM_HOME` keeps refs/, out/, voices/ and .env of the repository untouched.
    - Mock models: `mock/image`, `mock/image-slow` (5 s, for cancel tests), `mock/image-error`, `mock/tts`,
-     `mock/clone`, `mock/lyria`. Only use the real API when the user asks for it.
+     `mock/clone`, `mock/lyria`, `mock/song`, plus the recommended ids `google/gemini-3.1-flash-image` and
+     `elevenlabs/eleven-v4` (so the curated order shows). They have different release dates; `mock/image`,
+     `mock/clone` and `mock/song` are always 9 days old ("new"). Only use the real API when the user asks for it.
    - Open http://localhost:5199. Only stop processes you started yourself (by PID), never the user's server on 5177.
 
 3. Use a named session (`--session darkroom-test`) and close it when done. Screenshots go to the scratchpad, not the repository.

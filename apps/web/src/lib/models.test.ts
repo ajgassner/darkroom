@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   allowedByPrivacy,
+  isNewModel,
   maxRefs,
   nearestAspect,
   nearestSize,
   preferredModel,
+  releaseMonth,
+  shortList,
   shortName,
-  sortByRecommendation,
+  sortModels,
   toolModels,
+  withFavorite,
   zdrState,
 } from './models';
 import type { ImageModel, ZdrEndpoint } from './types';
@@ -49,6 +53,8 @@ describe('parameter matching', () => {
       supported_parameters: { input_references: { type: 'range', min: 0, max: 14 } },
       zdr: [],
       price: null,
+      favorite: false,
+      recommended: false,
     };
     expect(maxRefs(m)).toBe(14);
     expect(maxRefs(undefined)).toBe(0);
@@ -62,18 +68,62 @@ describe('model lists', () => {
     name: string,
     params: ImageModel['supported_parameters'] = {},
     zdr: ZdrEndpoint[] = [strict],
-  ): ImageModel => ({ id, name, supported_parameters: params, zdr, price: null });
+    marks: Partial<ImageModel> = {},
+  ): ImageModel => ({
+    id,
+    name,
+    supported_parameters: params,
+    zdr,
+    price: null,
+    favorite: false,
+    recommended: false,
+    ...marks,
+  });
   const refs: ImageModel['supported_parameters'] = { input_references: { type: 'range', min: 0, max: 4 } };
   const hiRes: ImageModel['supported_parameters'] = { ...refs, resolution: { type: 'enum', values: ['1K', '4K'] } };
 
-  it('sorts recommended models first, then by name', () => {
-    const list = [m('z/b', 'B'), m('x/rec2', 'Rec 2'), m('z/a', 'A'), m('x/rec1', 'Rec 1')];
-    expect(sortByRecommendation(list, ['x/rec1', 'x/rec2']).map((x) => x.id)).toEqual([
-      'x/rec1',
-      'x/rec2',
-      'z/a',
-      'z/b',
+  it('sorts favorites (newest first), recommended in curated order, then newest first, undated last', () => {
+    const list = [
+      m('undated/b', 'B'),
+      m('old', 'Old', {}, [], { created: 100 }),
+      m('rec/2', 'Rec 2', {}, [], { recommended: true, rank: 1, created: 900 }),
+      m('undated/a', 'A'),
+      m('fav/old', 'Fav old', {}, [], { favorite: true, created: 10 }),
+      m('new', 'New', {}, [], { created: 500 }),
+      m('rec/1', 'Rec 1', {}, [], { recommended: true, rank: 0 }),
+      m('fav/new', 'Fav new', {}, [], { favorite: true, recommended: true, rank: 3, created: 20 }),
+    ];
+    expect(sortModels(list).map((x) => x.id)).toEqual([
+      'fav/new',
+      'fav/old',
+      'rec/1',
+      'rec/2',
+      'new',
+      'old',
+      'undated/a',
+      'undated/b',
     ]);
+    expect(list[0].id).toBe('undated/b'); // the input stays as it was
+  });
+
+  it('keeps favorites, recommended and selected models in the short list', () => {
+    const list = [
+      m('fav', 'F', {}, [], { favorite: true }),
+      m('rec', 'R', {}, [], { recommended: true }),
+      m('a', 'A'),
+      m('b', 'B'),
+    ];
+    expect(shortList(list, ['b']).map((x) => x.id)).toEqual(['fav', 'rec', 'b']);
+  });
+
+  it('changes a favorite mark and re-sorts the list (optimistic update and its rollback)', () => {
+    const list = [m('a', 'A', {}, [], { created: 2 }), m('b', 'B', {}, [], { created: 1 })];
+    const marked = withFavorite(list, 'b', true);
+    expect(marked.map((x) => [x.id, x.favorite])).toEqual([
+      ['b', true],
+      ['a', false],
+    ]);
+    expect(withFavorite(marked, 'b', false).map((x) => x.id)).toEqual(['a', 'b']);
   });
 
   it('offers tools only models with references, allowed by privacy, and 2K/4K for upscaling', () => {
@@ -88,5 +138,22 @@ describe('model lists', () => {
     expect(preferredModel(list, [undefined, 'gone', 'b'])?.id).toBe('b');
     expect(preferredModel(list, [])?.id).toBe('a');
     expect(preferredModel([], ['a'])).toBeUndefined();
+  });
+});
+
+describe('release dates', () => {
+  const oct2026 = Date.UTC(2026, 9, 15) / 1000;
+
+  it('shows the release month in the UI language', () => {
+    expect(releaseMonth(oct2026, 'en')).toBe('Oct 2026');
+    expect(releaseMonth(oct2026, 'de')).toBe('Okt. 2026');
+    expect(releaseMonth(undefined, 'en')).toBeNull();
+  });
+
+  it('marks models released in the last 30 days as new', () => {
+    const now = Date.UTC(2026, 10, 13);
+    expect(isNewModel(now / 1000 - 29 * 86_400, now)).toBe(true);
+    expect(isNewModel(now / 1000 - 31 * 86_400, now)).toBe(false);
+    expect(isNewModel(undefined, now)).toBe(false);
   });
 });

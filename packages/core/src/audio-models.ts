@@ -9,6 +9,8 @@ interface RawModel {
   id: string;
   name: string;
   description?: string;
+  /** Unix seconds */
+  created?: number;
   pricing?: Record<string, string>;
   supported_voices?: unknown;
 }
@@ -21,6 +23,11 @@ interface RawEndpoint {
 const HOUR = 3_600_000;
 let speechCache: { at: number; models: SpeechModel[] } | null = null;
 let musicCache: { at: number; models: MusicModel[] } | null = null;
+
+/** `created` when OpenRouter gives a usable one (left out otherwise, like in the image catalog). */
+function releaseDate(m: RawModel): { created?: number } {
+  return typeof m.created === 'number' && m.created > 0 ? { created: m.created } : {};
+}
 
 async function endpointsOf(id: string): Promise<RawEndpoint[]> {
   try {
@@ -47,6 +54,7 @@ export async function listSpeechModels(force = false): Promise<SpeechModel[]> {
         id: m.id,
         name: m.name,
         description: m.description ?? '',
+        ...releaseDate(m),
         pricing: m.pricing ?? {},
         voices: Array.isArray(m.supported_voices) ? m.supported_voices.map(String) : [],
         cloning: eps.some((e) => e.supports_voice_cloning),
@@ -70,7 +78,13 @@ export async function listMusicModels(force = false): Promise<MusicModel[]> {
   ]);
   const models: MusicModel[] = (body.data ?? [])
     .filter((m) => /lyria|music|song/i.test(`${m.id} ${m.description ?? ''}`) && !/^openai\/gpt-audio/.test(m.id))
-    .map((m) => ({ id: m.id, name: m.name, description: m.description ?? '', zdr: zdr.get(m.id) ?? [] }));
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      description: m.description ?? '',
+      ...releaseDate(m),
+      zdr: zdr.get(m.id) ?? [],
+    }));
   musicCache = { at: Date.now(), models };
   return models;
 }

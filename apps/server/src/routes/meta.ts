@@ -1,4 +1,4 @@
-// Status, model catalog, presets, history, deletion and debug records.
+// Status, presets, history, deletion and debug records.
 import fs from 'node:fs/promises';
 import { saveApiKey } from '@darkroom/core/api-key';
 import {
@@ -14,7 +14,6 @@ import {
 import type { StatusResponse } from '@darkroom/core/contract';
 import { deleteDebug, readDebug } from '@darkroom/core/debug';
 import { costSummary, markDeleted, readEntries, removeFiles, unusedDebugIds } from '@darkroom/core/manifest';
-import { imagePrices, listImageModels, zdrEndpoints } from '@darkroom/core/openrouter';
 import { DEFAULT_INSTRUCTIONS } from '@darkroom/core/refs';
 import { RELIGHT_PRESETS } from '@darkroom/core/tools';
 import { checkForUpdate } from '@darkroom/core/update-check';
@@ -48,22 +47,6 @@ export async function metaRoutes(fastify: FastifyInstance) {
   });
 
   app.get('/api/update', () => checkForUpdate());
-
-  app.get('/api/models', { schema: { querystring: z.object({ refresh: z.string().optional() }) } }, async (req) => {
-    const [models, zdr, prices] = await Promise.all([
-      listImageModels(req.query.refresh !== undefined),
-      zdrEndpoints(),
-      imagePrices(),
-    ]);
-    return models.map((m) => ({
-      id: m.id,
-      name: m.name,
-      created: m.created,
-      supported_parameters: m.supported_parameters,
-      zdr: zdr.get(m.id) ?? [],
-      price: prices.get(m.id) ?? null,
-    }));
-  });
 
   app.get('/api/presets', async () => JSON.parse(await fs.readFile(PRESETS_FILE, 'utf8').catch(() => '[]')));
 

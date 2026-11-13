@@ -43,8 +43,24 @@ export interface ImageModel {
   supports_streaming?: boolean;
 }
 
+export type ModelKind = 'image' | 'speech' | 'music';
+
+/** Favorite model ids per kind (favorites.json in the data folder; GET /api/favorites). */
+export type Favorites = Record<ModelKind, string[]>;
+
+/**
+ * How the model lists mark a model. Lists are ordered: favorites (newest first), then the recommended models in
+ * their curated order (`rank`), then the others newest first by `created`, models without a date last.
+ */
+export interface ModelMarks {
+  favorite: boolean;
+  recommended: boolean;
+  /** Position in the curated recommendation list (only on recommended models). */
+  rank?: number;
+}
+
 /** Image model as returned by GET /api/models (with ZDR endpoints and price). */
-export interface ImageModelInfo {
+export interface ImageModelInfo extends ModelMarks {
   id: string;
   name: string;
   created?: number;
@@ -57,6 +73,8 @@ export interface SpeechModel {
   id: string;
   name: string;
   description: string;
+  /** Release date (Unix seconds), when OpenRouter lists one. */
+  created?: number;
   pricing: Record<string, string>;
   voices: string[];
   cloning: boolean;
@@ -68,8 +86,15 @@ export interface MusicModel {
   id: string;
   name: string;
   description: string;
+  /** Release date (Unix seconds), when OpenRouter lists one. */
+  created?: number;
   zdr: ZdrEndpoint[];
 }
+
+/** Speech model as returned by GET /api/speech/models. */
+export type SpeechModelInfo = SpeechModel & ModelMarks;
+/** Music model as returned by GET /api/music/models. */
+export type MusicModelInfo = MusicModel & ModelMarks;
 
 // ---------------------------------------------------------------- Elements and voices
 

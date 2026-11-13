@@ -11,21 +11,24 @@ import {
   type PrivacyMode,
   parsePrivacy,
 } from '@darkroom/core/config';
-import type { ManifestEntry } from '@darkroom/core/contract';
+import type { ManifestEntry, ModelKind } from '@darkroom/core/contract';
+import { MODEL_KINDS } from '@darkroom/core/favorites';
 import { Argument, Command, InvalidArgumentError, Option } from 'commander';
 import pc from 'picocolors';
 import { collect, explicitOptions, floatArg, intArg, parseModels, resolveRefs } from './args.ts';
 import type { ImageRun, MusicRun, SpeechRun } from './command-line.ts';
-import { MODEL_KINDS } from './listing.ts';
 import {
+  addFavorite,
   interactiveMode,
   MUSIC_MODEL,
+  removeFavorite,
   runImage,
   runMusicRun,
   runSpeechRun,
   SPEECH_MODEL,
   showCosts,
   showElements,
+  showFavorites,
   showModels,
   showVoices,
   startWeb,
@@ -191,6 +194,32 @@ program
   .option('--search <text>', 'filter by id or name')
   .addOption(privacyOption('privacy mode the models are checked against: zdr | zdr-strict | off'))
   .action((kind, o) => showModels(kind, o));
+
+const favorites = program
+  .command('favorites')
+  .description('Your favorite models (listed first everywhere): list, add or remove')
+  .addArgument(new Argument('[kind]', 'only this kind').choices(MODEL_KINDS))
+  .addHelpText(
+    'after',
+    '\nExamples:\n  darkroom favorites add microsoft/mai-image-2.6\n  darkroom favorites remove microsoft/mai-image-2.6\n' +
+      '  darkroom favorites speech\nStored in favorites.json in the data folder, shared with the web UI.',
+  )
+  .action((kind?: ModelKind) => showFavorites(kind));
+const kindOption = () =>
+  new Option('--kind <kind>', 'image | speech | music (default: found in the catalogs)').choices(MODEL_KINDS);
+favorites
+  .command('add')
+  .description('Add a model to the favorites')
+  .argument('<model>', 'model id, e.g. microsoft/mai-image-2.6')
+  .addOption(kindOption())
+  .action((model: string, o: { kind?: ModelKind }) => addFavorite(model, o.kind));
+favorites
+  .command('remove')
+  .alias('rm')
+  .description('Remove a model from the favorites')
+  .argument('<model>', 'model id')
+  .addOption(kindOption())
+  .action((model: string, o: { kind?: ModelKind }) => removeFavorite(model, o.kind));
 
 program
   .command('voices')

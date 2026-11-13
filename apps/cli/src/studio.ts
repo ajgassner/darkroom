@@ -4,9 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import * as p from '@clack/prompts';
 import { listMusicModels, listSpeechModels } from '@darkroom/core/audio-models';
-import { estimateImagePrice, estimateRunCost, estimateSpeechPrice } from '@darkroom/core/catalog';
+import { estimateImagePrice, estimateRunCost, estimateSpeechPrice, rankModels } from '@darkroom/core/catalog';
 import { DEFAULT_MODEL, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode } from '@darkroom/core/config';
-import type { CostSummary, ManifestEntry } from '@darkroom/core/contract';
+import type { CostSummary, ManifestEntry, ModelKind } from '@darkroom/core/contract';
+import { unknownModel } from '@darkroom/core/errors';
+import { inCatalog, MODEL_KINDS, modelKindOf, readFavorites, setFavorite } from '@darkroom/core/favorites';
 import { runGeneration } from '@darkroom/core/generate';
 import { costSummary, readEntries } from '@darkroom/core/manifest';
 import { runMusic } from '@darkroom/core/music';
@@ -16,7 +18,7 @@ import { runSpeech } from '@darkroom/core/speech';
 import { listVoices } from '@darkroom/core/voices';
 import pc from 'picocolors';
 import { resolveRefs } from './args.ts';
-import { type CatalogImageModel, estimateText, plural, usd } from './choices.ts';
+import { type CatalogImageModel, estimateText, FAVORITE_MARK, plural, usd } from './choices.ts';
 import {
   commandLine,
   genArgs,
@@ -28,9 +30,10 @@ import {
 } from './command-line.ts';
 import { askImage, askMusic, askSpeech, BACK, type Mode, mainMenu, type Prompter, session } from './flow.ts';
 import {
+  favoriteBlocks,
   imageModelBlocks,
+  LEGEND,
   type ListOptions,
-  type ModelKind,
   musicModelBlocks,
   speechModelBlocks,
   voiceBlocks,
@@ -103,9 +106,17 @@ export async function totalLine(): Promise<string> {
 
 // ---------------------------------------------------------------- Listings
 
+// The catalogs come ranked like in the web UI: favorites, recommended, then newest first
+
 async function imageCatalog(): Promise<CatalogImageModel[]> {
-  const [models, zdr, prices] = await Promise.all([listImageModels(), zdrEndpoints(), imagePrices()]);
-  return models.map((m) => ({ ...m, zdr: zdr.get(m.id) ?? [], price: prices.get(m.id) ?? null }));
+  const [models, zdr, prices, favorites] = await Promise.all([
+    listImageModels(),
+    zdrEndpoints(),
+    imagePrices(),
+    readFavorites(),
+  ]);
+  const infos = models.map((m) => ({ ...m, zdr: zdr.get(m.id) ?? [], price: prices.get(m.id) ?? null }));
+  return rankModels(infos, 'image', favorites.image);
 }
 
 const loadImageModels = () => loading('Loading image models', (m) => plural(m.length, 'image model'), imageCatalog);
@@ -113,13 +124,13 @@ const loadSpeechModels = () =>
   loading(
     'Loading speech models',
     (m) => plural(m.length, 'speech model'),
-    () => listSpeechModels(),
+    async () => rankModels(await listSpeechModels(), 'speech', (await readFavorites()).speech),
   );
 const loadMusicModels = () =>
   loading(
     'Loading music models',
     (m) => plural(m.length, 'music model'),
-    () => listMusicModels(),
+    async () => rankModels(await listMusicModels(), 'music', (await readFavorites()).music),
   );
 
 const BLOCKS: Record<ModelKind, (o: ListOptions) => Promise<string[]>> = {
@@ -132,7 +143,53 @@ export async function showModels(kind: ModelKind, o: ListOptions): Promise<void>
   const blocks = await BLOCKS[kind](o);
   if (!blocks.length) return p.log.warn('No models match');
   for (const b of blocks) p.log.message(b);
+  p.log.info(pc.dim(LEGEND));
   if (kind === 'speech') p.log.info(`Voices of a model: ${pc.bold('darkroom voices <model>')}`);
+}
+
+// ---------------------------------------------------------------- Favorites
+
+/** The favorites of one kind or all kinds (no network needed). */
+export async function showFavorites(kind?: ModelKind): Promise<void> {
+  for (const b of favoriteBlocks(await readFavorites(), kind ? [kind] : MODEL_KINDS)) p.log.message(b);
+}
+
+/** Add a model to the favorites; its kind comes from the catalogs unless given. */
+export async function addFavorite(model: string, kind?: ModelKind): Promise<void> {
+  const k = await loading(
+    'Looking up the model',
+    (k) => `${k} model`,
+    async () => {
+      if (!kind) return modelKindOf(model);
+      if (!(await inCatalog(kind, model))) throw unknownModel(model);
+      return kind;
+    },
+  );
+  await setFavorite(k, model, true);
+  p.log.success(`${FAVORITE_MARK} ${model} is one of your ${k} favorites`);
+}
+
+/** Remove a model from the favorites of its kind (or of every kind that has it); any id works. */
+export async function removeFavorite(model: string, kind?: ModelKind): Promise<void> {
+  const favorites = await readFavorites();
+  const kinds = kind ? [kind] : MODEL_KINDS.filter((k) => favorites[k].includes(model));
+  if (!kinds.some((k) => favorites[k].includes(model))) return p.log.info(`${model} is not a favorite`);
+  for (const k of kinds) await setFavorite(k, model, false);
+  p.log.success(`Removed ${model} from your ${kinds.join(' and ')} favorites`);
+}
+
+/** Next step "Add to favorites" of the interactive mode: the models of the run that are not favorites yet. */
+async function favoriteRun(kind: ModelKind, models: string[]): Promise<string> {
+  const known = (await readFavorites())[kind];
+  const added: string[] = [];
+  for (const m of models.filter((id) => !known.includes(id))) {
+    if (!(await inCatalog(kind, m))) continue;
+    await setFavorite(kind, m, true);
+    added.push(m);
+  }
+  return added.length
+    ? `${FAVORITE_MARK} Added ${added.join(', ')} to your ${kind} favorites`
+    : `Nothing to add: already a favorite or not in the catalog`;
 }
 
 /** Own voices, or a speech model's voices by language together with the own voices. */
@@ -243,6 +300,7 @@ function imageMode(ui: Prompter, fixed: Partial<ImageRun>): Mode<ImageRun> {
       });
     },
     run: (r) => interactiveRun('image', r, runImage, genArgs(r)),
+    favorite: (r) => favoriteRun('image', r.models),
   };
 }
 
@@ -267,6 +325,7 @@ function speechMode(ui: Prompter, fixed: Partial<SpeechRun>): Mode<SpeechRun> {
       });
     },
     run: (r) => interactiveRun('speech', r, runSpeechRun, speakArgs(r)),
+    favorite: (r) => favoriteRun('speech', [r.model]),
   };
 }
 
@@ -284,21 +343,24 @@ function musicMode(ui: Prompter, fixed: Partial<MusicRun>): Mode<MusicRun> {
       });
     },
     run: (r) => interactiveRun('music', r, runMusicRun, musicArgs(r)),
+    favorite: (r) => favoriteRun('music', [r.model]),
   };
 }
 
 /** Models submenu: which list to show. */
 async function modelsMenu(ui: Prompter, privacy: PrivacyMode): Promise<void> {
-  const kind = await ui.select<ModelKind | 'voices'>({
+  const kind = await ui.select<ModelKind | 'voices' | 'favorites'>({
     message: 'Which models?',
     options: [
       { value: 'image', label: 'Image models' },
       { value: 'speech', label: 'Speech models' },
       { value: 'music', label: 'Music models' },
       { value: 'voices', label: 'Voices of a speech model' },
+      { value: 'favorites', label: 'Your favorites', hint: 'darkroom favorites add|remove <model>' },
     ],
   });
   if (kind === BACK) return;
+  if (kind === 'favorites') return showFavorites();
   if (kind !== 'voices') return showModels(kind, { privacy });
   const models = await loadSpeechModels();
   const id = await ui.search({ message: 'Speech model', options: models.map((m) => ({ value: m.id, label: m.id })) });

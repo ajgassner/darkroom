@@ -1,16 +1,24 @@
 // What the interactive mode offers: choices for privacy, models, sizes and voices, their defaults and the summary.
 // Pure functions on catalog data, so the prompts in flow.ts stay thin.
 import {
-  byRecommendation,
   imagePriceLabel,
+  isNewModel,
   privacyAllows,
-  RECOMMENDED_IMAGE,
-  RECOMMENDED_SPEECH,
+  releaseMonth,
   speechPriceLabel,
   zdrStatus,
 } from '@darkroom/core/catalog';
 import type { PrivacyMode } from '@darkroom/core/config';
-import type { ImageModel, ImagePrice, MusicModel, SpeechModel, VoiceInfo, ZdrEndpoint } from '@darkroom/core/contract';
+import type {
+  ImageModel,
+  ImagePrice,
+  ModelMarks,
+  MusicModelInfo,
+  SpeechModel,
+  SpeechModelInfo,
+  VoiceInfo,
+  ZdrEndpoint,
+} from '@darkroom/core/contract';
 import { fitParams, maxRefs } from '@darkroom/core/params';
 import { voiceGroups } from '@darkroom/core/voice-lang';
 import type { ImageRun, MusicRun, SpeechRun } from './command-line.ts';
@@ -21,8 +29,8 @@ export interface Choice<T> {
   hint?: string;
 }
 
-/** Image model with its ZDR endpoints and list price (as the web UI gets it from /api/models). */
-export interface CatalogImageModel extends ImageModel {
+/** Image model with marks, ZDR endpoints and list price (as the web UI gets it from /api/models). */
+export interface CatalogImageModel extends ImageModel, ModelMarks {
   zdr: ZdrEndpoint[];
   price: ImagePrice | null;
 }
@@ -34,16 +42,37 @@ export const PRIVACY_CHOICES: Choice<PrivacyMode>[] = [
   { value: 'off', label: 'off         any provider; prompts and images may be retained' },
 ];
 
+export const FAVORITE_MARK = '♥';
+export const RECOMMENDED_MARK = '★';
+
 const details = (...parts: (string | null | false | undefined)[]) => parts.filter(Boolean).join(' · ');
 
-/** Image models that take references and are allowed in the privacy mode, recommended ones first. */
+/** Marks and release of a model for a hint: "♥ favorite · recommended · Oct 2026 · new". */
+function release(m: { created?: number } & ModelMarks): string {
+  return details(
+    m.favorite && `${FAVORITE_MARK} favorite`,
+    m.recommended && 'recommended',
+    releaseMonth(m.created),
+    isNewModel(m.created) && 'new',
+  );
+}
+
+/** The models allowed in the privacy mode as choices, in list order (favorites first). */
+function modelChoices<M extends { id: string; zdr: ZdrEndpoint[] }>(
+  models: M[],
+  privacy: PrivacyMode,
+  hint: (m: M) => string,
+): Choice<string>[] {
+  return models.filter((m) => privacyAllows(m.zdr, privacy)).map((m) => ({ value: m.id, label: m.id, hint: hint(m) }));
+}
+
+/** Image models that take references and are allowed in the privacy mode. */
 export function imageModelChoices(models: CatalogImageModel[], privacy: PrivacyMode): Choice<string>[] {
-  const usable = models.filter((m) => (maxRefs(m) ?? 0) > 0 && privacyAllows(m.zdr, privacy));
-  return byRecommendation(usable, RECOMMENDED_IMAGE).map((m) => ({
-    value: m.id,
-    label: m.id,
-    hint: details(imagePriceLabel(m.price), zdrStatus(m.zdr), RECOMMENDED_IMAGE.includes(m.id) && 'recommended'),
-  }));
+  return modelChoices(
+    models.filter((m) => (maxRefs(m) ?? 0) > 0),
+    privacy,
+    (m) => details(release(m), imagePriceLabel(m.price), zdrStatus(m.zdr)),
+  );
 }
 
 const ASPECT_ORDER = ['1:1', '4:5', '3:4', '2:3', '9:16', '5:4', '4:3', '3:2', '16:9', '21:9'];
@@ -89,19 +118,17 @@ export const COUNT_CHOICES: Choice<number>[] = [1, 2, 3, 4, 6, 8, 10].map((n) =>
   label: String(n),
 }));
 
-/** Speech models allowed in the privacy mode, recommended ones first; the hint tells price and voice cloning. */
-export function speechModelChoices(models: SpeechModel[], privacy: PrivacyMode): Choice<string>[] {
-  const usable = models.filter((m) => privacyAllows(m.zdr, privacy));
-  return byRecommendation(usable, RECOMMENDED_SPEECH).map((m) => ({
-    value: m.id,
-    label: m.id,
-    hint: details(
+/** Speech models allowed in the privacy mode, in list order; the hint tells release, price and voice cloning. */
+export function speechModelChoices(models: SpeechModelInfo[], privacy: PrivacyMode): Choice<string>[] {
+  return modelChoices(models, privacy, (m) =>
+    details(
+      release(m),
       speechPriceLabel(m),
       zdrStatus(m.zdr),
       m.cloning && 'clones voices',
       m.voices.length > 0 && `${m.voices.length} voice${m.voices.length === 1 ? '' : 's'}`,
     ),
-  }));
+  );
 }
 
 /** Voices of a model grouped by language (own voices first if it can clone); "model default" without presets. */
@@ -112,10 +139,8 @@ export function voiceChoices(model: SpeechModel, ownVoices: VoiceInfo[]): Choice
   return model.voices.length ? voices : [{ value: '', label: 'model default' }, ...voices];
 }
 
-export function musicModelChoices(models: MusicModel[], privacy: PrivacyMode): Choice<string>[] {
-  return models
-    .filter((m) => privacyAllows(m.zdr, privacy))
-    .map((m) => ({ value: m.id, label: m.id, hint: details(m.name, zdrStatus(m.zdr)) }));
+export function musicModelChoices(models: MusicModelInfo[], privacy: PrivacyMode): Choice<string>[] {
+  return modelChoices(models, privacy, (m) => details(m.name, release(m), zdrStatus(m.zdr)));
 }
 
 /** Providers whose speech models follow free-text delivery instructions. */

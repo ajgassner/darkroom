@@ -12,6 +12,8 @@ function imageModel(id: string, params: Record<string, string[]> = {}, maxRefs =
     supported_parameters: { input_references: { type: 'range', min: 0, max: maxRefs }, ...enums },
     zdr,
     price: null,
+    favorite: false,
+    recommended: false,
   };
 }
 
@@ -84,6 +86,8 @@ const speechModel = (id: string, over: Partial<SpeechModel> = {}): SpeechModel =
   cloning: false,
   multiRef: false,
   zdr,
+  favorite: false,
+  recommended: false,
   ...over,
 });
 
@@ -96,7 +100,14 @@ const voice = (over: Partial<VoiceInfo> = {}): VoiceInfo => ({
   ...over,
 });
 
-const music: MusicModel = { id: 'google/lyria', name: 'Lyria', description: '', zdr: [] };
+const music: MusicModel = {
+  id: 'google/lyria',
+  name: 'Lyria',
+  description: '',
+  zdr: [],
+  favorite: false,
+  recommended: false,
+};
 
 function audioInput(over: Partial<AudioNotesInput> = {}, settings: Partial<AudioNotesInput['settings']> = {}) {
   return audioNotes({

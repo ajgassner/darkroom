@@ -114,6 +114,8 @@ describe('composerSummary', () => {
     supported_parameters: {},
     zdr: [],
     price: { cost: 0.04, unit: 'image', variants: {} },
+    favorite: false,
+    recommended: false,
   };
   const unpriced: ImageModel = { ...priced, id: 'x/b', price: null };
   const input = (over: Partial<SummaryInput> = {}, settings: Partial<SummaryInput['settings']> = {}) =>

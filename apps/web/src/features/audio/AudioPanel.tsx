@@ -8,11 +8,10 @@ import { Input, RadioDot, SectionTitle, Tag, Tooltip } from '@/components/ui/mis
 import { Select, type SelectGroup } from '@/components/ui/select';
 import { errorMessage, refreshHistory } from '@/lib/actions';
 import { api, outUrl } from '@/lib/api';
-import { allowedByPrivacy, RECOMMENDED_SPEECH, shortName, sortByRecommendation } from '@/lib/models';
+import { allowedByPrivacy, shortList, shortName, sortModels } from '@/lib/models';
 import { audioNotes } from '@/lib/notes';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { SpeechModel } from '@/lib/types';
-import { cn } from '@/lib/utils';
 import {
   demoText,
   fallbackVoice,
@@ -23,6 +22,7 @@ import {
   voiceGroups,
   voiceLang,
 } from '@/lib/voices';
+import { FavoriteStar, ModelRow, ModelTitle } from '../ModelMarks';
 import { Chip, NotesSection } from '../shared';
 import { ZdrTag } from '../ZdrTag';
 
@@ -54,11 +54,11 @@ function SpeechSections() {
   const speechModels = useData((d) => d.speechModels);
   const voices = useData((d) => d.voices);
   const showAll = useUi((u) => u.showAllSpeech);
-  const sorted = useMemo(() => sortByRecommendation(speechModels, RECOMMENDED_SPEECH), [speechModels]);
+  const sorted = useMemo(() => sortModels(speechModels), [speechModels]);
   const model = speechModels.find((m) => m.id === s.speechModel);
   useValidSpeechSelection(model, sorted);
 
-  const list = showAll ? sorted : sorted.filter((m) => RECOMMENDED_SPEECH.includes(m.id) || m.id === s.speechModel);
+  const list = showAll ? sorted : shortList(sorted, [s.speechModel]);
   const lang = i18n.resolvedLanguage ?? 'en';
 
   const groups = useMemo<SelectGroup[]>(
@@ -184,34 +184,36 @@ function SpeechRow({ m, checked, onPick }: { m: SpeechModel; checked: boolean; o
   const allowed = allowedByPrivacy(m.zdr, privacy);
   const voicesText = m.voices.length ? t('audio.voices', { count: m.voices.length }) : t('audio.ownVoice');
   return (
-    <Tooltip content={allowed ? m.id : t('models.blocked', { id: m.id })}>
-      <button
-        type="button"
-        aria-pressed={checked}
-        onClick={onPick}
-        className={cn(
-          'grid cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left hover:bg-panel-2',
-          checked && 'border-line bg-panel-2',
-          !allowed && 'opacity-45',
-        )}
-      >
-        <RadioDot checked={checked} />
-        <div className="min-w-0">
-          <div className="text-[13px]">{shortName(m.name)}</div>
-          <div className="mt-px text-[11px] leading-[1.35] text-muted [overflow-wrap:anywhere]">
-            {speechPriceText(t, m)} · {voicesText} · {speechLangsText(t, m)}
+    <ModelRow
+      checked={checked}
+      blocked={!allowed}
+      favorite={<FavoriteStar kind="speech" id={m.id} favorite={m.favorite} />}
+    >
+      <Tooltip content={allowed ? m.id : t('models.blocked', { id: m.id })}>
+        <button
+          type="button"
+          aria-pressed={checked}
+          onClick={onPick}
+          className="grid min-w-0 flex-1 cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 py-1.5 pl-2 text-left"
+        >
+          <RadioDot checked={checked} />
+          <div className="min-w-0">
+            <ModelTitle name={shortName(m.name)} created={m.created} />
+            <div className="mt-px text-[11px] leading-[1.35] text-muted [overflow-wrap:anywhere]">
+              {speechPriceText(t, m)} · {voicesText} · {speechLangsText(t, m)}
+            </div>
           </div>
-        </div>
-        <div className="flex flex-col items-end gap-[3px]">
-          <ZdrTag zdr={m.zdr} />
-          {m.cloning && (
-            <Tooltip content={t('audio.cloneHint')}>
-              <Tag tone="accent">{t('audio.clone')}</Tag>
-            </Tooltip>
-          )}
-        </div>
-      </button>
-    </Tooltip>
+          <div className="flex flex-col items-end gap-[3px]">
+            <ZdrTag zdr={m.zdr} />
+            {m.cloning && (
+              <Tooltip content={t('audio.cloneHint')}>
+                <Tag tone="accent">{t('audio.clone')}</Tag>
+              </Tooltip>
+            )}
+          </div>
+        </button>
+      </Tooltip>
+    </ModelRow>
   );
 }
 
@@ -276,7 +278,8 @@ function DemoButton({ model }: { model: SpeechModel | undefined }) {
 
 function MusicSection() {
   const { t } = useTranslation();
-  const musicModels = useData((d) => d.musicModels);
+  const unsorted = useData((d) => d.musicModels);
+  const musicModels = useMemo(() => sortModels(unsorted), [unsorted]);
   const musicModel = useSettings((s) => s.musicModel);
   const set = useSettings((s) => s.set);
   useEffect(() => {
@@ -290,26 +293,28 @@ function MusicSection() {
         {musicModels.map((m) => {
           const price = /\$[\d.]+ per [a-z ]+/i.exec(m.description)?.[0];
           return (
-            <button
+            <ModelRow
               key={m.id}
-              type="button"
-              aria-pressed={m.id === musicModel}
-              onClick={() => set({ musicModel: m.id })}
-              className={cn(
-                'grid cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left hover:bg-panel-2',
-                m.id === musicModel && 'border-line bg-panel-2',
-              )}
+              checked={m.id === musicModel}
+              favorite={<FavoriteStar kind="music" id={m.id} favorite={m.favorite} />}
             >
-              <RadioDot checked={m.id === musicModel} />
-              <div className="min-w-0">
-                <div className="text-[13px]">{shortName(m.name)}</div>
-                <div className="mt-px text-[11px] text-muted [overflow-wrap:anywhere]">
-                  {m.id}
-                  {price ? ` · ${price}` : ''}
+              <button
+                type="button"
+                aria-pressed={m.id === musicModel}
+                onClick={() => set({ musicModel: m.id })}
+                className="grid min-w-0 flex-1 cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 py-1.5 pl-2 text-left"
+              >
+                <RadioDot checked={m.id === musicModel} />
+                <div className="min-w-0">
+                  <ModelTitle name={shortName(m.name)} created={m.created} />
+                  <div className="mt-px text-[11px] text-muted [overflow-wrap:anywhere]">
+                    {m.id}
+                    {price ? ` · ${price}` : ''}
+                  </div>
                 </div>
-              </div>
-              <ZdrTag zdr={m.zdr} />
-            </button>
+                <ZdrTag zdr={m.zdr} />
+              </button>
+            </ModelRow>
           );
         })}
       </div>

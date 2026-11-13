@@ -1,4 +1,5 @@
-import type { ImageModel, SpeechModel } from '@darkroom/core/contract';
+import { rankModels } from '@darkroom/core/catalog';
+import type { ImageModel, SpeechModelInfo } from '@darkroom/core/contract';
 import { describe, expect, it } from 'vitest';
 import {
   aspectChoices,
@@ -28,6 +29,8 @@ const image = (id: string, extra: Partial<CatalogImageModel> = {}): CatalogImage
   supported_parameters: { input_references: { type: 'range', min: 0, max: 4 } },
   zdr,
   price: null,
+  favorite: false,
+  recommended: false,
   ...extra,
 });
 
@@ -40,7 +43,7 @@ const params = (id: string, aspect?: string[], resolution?: string[]): ImageMode
   },
 });
 
-const speech = (id: string, extra: Partial<SpeechModel> = {}): SpeechModel => ({
+const speech = (id: string, extra: Partial<SpeechModelInfo> = {}): SpeechModelInfo => ({
   id,
   name: id,
   description: '',
@@ -49,21 +52,29 @@ const speech = (id: string, extra: Partial<SpeechModel> = {}): SpeechModel => ({
   cloning: false,
   multiRef: false,
   zdr,
+  favorite: false,
+  recommended: false,
   ...extra,
 });
 
 describe('model choices', () => {
-  it('offers image models with references allowed by the privacy mode, recommended first', () => {
-    const models = [
-      image('z/last', { price: { cost: 0.04, unit: 'image', variants: {} } }),
-      image('google/gemini-3-pro-image'),
-      image('no/refs', { supported_parameters: {} }),
-      image('sr/model', { zdr: withRetention }),
-      image('open/model', { zdr: [] }),
-    ];
+  it('offers image models with references allowed by the privacy mode, favorites and recommended first', () => {
+    const models = rankModels(
+      [
+        image('z/last', { price: { cost: 0.04, unit: 'image', variants: {} } }),
+        image('google/gemini-3-pro-image'),
+        image('no/refs', { supported_parameters: {} }),
+        image('sr/model', { zdr: withRetention, created: Date.UTC(2026, 9, 2) / 1000 }),
+        image('open/model', { zdr: [] }),
+        image('fav/model'),
+      ],
+      'image',
+      ['fav/model'],
+    );
     expect(imageModelChoices(models, 'zdr')).toEqual([
-      { value: 'google/gemini-3-pro-image', label: 'google/gemini-3-pro-image', hint: 'ZDR · recommended' },
-      { value: 'sr/model', label: 'sr/model', hint: 'ZDR (safety retention)' },
+      { value: 'fav/model', label: 'fav/model', hint: '♥ favorite · ZDR' },
+      { value: 'google/gemini-3-pro-image', label: 'google/gemini-3-pro-image', hint: 'recommended · ZDR' },
+      { value: 'sr/model', label: 'sr/model', hint: 'Oct 2026 · ZDR (safety retention)' },
       { value: 'z/last', label: 'z/last', hint: '$0.04/image · ZDR' },
     ]);
     expect(imageModelChoices(models, 'zdr-strict').map((c) => c.value)).not.toContain('sr/model');
@@ -71,14 +82,18 @@ describe('model choices', () => {
   });
 
   it('offers speech models with price, cloning and voices', () => {
-    const models = [
-      speech('x/clone', { cloning: true, pricing: { prompt: '0.00003' } }),
-      speech('elevenlabs/eleven-v4', { voices: ['a', 'b'] }),
-      speech('x/one', { voices: ['a'] }),
-      speech('x/open', { zdr: [] }),
-    ];
+    const models = rankModels(
+      [
+        speech('x/clone', { cloning: true, pricing: { prompt: '0.00003' } }),
+        speech('elevenlabs/eleven-v4', { voices: ['a', 'b'] }),
+        speech('x/one', { voices: ['a'] }),
+        speech('x/open', { zdr: [] }),
+      ],
+      'speech',
+      [],
+    );
     expect(speechModelChoices(models, 'zdr')).toEqual([
-      { value: 'elevenlabs/eleven-v4', label: 'elevenlabs/eleven-v4', hint: 'ZDR · 2 voices' },
+      { value: 'elevenlabs/eleven-v4', label: 'elevenlabs/eleven-v4', hint: 'recommended · ZDR · 2 voices' },
       { value: 'x/clone', label: 'x/clone', hint: '$0.030/1k chars · ZDR · clones voices' },
       { value: 'x/one', label: 'x/one', hint: 'ZDR · 1 voice' },
     ]);
@@ -95,8 +110,8 @@ describe('model choices', () => {
       { value: 'voice:me', label: 'Me', hint: 'own voices' },
     ]);
     const music = [
-      { id: 'g/lyria', name: 'Lyria', description: '', zdr: [] },
-      { id: 'g/zdr', name: 'Z', description: '', zdr },
+      { id: 'g/lyria', name: 'Lyria', description: '', zdr: [], favorite: false, recommended: false },
+      { id: 'g/zdr', name: 'Z', description: '', zdr, favorite: false, recommended: false },
     ];
     expect(musicModelChoices(music, 'zdr')).toEqual([{ value: 'g/zdr', label: 'g/zdr', hint: 'Z · ZDR' }]);
     expect(musicModelChoices(music, 'off')).toHaveLength(2);

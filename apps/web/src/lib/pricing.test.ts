@@ -9,6 +9,8 @@ function model(id: string, price: ImagePrice | null, resolutions?: string[]): Im
     supported_parameters: resolutions ? { resolution: { type: 'enum', values: resolutions } } : {},
     zdr: [],
     price,
+    favorite: false,
+    recommended: false,
   };
 }
 
@@ -41,7 +43,7 @@ describe('estimateImagePrice', () => {
     expect(estimateImagePrice(model('google/gemini-flash-image', tok), '1K', '')).toBeCloseTo(0.0375);
     expect(estimateImagePrice(model('google/gemini-3-pro-image', tok, ['1K', '4K']), '4K', '')).toBeCloseTo(0.06);
     expect(estimateImagePrice(model('google/gemini-3-pro-image', tok, ['512', '1K']), '512', '')).toBeCloseTo(0.0225);
-    expect(estimateImagePrice(model('openai/gpt-image-2', tok), '1K', 'high')).toBeCloseTo(0.1248);
+    expect(estimateImagePrice(model('openai/gpt-image-2.5-sunburst', tok), '1K', 'high')).toBeCloseTo(0.1248);
     expect(estimateImagePrice(model('other/x', tok), '1K', '')).toBeNull();
     expect(estimateImagePrice(model('x/none', null), '1K', '')).toBeNull();
   });

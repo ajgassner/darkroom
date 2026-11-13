@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 
 const CLI = path.join(import.meta.dirname, 'cli.ts');
@@ -24,7 +25,8 @@ function cli(args: string[], env: Record<string, string> = {}): Promise<{ code: 
     }, 4000);
     child.on('exit', (code) => {
       clearTimeout(timer);
-      resolve({ code, output });
+      // Colors and cursor codes depend on the environment (CI turns colors on): compare plain text
+      resolve({ code, output: stripVTControlCharacters(output) });
     });
   });
 }
@@ -59,5 +61,28 @@ describe('CLI process', () => {
     expect(speed.output).toContain('must be a number from 0.25 to 4');
     const help = await cli(['--help'], { PORT: '5199' });
     expect(help.output).toContain('http://localhost:5199');
+  });
+
+  it('lists and removes favorites without network, and looks up a model before adding it', async () => {
+    const file = path.join(home, 'favorites.json');
+    await fs.writeFile(file, JSON.stringify({ image: ['a/one', 'gone/two'], speech: ['s/one'], music: [] }));
+    const all = await cli(['favorites']);
+    expect(all.code).toBe(0);
+    expect(all.output).toContain('image favorites (2)');
+    expect(all.output).toContain('gone/two');
+    expect(all.output).toContain('music favorites (0)');
+    const speech = await cli(['favorites', 'speech']);
+    expect(speech.output).toContain('s/one');
+    expect(speech.output).not.toContain('image favorites');
+
+    const removed = await cli(['favorites', 'remove', 'gone/two']);
+    expect(removed.output).toContain('Removed gone/two from your image favorites');
+    expect(JSON.parse(await fs.readFile(file, 'utf8')).image).toEqual(['a/one']);
+    expect((await cli(['favorites', 'rm', 'never/added'])).output).toContain('never/added is not a favorite');
+
+    const add = await cli(['favorites', 'add', 'x/y', '--kind', 'image'], { OPENROUTER_API_KEY: 'test' });
+    expect(add.code).toBe(1);
+    expect(add.output).toContain('Network error');
+    expect((await cli(['favorites', 'video'])).output).toContain("'video' is invalid for argument 'kind'");
   });
 });

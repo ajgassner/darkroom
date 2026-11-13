@@ -1,7 +1,7 @@
 // Interactive mode: the questions for an image, speech or music run, the next steps after a run and the main menu.
 // Prompts go through a Prompter (clack in the terminal, a script in tests); Escape goes back one question.
 import type { PrivacyMode } from '@darkroom/core/config';
-import type { ElementInfo, MusicModel, SpeechModel, VoiceInfo } from '@darkroom/core/contract';
+import type { ElementInfo, MusicModelInfo, SpeechModelInfo, VoiceInfo } from '@darkroom/core/contract';
 import {
   aspectChoices,
   type CatalogImageModel,
@@ -182,9 +182,9 @@ export async function askImage(ui: Prompter, a: ImageAsk): Promise<ImageRun | Ba
 
 export interface SpeechAsk extends Ask<SpeechRun> {
   defaultModel: string;
-  models: () => Promise<SpeechModel[]>;
+  models: () => Promise<SpeechModelInfo[]>;
   ownVoices: VoiceInfo[];
-  estimate: (run: SpeechRun, model: SpeechModel | undefined) => string;
+  estimate: (run: SpeechRun, model: SpeechModelInfo | undefined) => string;
 }
 
 export async function askSpeech(ui: Prompter, a: SpeechAsk): Promise<SpeechRun | Back> {
@@ -256,7 +256,7 @@ export async function askSpeech(ui: Prompter, a: SpeechAsk): Promise<SpeechRun |
 
 export interface MusicAsk extends Ask<MusicRun> {
   defaultModel: string;
-  models: () => Promise<MusicModel[]>;
+  models: () => Promise<MusicModelInfo[]>;
   estimate: (run: MusicRun) => string;
 }
 
@@ -297,13 +297,14 @@ export async function askMusic(ui: Prompter, a: MusicAsk): Promise<MusicRun | Ba
   return ok ? d : BACK;
 }
 
-type NextStep = 'open' | 'again' | 'change' | 'menu' | 'quit';
+type NextStep = 'open' | 'again' | 'change' | 'favorite' | 'menu' | 'quit';
 
-function nextStepChoices(canOpen: boolean): Choice<NextStep>[] {
+function nextStepChoices(canOpen: boolean, canFavorite: boolean): Choice<NextStep>[] {
   return [
     ...(canOpen ? [{ value: 'open' as const, label: 'Open the result' }] : []),
     { value: 'again', label: 'Run again', hint: 'same settings' },
     { value: 'change', label: 'Change settings and run again' },
+    ...(canFavorite ? [{ value: 'favorite' as const, label: 'Add to favorites', hint: 'the models of this run' }] : []),
     { value: 'menu', label: 'Main menu' },
     { value: 'quit', label: 'Quit' },
   ];
@@ -315,6 +316,8 @@ export interface Mode<R> {
   ask(previous?: R): Promise<R | Back>;
   /** Run it and return the result files. */
   run(r: R): Promise<string[]>;
+  /** Add the run's models to the favorites; returns what happened. */
+  favorite?(r: R): Promise<string>;
 }
 
 /**
@@ -326,21 +329,39 @@ export async function session<R>(
   mode: Mode<R>,
   open?: (files: string[]) => void,
 ): Promise<'menu' | 'quit' | Back> {
-  let run = await mode.ask();
+  const run = await mode.ask();
   if (run === BACK) return BACK;
-  let files = await mode.run(run);
+  let current: Done<R> = { run, files: await mode.run(run) };
   for (;;) {
-    const next = await ui.select({ message: 'What next?', options: nextStepChoices(Boolean(open && files.length)) });
-    if (next === 'open') open?.(files);
-    else if (next === 'again') files = await mode.run(run);
-    else if (next === 'change') {
-      const changed = await mode.ask(run);
-      if (changed !== BACK) {
-        run = changed;
-        files = await mode.run(run);
-      }
-    } else return next === 'quit' ? 'quit' : 'menu';
+    const options = nextStepChoices(Boolean(open && current.files.length), Boolean(mode.favorite));
+    const next = await ui.select({ message: 'What next?', options });
+    if (next === BACK || next === 'menu' || next === 'quit') return next === 'quit' ? 'quit' : 'menu';
+    current = await nextStep(ui, mode, next, current, open);
   }
+}
+
+/** The last run and its result files. */
+interface Done<R> {
+  run: R;
+  files: string[];
+}
+
+/** Carry out one next step; returns the (possibly new) last run. */
+async function nextStep<R>(
+  ui: Prompter,
+  mode: Mode<R>,
+  step: Exclude<NextStep, 'menu' | 'quit'>,
+  current: Done<R>,
+  open?: (files: string[]) => void,
+): Promise<Done<R>> {
+  if (step === 'open') open?.(current.files);
+  else if (step === 'favorite' && mode.favorite) ui.info(await mode.favorite(current.run));
+  else if (step === 'again') return { run: current.run, files: await mode.run(current.run) };
+  else if (step === 'change') {
+    const changed = await mode.ask(current.run);
+    if (changed !== BACK) return { run: changed, files: await mode.run(changed) };
+  }
+  return current;
 }
 
 export type MenuItem = 'image' | 'speech' | 'music' | 'models' | 'library' | 'costs' | 'web' | 'quit';

@@ -51,15 +51,16 @@ describe('audio model catalogs', () => {
     ]);
     expect(models.find((m) => m.id === 'test/clone')).toMatchObject({ cloning: true, zdr: [expect.any(Object)] });
     expect(models.find((m) => m.id === 'test/tts')).toMatchObject({ voices: ['alloy', 'echo'], cloning: false });
+    // Release dates are passed through where OpenRouter lists them
+    expect(models.find((m) => m.id === 'test/tts')?.created).toBe(1_767_225_600);
+    expect(models.find((m) => m.id === 'test/tts-open')).not.toHaveProperty('created');
   });
 
   it('lists only music models (no chat audio models)', async () => {
     fakeOpenRouter();
-    expect((await listMusicModels(true)).map((m) => m.id)).toEqual([
-      'test/lyria',
-      'test/lyria-zdr',
-      'test/lyria-safety',
-    ]);
+    const models = await listMusicModels(true);
+    expect(models.map((m) => m.id)).toEqual(['test/lyria', 'test/lyria-zdr', 'test/lyria-safety']);
+    expect(models.map((m) => m.created)).toEqual([1_767_225_600, 1_772_323_200, undefined]);
   });
 });
 
