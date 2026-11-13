@@ -25,7 +25,14 @@ describe('reuse settings', () => {
     const current = { aspect: '3:4', models: ['x/a', 'x/b'] };
     expect(
       imageSettingsFrom(
-        { model: 'x/c', params: { aspect_ratio: '16:9', resolution: '4K', count: 2 }, element: null, usePrefix: false },
+        [
+          {
+            model: 'x/c',
+            params: { aspect_ratio: '16:9', resolution: '4K', count: 2 },
+            element: null,
+            usePrefix: false,
+          },
+        ],
         current,
       ),
     ).toEqual({
@@ -39,12 +46,36 @@ describe('reuse settings', () => {
       count: 2,
       models: ['x/c'],
     });
-    expect(imageSettingsFrom({ model: 'x/b', params: {}, element: 'anna', usePrefix: true }, current)).toMatchObject({
+    expect(imageSettingsFrom([{ model: 'x/b', params: {}, element: 'anna', usePrefix: true }], current)).toMatchObject({
       element: 'anna',
       aspect: '3:4',
       count: 1,
       models: ['x/a', 'x/b'],
     });
+  });
+
+  it('restores all models of a multi-model run and the params of the entry that kept the requested ones', () => {
+    const base = { element: null, usePrefix: true };
+    const run = [
+      // This model does not support sizes and adjusted the aspect ratio
+      {
+        ...base,
+        model: 'x/a',
+        params: { aspect_ratio: '3:2', count: 1 },
+        notices: [{ code: 'aspect_adjusted', params: { from: '16:9', to: '3:2' } }],
+      },
+      { ...base, model: 'x/b', params: { aspect_ratio: '16:9', resolution: '2K', count: 1 } },
+      { ...base, model: 'x/a', params: { aspect_ratio: '3:2', count: 1 } },
+      { ...base, model: 'x/c', params: { aspect_ratio: '16:9', resolution: '2K', count: 1 }, notices: [] },
+    ];
+    expect(imageSettingsFrom(run, { aspect: '1:1', models: ['x/a'] })).toMatchObject({
+      aspect: '16:9',
+      size: '2K',
+      models: ['x/a', 'x/b', 'x/c'],
+    });
+    // The current selection stays if it already contains every model of the run
+    const current = { aspect: '1:1', models: ['x/c', 'x/b', 'x/a', 'x/d'] };
+    expect(imageSettingsFrom(run, current).models).toEqual(current.models);
   });
 
   it('turns extra references into output file references', () => {

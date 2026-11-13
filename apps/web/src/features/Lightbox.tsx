@@ -11,6 +11,7 @@ import { entryInfoRows } from '@/lib/labels';
 import { ASPECTS, preferredModel, toolModels, zdrState } from '@/lib/models';
 import { runTool } from '@/lib/runs';
 import { useData, useSettings, useUi } from '@/lib/store';
+import { entryTitle, relightOptions } from '@/lib/tools';
 import type { ImageModel, ManifestEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { useModelName } from './useModelName';
@@ -23,14 +24,15 @@ export function Lightbox() {
   const close = () => useUi.setState({ lightbox: null });
   if (!e?.file) return null;
   const file = e.file;
+  const title = entryTitle(t, e);
 
   return (
     <Dialog open onOpenChange={(o) => !o && close()}>
       <DialogContent closeLabel={t('common.close')} className="h-[92vh] w-[min(1400px,96vw)]">
-        <DialogTitle className="sr-only">{e.prompt}</DialogTitle>
+        <DialogTitle className="sr-only">{title}</DialogTitle>
         <div className="grid h-full grid-cols-1 md:grid-cols-[1fr_340px]">
           <div className="flex min-h-0 items-center justify-center bg-black">
-            <img src={outUrl(file)} alt={e.prompt} className="max-h-[92vh] max-w-full object-contain" />
+            <img src={outUrl(file)} alt={title} className="max-h-[92vh] max-w-full object-contain" />
           </div>
           <div className="flex flex-col gap-3.5 overflow-y-auto px-[18px] pt-12 pb-[18px] text-[13px]">
             <div className="flex flex-col gap-2">
@@ -53,7 +55,7 @@ export function Lightbox() {
                 <Button
                   onClick={() => {
                     close();
-                    reuseSettings(e);
+                    reuseSettings([e]);
                   }}
                 >
                   {t('lightbox.reuse')}
@@ -132,7 +134,10 @@ type ToolDef = { id: string; label: string; ai: boolean; hint: string; fields: T
 
 function useToolDefs(): ToolDef[] {
   const { t } = useTranslation();
-  const relight = Object.entries(useData((s) => s.status?.relightPresets) ?? { golden: 'Golden hour' });
+  const relight = relightOptions(
+    t,
+    useData((s) => s.status?.relightPresets),
+  );
   const aspects = ASPECTS.map((a) => [a, a] as [string, string]);
   return [
     {

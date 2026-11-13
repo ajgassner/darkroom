@@ -14,7 +14,10 @@ export interface SelectGroup {
   options: SelectOption[];
 }
 
-/** Compact select in the app style. Pass either flat `options` or `groups`. Empty values are mapped to a sentinel. */
+/**
+ * Compact select in the app style. Pass either flat `options` or `groups`. Empty values are mapped to a sentinel.
+ * `valueLabel` replaces the selected option's label in the trigger (e.g. a short form on narrow screens).
+ */
 export function Select({
   value,
   onValueChange,
@@ -23,6 +26,7 @@ export function Select({
   placeholder,
   className,
   ariaLabel,
+  valueLabel,
 }: {
   value: string;
   onValueChange: (v: string) => void;
@@ -31,6 +35,7 @@ export function Select({
   placeholder?: string;
   className?: string;
   ariaLabel?: string;
+  valueLabel?: React.ReactNode;
 }) {
   // Radix Select does not allow empty-string values
   const EMPTY = '__empty__';
@@ -58,7 +63,7 @@ export function Select({
           className,
         )}
       >
-        <SelectPrimitive.Value placeholder={placeholder} />
+        <SelectPrimitive.Value placeholder={placeholder}>{valueLabel}</SelectPrimitive.Value>
         <SelectPrimitive.Icon>
           <ChevronDownIcon className="size-4 opacity-60" />
         </SelectPrimitive.Icon>

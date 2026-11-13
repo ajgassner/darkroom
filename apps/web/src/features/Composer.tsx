@@ -38,61 +38,65 @@ export function Composer() {
     generate();
   };
 
+  // On wide screens the composer sticks below the top bar; its background covers the cards scrolling under it
   return (
-    <div className="sticky top-16 z-[3] rounded-[14px] border border-line bg-panel p-3">
-      <Textarea
-        ref={ref}
-        rows={3}
-        value={prompt}
-        placeholder={placeholder}
-        onChange={(e) => {
-          useUi.setState({ prompt: e.target.value });
-          mention.update();
-        }}
-        onClick={mention.update}
-        onBlur={() => setTimeout(mention.close, 150)}
-        onKeyDown={(e) => {
-          if (mention.onKeyDown(e)) return;
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) go();
-        }}
-        className="border-none bg-transparent p-1 text-[15px] focus-visible:border-none"
-      />
-      <MentionBox state={mention} />
-      <div className="mt-2 flex items-center gap-2.5">
-        {mode === 'image' && (
-          <>
-            <Select
-              className="w-[180px]"
-              value=""
-              onValueChange={(v) => {
-                const p = presets[Number(v)];
-                if (p) useUi.setState({ prompt: p.prompt });
-                ref.current?.focus();
-              }}
-              options={[
-                { value: '', label: t('composer.preset') },
-                ...presets.map((p, i) => ({ value: String(i), label: p.name })),
-              ]}
-            />
-            <Tooltip content={t('composer.importHint')}>
-              <label className="cursor-pointer rounded-lg border border-line bg-panel-2 px-[11px] py-[7px] text-[13px] whitespace-nowrap hover:border-accent">
-                <input
-                  type="file"
-                  accept="image/*,.heic,.heif"
-                  multiple
-                  hidden
-                  onChange={(e) => {
-                    void importImages([...(e.target.files ?? [])]);
-                    e.target.value = '';
-                  }}
-                />
-                {t('composer.importImage')}
-              </label>
-            </Tooltip>
-          </>
-        )}
-        <Summary />
-        <GenerateButton locked={clickLock} onClick={go} />
+    <div data-sticky className="z-[3] bg-bg pb-2 md:sticky md:top-[52px] md:pt-3">
+      <div className="relative rounded-[14px] border border-line bg-panel p-3">
+        <Textarea
+          ref={ref}
+          rows={3}
+          value={prompt}
+          placeholder={placeholder}
+          onChange={(e) => {
+            useUi.setState({ prompt: e.target.value });
+            mention.update();
+          }}
+          onClick={mention.update}
+          onBlur={() => setTimeout(mention.close, 150)}
+          onKeyDown={(e) => {
+            if (mention.onKeyDown(e)) return;
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) go();
+          }}
+          className="border-none bg-transparent p-1 text-[15px] focus-visible:border-none"
+        />
+        <MentionBox state={mention} />
+        <div className="mt-2 flex flex-wrap items-center gap-2.5">
+          {mode === 'image' && (
+            <>
+              <Select
+                ariaLabel={t('composer.presetLabel')}
+                className="w-[180px]"
+                value=""
+                onValueChange={(v) => {
+                  const p = presets[Number(v)];
+                  if (p) useUi.setState({ prompt: p.prompt });
+                  ref.current?.focus();
+                }}
+                options={[
+                  { value: '', label: t('composer.preset') },
+                  ...presets.map((p, i) => ({ value: String(i), label: p.name })),
+                ]}
+              />
+              <Tooltip content={t('composer.importHint')}>
+                <label className="cursor-pointer rounded-lg border border-line bg-panel-2 px-[11px] py-[7px] text-[13px] whitespace-nowrap focus-within:ring-2 focus-within:ring-accent/60 hover:border-accent">
+                  <input
+                    type="file"
+                    accept="image/*,.heic,.heif"
+                    multiple
+                    className="sr-only"
+                    onChange={(e) => {
+                      void importImages([...(e.target.files ?? [])]);
+                      e.target.value = '';
+                    }}
+                  />
+                  {t('composer.importImage')}
+                </label>
+              </Tooltip>
+            </>
+          )}
+          <Summary />
+          <GenerateButton locked={clickLock} onClick={go} />
+        </div>
       </div>
     </div>
   );
@@ -106,7 +110,7 @@ function Summary() {
   const promptLength = useUi((u) => u.prompt.length);
   const running = useUi((u) => u.liveRuns.length);
   const text = composerSummary(t, { settings, models, costs, promptLength, running });
-  return <span className="flex-1 text-xs text-muted">{text}</span>;
+  return <span className="min-w-32 flex-1 basis-40 text-xs text-muted">{text}</span>;
 }
 
 function GenerateButton({ locked, onClick }: { locked: boolean; onClick: () => void }) {
@@ -121,7 +125,7 @@ function GenerateButton({ locked, onClick }: { locked: boolean; onClick: () => v
     ok = Boolean(m && allowedByPrivacy(m.zdr, s.privacy));
   }
   return (
-    <Button variant="primary" disabled={!ok || !status?.hasKey || locked} onClick={onClick}>
+    <Button variant="primary" className="ml-auto" disabled={!ok || !status?.hasKey || locked} onClick={onClick}>
       {t('composer.generate')}
     </Button>
   );

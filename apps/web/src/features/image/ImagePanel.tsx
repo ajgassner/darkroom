@@ -64,6 +64,7 @@ function ElementSection() {
         </Button>
       </div>
       <Select
+        ariaLabel={t('element.title')}
         value={selected ? element : ''}
         onValueChange={(v) => set({ element: v })}
         options={[

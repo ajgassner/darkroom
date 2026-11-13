@@ -5,6 +5,7 @@ import { streamEvents } from './api';
 import { existingElement } from './mentions';
 import { allowedByPrivacy } from './models';
 import { usd } from './pricing';
+import { revealGallery } from './scroll';
 import { type LiveFirst, type LiveRun, type Settings, updateLiveRun, useData, useSettings, useUi } from './store';
 import type { ManifestEntry, RunEvent } from './types';
 
@@ -31,7 +32,7 @@ async function startRun(url: string, body: unknown, plan: LiveRun['plan'], first
     },
   };
   useUi.setState((s) => ({ liveRuns: [run, ...s.liveRuns] }));
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  revealGallery();
 
   const entries: ManifestEntry[] = [];
   try {
@@ -171,6 +172,6 @@ export function runTool(
     '/api/tool',
     { ...body, privacy: useSettings.getState().privacy },
     [{ model: local ?? body.model ?? '', count: 1 }],
-    { kind: 'image', prompt: label, tool: body.tool, params: {} },
+    { kind: 'image', prompt: label, tool: body.tool, toolOptions: body.options, params: {} },
   );
 }

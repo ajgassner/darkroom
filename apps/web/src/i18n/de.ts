@@ -26,7 +26,7 @@ export const de: Bundle<typeof en> = {
   boot: {
     loading: 'Lade Modelle, Elemente und Galerie …',
     failed: 'darkroom konnte nicht geladen werden',
-    hint: 'Läuft der Server? Starte ihn mit pnpm dev oder pnpm start.',
+    hint: 'Läuft der Server? Starte ihn mit darkroom start (aus dem Quellcode: pnpm start oder pnpm dev).',
     retry: 'Erneut versuchen',
   },
 
@@ -38,6 +38,9 @@ export const de: Bundle<typeof en> = {
     privacyZdr: 'Zero Data Retention (Safety Retention erlaubt)',
     privacyStrict: 'Zero Data Retention (strikt)',
     privacyOff: 'Aus (alle Anbieter)',
+    privacyZdrShort: 'ZDR',
+    privacyStrictShort: 'ZDR strikt',
+    privacyOffShort: 'Aus',
     language: 'Sprache',
     update: 'Update {{version}}',
     updateHint:
@@ -138,6 +141,7 @@ export const de: Bundle<typeof en> = {
     placeholderMusic:
       'Beschreibe die Musik: Stil, Instrumente, Tempo, Stimmung, ggf. Liedtext, z. B. „ruhiger Akustik-Gitarren-Jingle, 120 bpm, instrumental“',
     preset: 'Preset …',
+    presetLabel: 'Prompt-Vorlage',
     importImage: 'Eigenes Bild bearbeiten',
     importHint: 'Eigenes Bild hochladen und mit den Werkzeugen bearbeiten (auch per ⌘V oder Hineinziehen)',
     generate: 'Generieren',
@@ -189,6 +193,7 @@ export const de: Bundle<typeof en> = {
   },
   gallery: {
     empty: 'Noch keine Bilder. Element anlegen, Modell wählen, Prompt eingeben.',
+    emptyAudio: 'Noch keine Audios. Stimme oder Musikmodell wählen, dann Text eingeben oder die Musik beschreiben.',
     reuse: 'Übernehmen',
     delete: 'Löschen',
     cancel: 'Abbrechen',
@@ -203,6 +208,7 @@ export const de: Bundle<typeof en> = {
     music: 'Musik',
     speech: 'Sprache',
     deleteImage: 'Bild löschen',
+    deleteAudio: 'Audio löschen',
     removeError: 'Fehlermeldung entfernen',
     debug: 'Debug: Anfrage/Antwort',
     local: 'Lokal',
@@ -212,6 +218,8 @@ export const de: Bundle<typeof en> = {
     downloadClean: 'Herunterladen (ohne Metadaten)',
     confirmImage:
       'Dieses Bild löschen?\n\nDie Bilddatei wird entfernt. Die Kosten bleiben in der Summe. (Tipp: Shift-Klick auf den Papierkorb löscht ohne Nachfrage.)',
+    confirmAudio:
+      'Dieses Audio löschen?\n\nDie Audiodatei wird entfernt. Die Kosten bleiben in der Summe. (Tipp: Shift-Klick auf den Papierkorb löscht ohne Nachfrage.)',
     confirmRun_one:
       'Den ganzen Lauf ({{count}} Ergebnis) löschen?\n\nDie Dateien werden entfernt. Die Kosten bleiben in der Summe.',
     confirmRun_other:
@@ -314,6 +322,29 @@ export const de: Bundle<typeof en> = {
     white: 'Weiß',
     lightGray: 'Hellgrau',
     black: 'Schwarz',
+    preset: {
+      golden: 'Goldene Stunde',
+      studio: 'Studiolicht',
+      window: 'Weiches Fensterlicht',
+      dramatic: 'Dramatisch',
+      overcast: 'Bewölkt / neutral',
+      blue: 'Blaue Stunde',
+      night: 'Nacht / Neon',
+    },
+  },
+  toolTitle: {
+    import: 'Hochgeladen: {{name}}',
+    crop: 'Zuschneiden auf {{aspect}}',
+    cropSize: 'Zuschneiden auf {{aspect}} ({{width}}×{{height}})',
+    resize: 'Skalieren auf {{width}}×{{height}} (lokal)',
+    resizeWidth: 'Skalieren auf {{width}} px Breite (lokal)',
+    resizeFactor: 'Skalieren {{factor}}× (lokal)',
+    removebg: 'Freistellen (transparent)',
+    removebgColor: 'Freistellen (Hintergrund {{color}})',
+    expand: 'Erweitern auf {{aspect}}',
+    upscale: 'Hochskalieren (KI, {{resolution}})',
+    relight: 'Licht ändern: {{light}}',
+    cleanup: 'Hintergrund bereinigen',
   },
   elements: {
     title: 'Elemente',

@@ -169,7 +169,7 @@ export function ElementThumb({
   );
 }
 
-/** Dashed drop zone with hidden file input; also accepts drag and drop. */
+/** Dashed drop zone with a visually hidden (but focusable) file input; also accepts drag and drop. */
 export function DropZone({
   label,
   accept,
@@ -195,7 +195,7 @@ export function DropZone({
         onFiles([...e.dataTransfer.files]);
       }}
       className={cn(
-        'block cursor-pointer rounded-[10px] border-[1.5px] border-dashed border-line p-3.5 text-center text-[13px] text-muted',
+        'block cursor-pointer rounded-[10px] border-[1.5px] border-dashed border-line p-3.5 text-center text-[13px] text-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/60',
         over && 'border-accent text-text',
         className,
       )}
@@ -204,7 +204,7 @@ export function DropZone({
         type="file"
         accept={accept}
         multiple
-        hidden
+        className="sr-only"
         onChange={(e) => {
           onFiles([...(e.target.files ?? [])]);
           e.target.value = '';

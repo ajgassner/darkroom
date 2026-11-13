@@ -116,6 +116,7 @@ export interface LiveFirst {
   prompt: string;
   element?: string;
   tool?: string;
+  toolOptions?: Record<string, string>;
   voice?: string;
   params: Record<string, unknown>;
 }
