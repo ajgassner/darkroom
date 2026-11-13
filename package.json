@@ -1,6 +1,6 @@
 {
   "name": "darkroom",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Local, private studio for images, audio and voices with your own references, powered by OpenRouter",
   "license": "MIT",
