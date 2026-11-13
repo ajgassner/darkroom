@@ -165,7 +165,7 @@
   $tmp = Join-Path ([IO.Path]::GetTempPath()) "darkroom-$([guid]::NewGuid())"
   # Changes to the environment of this process would stay in your PowerShell session
   $envNames = 'Path', 'pnpm_config_store_dir', 'pnpm_config_cache_dir', 'pnpm_config_state_dir', 'npm_config_cache',
-    'npm_config_update_notifier'
+    'npm_config_update_notifier', 'npm_config_onnxruntime_node_install_cuda'
   $savedEnv = @{}
   foreach ($name in $envNames) { $savedEnv[$name] = [Environment]::GetEnvironmentVariable($name) }
   Assert-NotRunning
@@ -240,6 +240,7 @@
     $env:pnpm_config_state_dir = Join-Path $cache 'pnpm-state'
     $env:npm_config_cache = Join-Path $cache 'npm'
     $env:npm_config_update_notifier = 'false'
+    $env:npm_config_onnxruntime_node_install_cuda = 'skip' # background removal runs on the CPU: no CUDA download
 
     Say 'Installing dependencies (this takes a few minutes)'
     Push-Location -LiteralPath $appDir

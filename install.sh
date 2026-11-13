@@ -242,17 +242,18 @@ main() {
   # Node.js: latest release of the major version, verified against the official checksums
   say "Downloading Node.js $NODE_MAJOR ($os-$arch)"
   node_base="https://nodejs.org/dist/latest-v$NODE_MAJOR.x"
-  curl -fsSL "$node_base/SHASUMS256.txt" -o "$tmp/SHASUMS256.txt"
+  curl -fsSL "$node_base/SHASUMS256.txt" >"$tmp/SHASUMS256.txt"
   node_file=$(grep -oE "node-v[0-9.]+-$os-$arch\.tar\.gz" "$tmp/SHASUMS256.txt" | head -n1)
   [ -n "$node_file" ] || fail "no Node.js $NODE_MAJOR build for $os-$arch"
-  curl -fsSL "$node_base/$node_file" -o "$tmp/$node_file"
+  curl -fsSL "$node_base/$node_file" >"$tmp/$node_file"
   expected=$(grep " $node_file\$" "$tmp/SHASUMS256.txt" | cut -d' ' -f1)
   [ "$(sha256 "$tmp/$node_file")" = "$expected" ] || fail "checksum mismatch for $node_file"
   tar -xzf "$tmp/$node_file" -C "$staging/node" --strip-components=1
 
-  # darkroom itself (your data lives in DATA_DIR, so replacing the app keeps it)
+  # darkroom itself (your data lives in DATA_DIR, so replacing the app keeps it).
+  # Downloads go through the shell, not curl -o: a snap-packaged curl (Ubuntu) cannot write to /tmp itself.
   say "Downloading darkroom (${DARKROOM_SOURCE:-$REF})"
-  curl -fsSL "$SOURCE" -o "$tmp/darkroom.tar.gz"
+  curl -fsSL "$SOURCE" >"$tmp/darkroom.tar.gz"
   tar -xzf "$tmp/darkroom.tar.gz" -C "$staging/app" --strip-components=1
   [ -f "$staging/app/package.json" ] || fail "the darkroom download is incomplete"
 
@@ -275,7 +276,8 @@ main() {
   # is on the same volume as app/, so pnpm can hard-link packages from it
   export pnpm_config_store_dir="$INSTALL_DIR/cache/pnpm-store" pnpm_config_cache_dir="$INSTALL_DIR/cache/pnpm" \
     pnpm_config_state_dir="$INSTALL_DIR/cache/pnpm-state" npm_config_cache="$INSTALL_DIR/cache/npm" \
-    npm_config_update_notifier=false
+    npm_config_update_notifier=false \
+    npm_config_onnxruntime_node_install_cuda=skip # background removal runs on the CPU: skip the 171 MB CUDA download
 
   say "Installing dependencies (this takes a few minutes)"
   cd "$INSTALL_DIR/app"
@@ -324,7 +326,8 @@ if [ "$1" = uninstall ] && { [ $# -eq 1 ] || { [ $# -eq 2 ] && { [ "$2" = --yes 
     # grep exits 1 when no line is left, 2 on errors: then the file must stay as it is
     kept=$(grep -vxF -e '# darkroom' -e "$path_line" "$rc")
     if [ $? -le 1 ]; then
-      printf '%s\n' "$kept" >"$rc"
+      # No line left (the installer created the file): empty it instead of leaving a lone newline
+      if [ -n "$kept" ]; then printf '%s\n' "$kept" >"$rc"; else : >"$rc"; fi
     else
       echo "Could not update $rc; remove the darkroom lines from it yourself." >&2
     fi
