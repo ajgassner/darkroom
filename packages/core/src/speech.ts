@@ -243,18 +243,15 @@ export async function runSpeech(
 
 /**
  * Voice preview: cached per model and voice (own voices are always generated fresh).
- * Throws when the preview fails, with the code of the failed entry.
+ * Throws when the preview fails, with the code of the failed entry; `abort` cancels the call (page closed).
  */
-export async function speechDemo(o: {
-  model: string;
-  voice: string;
-  text: string;
-  privacy?: PrivacyMode;
-  regenerate?: boolean;
-}): Promise<{ file: string; cached: boolean }> {
+export async function speechDemo(
+  o: { model: string; voice: string; text: string; privacy?: PrivacyMode; regenerate?: boolean },
+  abort?: AbortSignal,
+): Promise<{ file: string; cached: boolean }> {
   const cached = !o.voice.startsWith('voice:') && !o.regenerate ? await findDemo(o.model, o.voice) : null;
   if (cached) return { file: cached, cached: true };
-  const [entry] = await runSpeech({ ...o, voice: o.voice || undefined, demo: true });
+  const [entry] = await runSpeech({ ...o, voice: o.voice || undefined, demo: true }, undefined, abort);
   if (!entry.ok || !entry.file) {
     throw new AppError(entry.errorCode ?? 'demo_failed', entry.error ?? 'Voice preview failed', entry.errorParams);
   }

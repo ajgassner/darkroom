@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fakeOpenRouter, json } from '../test/fake-openrouter.ts';
 import { readDebug } from './debug.ts';
 import { cheapestPrice, generateImages, imagePrices, listImageModels, zdrEndpoints } from './openrouter.ts';
@@ -30,6 +30,21 @@ describe('catalog', () => {
     const zdr = await zdrEndpoints(true);
     expect(zdr.get('test/safety')).toEqual([{ tag: 'safety-provider', provider: 'SafeCo', safetyRetention: true }]);
     expect(zdr.has('test/open')).toBe(false);
+  });
+
+  it('reports network failures and timeouts as network errors with code', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+    await expect(listImageModels(true)).rejects.toMatchObject({
+      code: 'network_error',
+      message: 'Network error: fetch failed',
+      params: { message: 'fetch failed' },
+    });
+    const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeout));
+    await expect(zdrEndpoints(true)).rejects.toMatchObject({
+      code: 'network_error',
+      params: { message: 'The operation was aborted due to timeout' },
+    });
   });
 });
 

@@ -3,9 +3,10 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeOpenRouter, json, sse } from '../test/fake-openrouter.ts';
 import { listMusicModels, listSpeechModels } from './audio-models.ts';
+import { retryMissingCosts, withLateCosts } from './audio-run.ts';
 import { OUT_DIR, VOICES_DIR } from './config.ts';
 import type { RunEvent } from './contract.ts';
-import { readEntries } from './manifest.ts';
+import { appendEntry, newEntry, readEntries } from './manifest.ts';
 import { runMusic } from './music.ts';
 import { findDemo, runSpeech, speechDemo } from './speech.ts';
 import { transcribeSample } from './transcribe.ts';
@@ -192,6 +193,33 @@ describe('runSpeech', () => {
     await vi.waitFor(async () => {
       expect((await readEntries()).find((e) => e.id === entry.id)).toMatchObject({ cost: 0.002, provider: 'VoiceCo' });
     });
+  });
+
+  it('waits for the late cost lookup on request', async () => {
+    fakeOpenRouter();
+    const entries = await runSpeech({ text: 'Hi', model: 'test/tts', voice: 'alloy' });
+    const onWait = vi.fn();
+    const late = withLateCosts(entries, onWait);
+    expect(onWait).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(2600);
+    expect((await late)[0]).toMatchObject({ id: entries[0].id, cost: 0.002, callCost: 0.002, provider: 'VoiceCo' });
+    // Finished lookups are not waited for again
+    const again = vi.fn();
+    expect(await withLateCosts(entries, again)).toEqual(entries);
+    expect(again).not.toHaveBeenCalled();
+  });
+
+  it('gives up the late cost lookup after ten tries', async () => {
+    fakeOpenRouter();
+    const entries = await runSpeech({ text: 'Hi', model: 'test/tts', voice: 'alloy' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => json({ data: {} })),
+    );
+    const late = withLateCosts(entries);
+    await vi.advanceTimersByTimeAsync(10 * 2500 + 100);
+    expect((await late)[0].cost).toBeNull();
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(10);
   });
 
   it('blocks models without ZDR', async () => {
@@ -404,6 +432,42 @@ describe('runMusic', () => {
   });
 });
 
+describe('retryMissingCosts', () => {
+  it('looks up missing costs of recent audio entries once more', async () => {
+    const api = fakeOpenRouter();
+    const audio = (fields: Partial<Parameters<typeof newEntry>[0]>) =>
+      newEntry({ kind: 'audio', runId: 'r', model: 'test/tts', prompt: 'p', privacy: 'zdr', ...fields });
+    const ok = audio({ ok: true, generationId: 'gen-ok' });
+    const failed = audio({ error: 'disk full', generationId: 'gen-failed', deleted: new Date().toISOString() });
+    const old = audio({ generationId: 'gen-old', ts: new Date(Date.now() - 8 * 86_400_000).toISOString() });
+    const known = audio({ ok: true, generationId: 'gen-known', cost: 0.5 });
+    const image = newEntry({ runId: 'r', model: 'test/zdr', prompt: 'p', privacy: 'zdr', generationId: 'gen-image' });
+    for (const e of [ok, failed, old, known, image]) await appendEntry(e);
+
+    expect(await retryMissingCosts()).toBeGreaterThanOrEqual(2);
+    const looked = api.calls.map((c) => c.path).filter((p) => p.startsWith('/generation?'));
+    expect(looked).toEqual(expect.arrayContaining(['/generation?id=gen-ok', '/generation?id=gen-failed']));
+    for (const id of ['gen-old', 'gen-known', 'gen-image']) expect(looked).not.toContain(`/generation?id=${id}`);
+    const byId = new Map((await readEntries()).map((e) => [e.id, e]));
+    expect(byId.get(ok.id)).toMatchObject({ cost: 0.002, callCost: 0.002, provider: 'VoiceCo' });
+    expect(byId.get(failed.id)).toMatchObject({ cost: 0.002 });
+    expect(byId.get(old.id)?.cost).toBeNull();
+    expect(byId.get(known.id)?.cost).toBe(0.5);
+  });
+
+  it('leaves the cost unknown when the lookup fails', async () => {
+    fakeOpenRouter();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => json({ error: { message: 'nope' } }, { status: 404 })),
+    );
+    const e = newEntry({ kind: 'audio', runId: 'r', model: 'm', prompt: 'p', privacy: 'zdr', generationId: 'gen-404' });
+    await appendEntry(e);
+    expect(await retryMissingCosts()).toBe(0);
+    expect((await readEntries()).find((x) => x.id === e.id)?.cost).toBeNull();
+  });
+});
+
 describe('speechDemo', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout'] });
@@ -427,5 +491,17 @@ describe('speechDemo', () => {
     await expect(speechDemo({ model: 'test/tts-open', voice: 'x', text: 'Hi' })).rejects.toMatchObject({
       code: 'privacy_blocked',
     });
+  });
+
+  it('cancels the call when aborted', async () => {
+    const ac = new AbortController();
+    const api = fakeOpenRouter({
+      speech: (_body, init) =>
+        new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))),
+    });
+    const demo = speechDemo({ model: 'test/tts', voice: 'alloy', text: 'Hi', regenerate: true }, ac.signal);
+    await vi.waitFor(() => expect(api.callsTo('/audio/speech')).toHaveLength(1));
+    ac.abort();
+    await expect(demo).rejects.toMatchObject({ code: 'aborted' });
   });
 });

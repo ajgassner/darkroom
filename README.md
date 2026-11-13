@@ -132,9 +132,12 @@ darkroom gen -n 2 -m google/gemini-3.1-flash-image,google/gemini-3-pro-image,byt
 # keep editing a result (a file from out/ as an additional reference)
 darkroom gen -e me -r 2026-11-12T18-30-00_3f9a2c_google_gemini-3.1-flash-image_1.png "same scene, but with glasses"
 
+# your own cloned voice: needs a model that can clone (Fish Audio, Seed Audio, HeyGen)
+darkroom speak -m fish-audio/s2.1-pro -v voice:me "Hello, this is my cloned voice."
+
 darkroom start                     # web UI on http://localhost:5177
 darkroom gen                       # interactive: asks for prompt and element
-darkroom speak -v voice:me "Hello, this is my cloned voice."
+darkroom speak "Hello! This is a short test."
 darkroom music "calm acoustic guitar jingle, 120 bpm"
 darkroom models --search gemini    # models with reference support, parameters and ZDR status
 darkroom elements                  # reference sets
@@ -142,7 +145,7 @@ darkroom voices                    # your voices
 darkroom costs                     # cost per model and in total
 ```
 
-`darkroom --help` and `darkroom gen --help` list all options. Options such as `-m` and `-r` take one value each; repeat them or separate models with commas. Ctrl+C cancels a running generation, including the upstream calls.
+`darkroom --help` and `darkroom gen --help` list all options. Options such as `-m` and `-r` take one value each; repeat them or separate models with commas. Ctrl+C cancels a running generation, including the upstream calls; a second Ctrl+C quits right away.
 
 ## Privacy
 

@@ -205,6 +205,21 @@ describe('files below out/', () => {
     expect((await get('/out/debug/refs/r.png')).statusCode).toBe(200);
   });
 
+  it('serves results with a restrictive content security policy (no scripts in SVGs)', async () => {
+    await fs.writeFile(
+      path.join(OUT_DIR, 'evil.svg'),
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>1</script></svg>',
+    );
+    for (const url of ['/out/evil.svg', '/out/evil.svg?download=1']) {
+      const res = await get(url);
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-security-policy']).toBe(
+        "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox",
+      );
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+    }
+  });
+
   it('downloads without metadata on request', async () => {
     const jpeg = await sharp(await testImage({ format: 'jpeg' }))
       .withExif({ IFD0: { Copyright: 'secret-owner' } })
@@ -293,5 +308,21 @@ describe('shutdown', () => {
     expect((await pending).statusCode).toBeGreaterThanOrEqual(400);
     const voice = (await get('/api/voices')).json().find((v: { name: string }) => v.name === 'quiet');
     expect(voice.transcripts).toEqual({});
+  });
+
+  it('aborts a running voice preview', async () => {
+    const upstream = hangingUpstream();
+    const fake = fakeOpenRouter({ speech: upstream.handler });
+    const server = await buildApp();
+    const pending = server.inject({
+      method: 'POST',
+      url: '/api/speech/demo',
+      payload: { model: 'test/tts', voice: 'alloy' },
+      headers: HOST,
+    });
+    await upstream.called;
+    await server.close();
+    expect(fake.callsTo('/audio/speech')[0].signal?.aborted).toBe(true);
+    expect((await pending).json()).toMatchObject({ code: 'aborted' });
   });
 });

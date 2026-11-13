@@ -119,10 +119,10 @@ export async function voiceRoutes(fastify: FastifyInstance) {
         }),
       },
     },
-    async (req) => {
+    async (req, reply) => {
       const { privacy, ...demo } = req.body;
-      // Cached previews work without an API key
-      return speechDemo({ ...demo, privacy: parsePrivacy(privacy) });
+      // Cached previews work without an API key. Closing the page (or the server) cancels the paid call.
+      return withAbort(reply, (signal) => speechDemo({ ...demo, privacy: parsePrivacy(privacy) }, signal));
     },
   );
 }

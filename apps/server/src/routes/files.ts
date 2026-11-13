@@ -47,10 +47,15 @@ function isPrivate(file: string): boolean {
   return rel.startsWith('manifest.jsonl') || (rel.startsWith('debug/') && rel.endsWith('.json'));
 }
 
+/** Results only display as images or play as audio; <img>/<audio> in the UI are not affected by this policy. */
+const RESULT_CSP = "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox";
+
 export async function fileRoutes(app: FastifyInstance) {
   const query = z.object({ download: z.string().optional(), clean: z.string().optional() });
 
   app.get('/out/*', async (req, reply) => {
+    // Results come from models (an SVG may contain scripts): opened in a tab they must not run code on this origin
+    reply.header('Content-Security-Policy', RESULT_CSP).header('X-Content-Type-Options', 'nosniff');
     const file = inside(OUT_DIR, (req.params as { '*': string })['*']);
     if (isPrivate(file)) throw new HttpError(404, 'not_found', 'Not found');
     const q = query.parse(req.query);

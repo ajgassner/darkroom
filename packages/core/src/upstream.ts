@@ -5,7 +5,14 @@ import { AppError, type MessageParams, TIMEOUT_MESSAGE } from './errors.ts';
 
 /** GET a public JSON endpoint (catalogs, no key needed). */
 export async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { signal: AbortSignal.timeout(30_000) });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { signal: AbortSignal.timeout(30_000) });
+  } catch (err) {
+    // Offline, DNS or timeout: the same code as for failed API calls (the fixed timeout is not REQUEST_TIMEOUT_MS)
+    const message = (err as Error).message;
+    throw new AppError('network_error', `Network error: ${message}`, { message });
+  }
   if (!res.ok) {
     throw new AppError('catalog_http_error', `${path}: HTTP ${res.status}`, { source: path, status: res.status });
   }
