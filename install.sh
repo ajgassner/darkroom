@@ -5,14 +5,22 @@
 #
 # Run it again (or "darkroom update") to update. Optional environment variables:
 #   DARKROOM_DIR     where darkroom and its Node.js are installed (default: ~/.darkroom)
-#   DARKROOM_HOME    where your data lives: .env, refs/, voices/, out/ (default: ~/darkroom)
+#   DARKROOM_HOME    where your data lives: .env, refs/, voices/, out/ (default: ~/darkroom, or the folder
+#                    of the existing installation)
 #   DARKROOM_REF     branch or tag to install (default: the latest release, or main before the first one)
 #   DARKROOM_SOURCE  URL of a source tarball, overrides DARKROOM_REF (e.g. file:// for testing)
 set -euo pipefail
 
 NODE_MAJOR=26
-INSTALL_DIR="${DARKROOM_DIR:-$HOME/.darkroom}"
-DATA_DIR="${DARKROOM_HOME:-$HOME/darkroom}"
+# Absolute paths: the command and the shell startup file must work from any folder
+absolute() { case "$1" in /*) printf '%s' "$1" ;; *) printf '%s/%s' "$PWD" "$1" ;; esac; }
+INSTALL_DIR=$(absolute "${DARKROOM_DIR:-$HOME/.darkroom}")
+DATA_DIR="${DARKROOM_HOME:-}"
+# An existing installation keeps its data folder (stored single-quoted in the darkroom command)
+if [ -z "$DATA_DIR" ] && [ -f "$INSTALL_DIR/bin/darkroom" ]; then
+  DATA_DIR=$(sed -n "s/^data_dir='\(.*\)'\$/\1/p" "$INSTALL_DIR/bin/darkroom" | head -n1 | sed "s/'\\\\''/'/g")
+fi
+DATA_DIR=$(absolute "${DATA_DIR:-$HOME/darkroom}")
 REF="${DARKROOM_REF:-}"
 if [ -z "$REF" ] && [ -z "${DARKROOM_SOURCE:-}" ]; then
   REF=$(curl -fsSL https://api.github.com/repos/ajgassner/darkroom/releases/latest 2>/dev/null |
@@ -46,9 +54,36 @@ sha256() {
   if command -v sha256sum >/dev/null; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
 }
 
+# An update keeps the previous node/ and app/ as node.old/ and app.old/ until the new ones are built,
+# and puts them back if anything fails, so a failed update leaves the installed darkroom working.
+# Building happens in place, because installed packages contain absolute paths (pnpm bin shims, junctions).
+restore() {
+  for part in "$@"; do
+    rm -rf "${INSTALL_DIR:?}/$part"
+    if [ -e "$INSTALL_DIR/$part.old" ]; then mv "$INSTALL_DIR/$part.old" "$INSTALL_DIR/$part"; fi
+  done
+}
+swapped=""
 tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
+staging="$INSTALL_DIR/staging"
+cleanup() {
+  status=$?
+  # shellcheck disable=SC2086 # word splitting intended: the list of swapped parts
+  if [ "$status" -ne 0 ] && [ -n "$swapped" ]; then
+    say "Installation failed, restoring the previous version"
+    restore $swapped
+  fi
+  rm -rf "$tmp" "$staging"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM HUP
 mkdir -p "$INSTALL_DIR" "$DATA_DIR"
+# A previous update that was killed halfway left its backups behind: they are the working version
+for part in node app; do
+  if [ -e "$INSTALL_DIR/$part.old" ]; then restore "$part"; fi
+done
+rm -rf "$staging"
+mkdir -p "$staging/node" "$staging/app"
 
 # Node.js: latest release of the major version, verified against the official checksums
 say "Downloading Node.js $NODE_MAJOR ($os-$arch)"
@@ -59,17 +94,21 @@ node_file=$(grep -oE "node-v[0-9.]+-$os-$arch\.tar\.gz" "$tmp/SHASUMS256.txt" | 
 curl -fsSL "$node_base/$node_file" -o "$tmp/$node_file"
 expected=$(grep " $node_file\$" "$tmp/SHASUMS256.txt" | cut -d' ' -f1)
 [ "$(sha256 "$tmp/$node_file")" = "$expected" ] || fail "checksum mismatch for $node_file"
-rm -rf "$INSTALL_DIR/node"
-mkdir -p "$INSTALL_DIR/node"
-tar -xzf "$tmp/$node_file" -C "$INSTALL_DIR/node" --strip-components=1
-export PATH="$INSTALL_DIR/node/bin:$PATH"
+tar -xzf "$tmp/$node_file" -C "$staging/node" --strip-components=1
 
 # darkroom itself (your data lives in DATA_DIR, so replacing the app keeps it)
 say "Downloading darkroom (${DARKROOM_SOURCE:-$REF})"
 curl -fsSL "$SOURCE" -o "$tmp/darkroom.tar.gz"
-rm -rf "$INSTALL_DIR/app"
-mkdir -p "$INSTALL_DIR/app"
-tar -xzf "$tmp/darkroom.tar.gz" -C "$INSTALL_DIR/app" --strip-components=1
+tar -xzf "$tmp/darkroom.tar.gz" -C "$staging/app" --strip-components=1
+[ -f "$staging/app/package.json" ] || fail "the darkroom download is incomplete"
+
+# Everything is downloaded: swap in the new version, keeping the previous one until it is built
+for part in node app; do
+  if [ -e "$INSTALL_DIR/$part" ]; then mv "$INSTALL_DIR/$part" "$INSTALL_DIR/$part.old"; fi
+  swapped="$swapped $part"
+  mv "$staging/$part" "$INSTALL_DIR/$part"
+done
+export PATH="$INSTALL_DIR/node/bin:$PATH"
 
 say "Installing dependencies (this takes a few minutes)"
 cd "$INSTALL_DIR/app"
@@ -109,8 +148,13 @@ fi
 if [ "$1" = uninstall ]; then
   if [ -n "$rc" ] && [ -f "$rc" ]; then
     # Rewrite in place, so a symlinked startup file stays a symlink
-    kept=$(grep -vxF -e '# darkroom' -e "$path_line" "$rc" || true)
-    printf '%s\n' "$kept" >"$rc"
+    # grep exits 1 when no line is left, 2 on errors: then the file must stay as it is
+    kept=$(grep -vxF -e '# darkroom' -e "$path_line" "$rc")
+    if [ $? -le 1 ]; then
+      printf '%s\n' "$kept" >"$rc"
+    else
+      echo "Could not update $rc; remove the darkroom lines from it yourself." >&2
+    fi
   fi
   rm -rf "$install_dir"
   echo "darkroom is uninstalled. Your data is still in $data_dir; delete that folder if you don't need it anymore."
@@ -122,6 +166,10 @@ WRAPPER
 } >"$INSTALL_DIR/bin/darkroom"
 chmod +x "$INSTALL_DIR/bin/darkroom"
 
+# The new version works: drop the previous one
+rm -rf "$INSTALL_DIR/node.old" "$INSTALL_DIR/app.old"
+swapped=""
+
 if [ -n "$rc" ] && ! grep -qsF "$INSTALL_DIR/bin" "$rc"; then
   printf '\n# darkroom\n%s\n' "$path_line" >>"$rc"
 fi
@@ -132,7 +180,12 @@ if ! grep -qs '^OPENROUTER_API_KEY=.' "$env_file" && [ -t 1 ] && [ -r /dev/tty ]
   printf '\nOpenRouter API key (https://openrouter.ai/settings/keys), or Enter to add it later: '
   read -r key </dev/tty || key=""
   if [ -n "$key" ]; then
-    printf 'OPENROUTER_API_KEY=%s\n' "$key" >>"$env_file"
+    (
+      umask 077
+      # Start on a new line if the file doesn't end with one
+      if [ -s "$env_file" ] && [ -n "$(tail -c1 "$env_file")" ]; then echo >>"$env_file"; fi
+      printf 'OPENROUTER_API_KEY=%s\n' "$key" >>"$env_file"
+    )
     chmod 600 "$env_file"
   fi
 fi
