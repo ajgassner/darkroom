@@ -12,6 +12,7 @@ import type {
   Preset,
   SpeechModel,
   Status,
+  UpdateResponse,
   VoiceInfo,
 } from './types';
 import { MAX_SAMPLE_SEC, toWav } from './wav';
@@ -85,6 +86,10 @@ export async function loadAll() {
     await loadImageData();
     if (useSettings.getState().mode === 'audio') await audio;
     useUi.setState({ load: { state: 'ready' } });
+    // Update hint: in the background, it must never delay or break the start
+    api<UpdateResponse>('/api/update')
+      .then((r) => useData.setState({ update: r.update }))
+      .catch(() => {});
   } catch (err) {
     useUi.setState({ load: { state: 'failed', error: errorMessage(err) } });
   }

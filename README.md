@@ -4,6 +4,8 @@
 
 A self-hosted alternative to getimg.ai and similar subscription services. Upload a few photos of a person, a logo or a product once, then generate realistic images with them across many models side by side. Edit results with AI and local tools, speak text in your own cloned voice and create music. Everything runs on your machine; you pay OpenRouter per use, no subscription.
 
+[![CI](https://github.com/ajgassner/darkroom/actions/workflows/ci.yml/badge.svg)](https://github.com/ajgassner/darkroom/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/ajgassner/darkroom)](https://github.com/ajgassner/darkroom/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node.js 26+](https://img.shields.io/badge/node-%E2%89%A526-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
@@ -46,7 +48,7 @@ darkroom --help     # all commands
 darkroom uninstall  # remove darkroom; your data stays in ~/darkroom
 ```
 
-To update, run the install line again; your data stays untouched. `darkroom uninstall` removes the app and the PATH entry; `~/darkroom` holds your data, delete it only if you don't need it anymore.
+The installer installs the latest [release](https://github.com/ajgassner/darkroom/releases). When a newer one is out, the web UI shows an **Update** badge and `darkroom start` prints a note (darkroom asks GitHub at most once a day; `DARKROOM_UPDATE_CHECK=off` disables it). `darkroom update` installs it; your data stays untouched. `darkroom uninstall` removes the app and the PATH entry; `~/darkroom` holds your data, delete it only if you don't need it anymore.
 
 ### From source
 
@@ -202,6 +204,14 @@ DARKROOM_HOME=$(mktemp -d) PORT=5199 OPENROUTER_API_KEY=test OPENROUTER_BASE=htt
 ```
 
 The backend writes all messages in English and attaches a machine-readable code to each one, which the web UI translates (`apps/web/src/i18n/`).
+
+### CI and releases
+
+Changes reach `main` only through pull requests that pass CI; they are squash-merged. Label a pull request `enhancement`, `bug` or `documentation` to sort it in the release notes.
+
+[CI](.github/workflows/ci.yml) runs on every push and pull request: typecheck, Biome, tests with coverage, fallow and the UI build, plus a real installation with `install.sh` / `install.ps1` on Linux, macOS and Windows that starts the UI and uninstalls again.
+
+To publish a release, open **Actions → Release → Run workflow** on GitHub and choose the version bump (`patch`, `minor`, `major`, or `none` to release the current version). The [workflow](.github/workflows/release.yml) runs the full CI, bumps `package.json`, commits, tags `v<version>` and creates the GitHub release with notes generated from the merged pull requests. From then on the installers install it and running darkroom installations show the update. With the GitHub CLI: `gh workflow run release.yml -f bump=minor`.
 
 ## Responsible use
 

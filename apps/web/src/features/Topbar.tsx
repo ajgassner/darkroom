@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { Tooltip } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
 import { LANGUAGES, type Lang } from '@/i18n';
 import { usd } from '@/lib/pricing';
@@ -12,6 +13,7 @@ export function Topbar() {
   const privacy = useSettings((s) => s.privacy);
   const set = useSettings((s) => s.set);
   const status = useData((s) => s.status);
+  const update = useData((s) => s.update);
 
   return (
     <header className="sticky top-0 z-10 flex h-[52px] items-center justify-between border-b border-line bg-panel px-4">
@@ -33,6 +35,18 @@ export function Topbar() {
         </nav>
       </div>
       <div className="flex items-center gap-3">
+        {update && (
+          <Tooltip content={t('topbar.updateHint', { command: update.command })}>
+            <a
+              href={update.url}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full border border-accent/50 px-2 py-[3px] text-xs text-accent-2 hover:bg-accent/10"
+            >
+              {t('topbar.update', { version: update.version })}
+            </a>
+          </Tooltip>
+        )}
         <div className="hidden items-center gap-2 text-xs text-muted md:flex" title={t('topbar.privacyHint')}>
           {t('topbar.privacy')}
           <Select

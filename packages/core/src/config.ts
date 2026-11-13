@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PrivacyMode } from './contract.ts';
@@ -9,6 +10,10 @@ export type { PrivacyMode };
 export const CORE_SRC_DIR = path.dirname(fileURLToPath(import.meta.url));
 /** Repository root: the app itself (presets.json, built web UI). */
 const APP_DIR = path.resolve(CORE_SRC_DIR, '..', '..', '..');
+/** Version of this darkroom (root package.json); releases are tagged v<version>. */
+export const APP_VERSION: string = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'package.json'), 'utf8')).version;
+/** Running from a git checkout (updated with git pull) rather than an installed copy (darkroom update). */
+export const FROM_SOURCE = fs.existsSync(path.join(APP_DIR, '.git'));
 /**
  * Data root: holds .env and the private data folders refs/, voices/, out/ and models/.
  * The repository root by default; DARKROOM_HOME moves it elsewhere (e.g. an empty folder for tests).

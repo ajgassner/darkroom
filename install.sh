@@ -3,17 +3,22 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/ajgassner/darkroom/main/install.sh | bash
 #
-# Run it again to update. Optional environment variables:
+# Run it again (or "darkroom update") to update. Optional environment variables:
 #   DARKROOM_DIR     where darkroom and its Node.js are installed (default: ~/.darkroom)
 #   DARKROOM_HOME    where your data lives: .env, refs/, voices/, out/ (default: ~/darkroom)
-#   DARKROOM_REF     branch or tag to install (default: main)
+#   DARKROOM_REF     branch or tag to install (default: the latest release, or main before the first one)
 #   DARKROOM_SOURCE  URL of a source tarball, overrides DARKROOM_REF (e.g. file:// for testing)
 set -euo pipefail
 
 NODE_MAJOR=26
 INSTALL_DIR="${DARKROOM_DIR:-$HOME/.darkroom}"
 DATA_DIR="${DARKROOM_HOME:-$HOME/darkroom}"
-REF="${DARKROOM_REF:-main}"
+REF="${DARKROOM_REF:-}"
+if [ -z "$REF" ] && [ -z "${DARKROOM_SOURCE:-}" ]; then
+  REF=$(curl -fsSL https://api.github.com/repos/ajgassner/darkroom/releases/latest 2>/dev/null |
+    sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1) || true
+  REF="${REF:-main}"
+fi
 SOURCE="${DARKROOM_SOURCE:-https://github.com/ajgassner/darkroom/archive/$REF.tar.gz}"
 
 say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
@@ -96,6 +101,11 @@ mkdir -p "$INSTALL_DIR/bin"
   echo "rc=$(quote "$rc")"
   echo "path_line=$(quote "$path_line")"
   cat <<'WRAPPER'
+if [ "$1" = update ]; then
+  # exec: the installer rewrites this file, so no shell may keep reading it
+  export DARKROOM_DIR="$install_dir" DARKROOM_HOME="$data_dir"
+  exec /bin/sh -c 'curl -fsSL https://raw.githubusercontent.com/ajgassner/darkroom/main/install.sh | bash'
+fi
 if [ "$1" = uninstall ]; then
   if [ -n "$rc" ] && [ -f "$rc" ]; then
     # Rewrite in place, so a symlinked startup file stays a symlink
@@ -141,4 +151,5 @@ else
 fi
 echo "    darkroom start      web UI on http://localhost:5177"
 echo "    darkroom --help     all commands"
+echo "    darkroom update     update to the latest release (keeps your data)"
 echo "    darkroom uninstall  remove darkroom (keeps your data)"

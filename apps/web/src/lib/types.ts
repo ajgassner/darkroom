@@ -14,6 +14,7 @@ export type {
   Preset,
   PrivacyMode,
   SpeechModel,
+  UpdateResponse,
   VoiceInfo,
   ZdrEndpoint,
 } from '@darkroom/core/contract';

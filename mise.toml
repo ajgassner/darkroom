@@ -6,6 +6,8 @@ node = "26"
 "npm:corepack" = "latest"
 # Browser automation for UI checks during development (vercel-labs/agent-browser)
 "npm:agent-browser" = "0.42.0"
+# GitHub CLI for pull requests, releases and CI runs (main only accepts pull requests)
+gh = "2.104.0"
 
 [hooks]
 postinstall = "corepack enable"
