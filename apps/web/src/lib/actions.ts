@@ -22,10 +22,11 @@ import type {
   Status,
   UpdateResponse,
   UploadInfo,
+  UploadRun,
   VoiceInfo,
 } from './types';
 import { audioSettingsFrom, extraRefsFrom, imageSettingsFrom } from './ui/reuse';
-import { uploadName, withoutOutRefs } from './ui/uploads';
+import { uploadName, withOutRef, withoutOutRefs } from './ui/uploads';
 
 const t = i18n.t.bind(i18n);
 
@@ -201,6 +202,28 @@ export async function loadUploads(): Promise<UploadInfo[] | null> {
     toastError(err);
     return null;
   }
+}
+
+/** Runs that use a previous upload (newest first); null when they could not be loaded (shown as a toast). */
+export async function loadUploadRuns(file: string): Promise<UploadRun[] | null> {
+  try {
+    return await api<UploadRun[]>(`/api/uploads/${encodeURIComponent(uploadName(file))}/runs`);
+  } catch (err) {
+    toastError(err);
+    return null;
+  }
+}
+
+/**
+ * Use a file from out/ (a result or a previous upload) as an additional reference, in the image tab. Added only once;
+ * `added` is the toast when it was not among the references yet.
+ */
+export function addReference(file: string, added: string) {
+  const before = useUi.getState().extraRefs;
+  const extraRefs = withOutRef(before, file);
+  useUi.setState({ extraRefs });
+  useSettings.getState().set({ mode: 'image' });
+  toast.success(extraRefs === before ? t('toast.refPresent') : added);
 }
 
 /** Delete a previous upload; it is also taken out of the current references. */

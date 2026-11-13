@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { OUT_DIR, UPLOADS_DIR } from '../config.ts';
 import type { ManifestEntry } from '../contract.ts';
-import { deleteUpload, entryUploads, existingUpload, listUploads } from './uploads.ts';
+import { deleteUpload, entryUploads, existingUpload, listUploads, uploadRuns } from './uploads.ts';
 
 const A = '0123456789abcdef.jpg';
 const B = 'fedcba9876543210.jpg';
@@ -23,6 +23,34 @@ describe('uploads', () => {
   it('reads the uploads among the extra references', () => {
     expect(entryUploads({ extraRefs: [`uploads/${A}`, 'a.png', 'uploads/x.jpg', `uploads/${B}/..`] })).toEqual([A]);
     expect(entryUploads({} as ManifestEntry)).toEqual([]);
+  });
+
+  it('lists the runs that use an upload, newest first, with their first result and models', () => {
+    const at = (runId: string, ts: string, more: Partial<ManifestEntry>) =>
+      ({
+        runId,
+        ts,
+        prompt: `p ${runId}`,
+        model: 'm/a',
+        ok: true,
+        file: null,
+        extraRefs: [`uploads/${A}`],
+        ...more,
+      }) as ManifestEntry;
+    const entries = [
+      at('r1', '2026-01-01T10:00:00Z', { ok: false, model: 'm/b' }),
+      at('r1', '2026-01-01T10:00:01Z', { file: 'r1-a.png' }),
+      at('r1', '2026-01-01T10:00:02Z', { file: 'r1-b.png', model: 'm/b' }),
+      at('r2', '2026-01-02T10:00:00Z', { ok: false }),
+      at('r3', '2026-01-03T10:00:00Z', { file: 'r3.png', deleted: 'x' }),
+      at('r4', '2026-01-04T10:00:00Z', { file: 'r4.png', extraRefs: [`uploads/${B}`] }),
+    ];
+    expect(uploadRuns(A, entries)).toEqual([
+      { runId: 'r2', prompt: 'p r2', ts: '2026-01-02T10:00:00Z', file: null, models: ['m/a'] },
+      { runId: 'r1', prompt: 'p r1', ts: '2026-01-01T10:00:00Z', file: 'r1-a.png', models: ['m/b', 'm/a'] },
+    ]);
+    expect(uploadRuns(B, entries).map((r) => r.runId)).toEqual(['r4']);
+    expect(() => uploadRuns('../x.jpg', entries)).toThrow(expect.objectContaining({ code: 'invalid_upload' }));
   });
 
   it('lists nothing without the folder', async () => {

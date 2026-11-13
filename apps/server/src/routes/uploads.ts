@@ -1,8 +1,8 @@
-// Uploaded additional references (out/uploads/): list with usage, thumbnails, delete.
-import type { UploadInfo } from '@darkroom/core/contract';
+// Uploaded additional references (out/uploads/): list with usage, the runs using one, thumbnails, delete.
+import type { UploadInfo, UploadRun } from '@darkroom/core/contract';
 import { thumbnail } from '@darkroom/core/elements/refs';
 import { readEntries } from '@darkroom/core/storage/manifest';
-import { deleteUpload, existingUpload, listUploads } from '@darkroom/core/storage/uploads';
+import { deleteUpload, existingUpload, listUploads, uploadRuns } from '@darkroom/core/storage/uploads';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -13,6 +13,12 @@ export async function uploadRoutes(fastify: FastifyInstance) {
   const app = fastify.withTypeProvider<ZodTypeProvider>();
 
   app.get('/api/uploads', async (): Promise<UploadInfo[]> => listUploads(await readEntries()));
+
+  app.get(
+    '/api/uploads/:name/runs',
+    { schema: { params } },
+    async (req): Promise<UploadRun[]> => uploadRuns(req.params.name, await readEntries()),
+  );
 
   // Small preview for the uploads dialog (the uploads themselves are up to 2048 px)
   app.get(

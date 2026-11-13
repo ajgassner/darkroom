@@ -1,5 +1,5 @@
 import type { RunEvent } from './types';
-import { uploadName } from './ui/uploads';
+import { isUpload, uploadName } from './ui/uploads';
 
 /** Server error: English message plus the machine-readable code the UI translates. */
 class ApiError extends Error {
@@ -124,6 +124,11 @@ export function downloadUrl(file: string, stripMeta: boolean): string {
 /** Small preview of a previous upload ("uploads/<hash>.jpg"). */
 export function uploadThumbUrl(file: string, size = 240): string {
   return `/api/uploads/${encodeURIComponent(uploadName(file))}/thumb?size=${size}`;
+}
+
+/** Small preview of an additional reference from out/: previous uploads have a thumbnail route, results do not. */
+export function refThumbUrl(file: string, size = 96): string {
+  return isUpload(file) ? uploadThumbUrl(file, size) : outUrl(file);
 }
 
 export function elementPhotoUrl(element: string, file: string, size = 120): string {

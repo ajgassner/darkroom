@@ -96,8 +96,9 @@ export async function metaRoutes(fastify: FastifyInstance) {
           (runId !== null && e.runId === runId),
       );
       const removed = await removeFiles(changed);
-      // Results of one call share its debug record: keep it while one of them remains
-      await Promise.all((await unusedDebugIds(changed)).map((id) => deleteDebug(id)));
+      // Results of one call share its debug record: keep it while one of them remains. Its sent reference images go
+      // with it unless another record still lists them.
+      await deleteDebug(await unusedDebugIds(changed));
       // Uploaded references stay: the user deletes them under "Previous uploads" once no run uses them anymore
       return { entries: changed.length, files: removed };
     },

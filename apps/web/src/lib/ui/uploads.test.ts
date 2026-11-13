@@ -4,9 +4,18 @@ import type { ExtraRef } from '../store';
 import {
   deleteLabel,
   hasOutRef,
+  isUpload,
+  listStateText,
+  panelAfterEscape,
   pickLabel,
+  refLabel,
+  runRefThumbs,
   storedUploads,
+  tileTone,
+  tileView,
   toggleOutRef,
+  toggleRuns,
+  type UploadPanel,
   uploadName,
   usageText,
   withOutRef,
@@ -68,5 +77,49 @@ describe('previous uploads as references', () => {
     expect(pickLabel(t, { runs: 0 }, true)).toBe('uploads.unpick:uploads.unused');
     expect(deleteLabel(t, { runs: 0 })).toBe('uploads.delete');
     expect(deleteLabel(t, { runs: 3 })).toBe('uploads.deleteLocked:3');
+  });
+
+  it('shows at most four references of a run, counting the rest', () => {
+    expect(runRefThumbs(undefined)).toEqual({ shown: [], more: 0 });
+    expect(runRefThumbs(['a.png', U])).toEqual({ shown: ['a.png', U], more: 0 });
+    const six = ['1.png', '2.png', '3.png', '4.png', '5.png', U];
+    expect(runRefThumbs(six)).toEqual({ shown: six.slice(0, 4), more: 2 });
+    expect(runRefThumbs(six, 2)).toEqual({ shown: six.slice(0, 2), more: 4 });
+  });
+
+  it('names references by where they come from', () => {
+    expect(isUpload(U)).toBe(true);
+    expect(isUpload('2026-01-01/uploads.png')).toBe(false);
+    expect(refLabel(t, U, 1)).toBe('gallery.refUpload:1');
+    expect(refLabel(t, 'a.png', 2)).toBe('gallery.refResult:2');
+  });
+
+  it('opens and closes the panels of an upload', () => {
+    const runs: UploadPanel = { file: U, view: 'runs', confirmRun: null };
+    expect(toggleRuns(null, U)).toEqual(runs);
+    expect(toggleRuns(runs, U)).toBeNull();
+    expect(toggleRuns({ file: U, view: 'delete' }, U)).toEqual(runs);
+    expect(toggleRuns(runs, 'uploads/x.jpg')).toEqual({ file: 'uploads/x.jpg', view: 'runs', confirmRun: null });
+    // Escape cancels the question about a run first, then closes the panel
+    expect(panelAfterEscape({ ...runs, confirmRun: 'r1' })).toEqual(runs);
+    expect(panelAfterEscape(runs)).toBeNull();
+    expect(panelAfterEscape({ file: U, view: 'delete' })).toBeNull();
+    expect(tileView(runs, U)).toBe('runs');
+    expect(tileView(runs, 'a.png')).toBeNull();
+    expect(tileView(null, U)).toBeNull();
+  });
+
+  it('marks the tile of a picked upload or one with an open panel', () => {
+    expect(tileTone('delete', true)).toBe('err');
+    expect(tileTone('runs', false)).toBe('accent');
+    expect(tileTone(null, true)).toBe('accent');
+    expect(tileTone(null, false)).toBe('line');
+  });
+
+  it('says why a list is empty', () => {
+    const texts = { loading: 'L', failed: 'F', empty: 'E' };
+    expect(listStateText(null, texts)).toBe('L');
+    expect(listStateText('failed', texts)).toBe('F');
+    expect(listStateText([], texts)).toBe('E');
   });
 });

@@ -1,6 +1,7 @@
 // Entry point: local HTTP API and web UI on 127.0.0.1 only.
 import { retryMissingCosts } from '@darkroom/core/audio/audio-run';
 import { ENV_FILE, hasApiKey, PORT } from '@darkroom/core/config';
+import { pruneDebugRefs } from '@darkroom/core/storage/debug';
 import { checkForUpdate } from '@darkroom/core/system/update-check';
 import { buildApp } from './app.ts';
 import { listenErrorMessage, signalHandler } from './lifecycle.ts';
@@ -23,6 +24,8 @@ void checkForUpdate().then(({ current, update }) => {
 });
 // Speech costs that were still being looked up when the server (or CLI) stopped last time
 if (hasApiKey()) void retryMissingCosts().catch(() => {});
+// Sent reference images of debug records that were deleted before their files were cleaned up with them
+void pruneDebugRefs().catch(() => {});
 
 // First Ctrl+C: abort running work and shut down cleanly (pending cost lookups are not waited for: they are retried
 // at the next start). Second one: quit right away.

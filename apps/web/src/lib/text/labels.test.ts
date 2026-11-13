@@ -101,7 +101,7 @@ describe('runMetaParts', () => {
       params: { aspect_ratio: '3:4', resolution: '2K' },
       extraRefs: ['b.png'],
     };
-    expect(runMetaParts(t, first, voice)).toEqual(['gallery.elements:@anna, @logo', '3:4', '2K', undefined, '+1 Ref']);
+    expect(runMetaParts(t, first, voice)).toEqual(['gallery.elements:@anna, @logo', '3:4', '2K', undefined]);
     expect(runMetaParts(t, { element: 'anna' }, voice)[0]).toBe('gallery.element:anna');
     expect(runMetaParts(t, {}, voice)[0]).toBe('gallery.noElement');
   });

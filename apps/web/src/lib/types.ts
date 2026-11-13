@@ -24,6 +24,7 @@ export type {
   PrivacyMode,
   UpdateResponse,
   UploadInfo,
+  UploadRun,
   VoiceInfo,
   ZdrEndpoint,
 } from '@darkroom/core/contract';

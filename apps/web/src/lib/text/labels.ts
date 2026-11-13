@@ -61,13 +61,8 @@ export function runMetaParts(t: TFunction, first: RunFirst, voice: (v?: string) 
   if (first.tool) {
     return [toolLabel(t, first), first.element ? t('gallery.element', { name: first.element }) : null];
   }
-  return [
-    elementsLabel(t, first),
-    p.aspect_ratio,
-    p.resolution,
-    p.quality,
-    first.extraRefs?.length ? `+${first.extraRefs.length} Ref` : null,
-  ];
+  // Additional references are shown as thumbnails next to these parts
+  return [elementsLabel(t, first), p.aspect_ratio, p.resolution, p.quality];
 }
 
 function toolLabel(t: TFunction, first: RunFirst): string {

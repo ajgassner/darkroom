@@ -3,7 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { UPLOADS_DIR } from '../config.ts';
-import type { ManifestEntry, UploadInfo } from '../contract.ts';
+import type { ManifestEntry, UploadInfo, UploadRun } from '../contract.ts';
 import { AppError } from '../errors.ts';
 
 /** File name of an upload inside out/uploads/. Anything else is never read or removed there. */
@@ -58,6 +58,23 @@ export async function listUploads(entries: ManifestEntry[]): Promise<UploadInfo[
   return infos
     .filter((u): u is UploadInfo => u !== null)
     .sort((a, b) => b.mtime.localeCompare(a.mtime) || a.file.localeCompare(b.file));
+}
+
+/** The runs that use an upload (entries that are not deleted), newest first. */
+export function uploadRuns(name: string, entries: ManifestEntry[]): UploadRun[] {
+  uploadPath(name);
+  const runs = new Map<string, UploadRun>();
+  for (const e of entries) {
+    if (e.deleted || !entryUploads(e).includes(name)) continue;
+    const run = runs.get(e.runId);
+    if (!run) {
+      runs.set(e.runId, { runId: e.runId, prompt: e.prompt, ts: e.ts, file: e.ok ? e.file : null, models: [e.model] });
+      continue;
+    }
+    run.file ??= e.ok ? e.file : null;
+    if (!run.models.includes(e.model)) run.models.push(e.model);
+  }
+  return [...runs.values()].sort((a, b) => b.ts.localeCompare(a.ts));
 }
 
 /** Path of an existing upload; upload_not_found when there is none by that name. */
