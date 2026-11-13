@@ -36,6 +36,8 @@ You need an [OpenRouter API key](https://openrouter.ai/settings/keys). The insta
 curl -fsSL https://raw.githubusercontent.com/ajgassner/darkroom/main/install.sh | bash
 ```
 
+On a fresh Ubuntu without `curl`, install it with `sudo apt install curl` first.
+
 **Windows**, in PowerShell:
 
 ```powershell

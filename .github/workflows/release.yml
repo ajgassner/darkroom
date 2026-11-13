@@ -27,11 +27,16 @@ jobs:
 
   release:
     needs: ci
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Only release from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Releases are made from main (this run started on $GITHUB_REF_NAME)"
+          exit 1
+
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -83,8 +88,19 @@ jobs:
           gh api meta --jq '.ssh_keys[] | "github.com " + .' >"$ssh_dir/known_hosts"
           export GIT_SSH_COMMAND="ssh -i $ssh_dir/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$ssh_dir/known_hosts -o StrictHostKeyChecking=yes"
           remote="git@github.com:$GITHUB_REPOSITORY.git"
-          if git ls-remote --exit-code --tags "$remote" "v$VERSION" >/dev/null; then
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
             echo "::error::v$VERSION is already released; pick a bump other than none"
+            exit 1
+          fi
+          # A tag without a release is left over from a run that failed after pushing: if it points at this
+          # commit, only the release is missing, so pushing is skipped and the next step creates it
+          tagged=$(git ls-remote --tags "$remote" "refs/tags/v$VERSION" | cut -f1)
+          if [ -n "$tagged" ]; then
+            if [ "$tagged" = "$(git rev-parse HEAD)" ]; then
+              echo "v$VERSION is already tagged on this commit; creating the missing release"
+              exit 0
+            fi
+            echo "::error::Tag v$VERSION exists on another commit ($tagged); delete it or pick another bump"
             exit 1
           fi
           git push --atomic "$remote" HEAD:refs/heads/main "refs/tags/v$VERSION"
