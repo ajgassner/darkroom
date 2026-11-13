@@ -1,9 +1,7 @@
 // Own voices (voices/<name>/): create, delete, samples, transcripts, transcription; voice previews.
 import path from 'node:path';
-import { parsePrivacy, TRANSCRIBE_ENGINE } from '@darkroom/core/config';
-import { validName } from '@darkroom/core/refs';
-import { speechDemo } from '@darkroom/core/speech';
-import { transcribeSample } from '@darkroom/core/transcribe';
+import { speechDemo } from '@darkroom/core/audio/speech';
+import { transcribeSample } from '@darkroom/core/audio/transcribe';
 import {
   addSample,
   deleteSample,
@@ -13,7 +11,9 @@ import {
   listVoices,
   samplePath,
   saveVoice,
-} from '@darkroom/core/voices';
+} from '@darkroom/core/audio/voices';
+import { parsePrivacy, TRANSCRIBE_ENGINE } from '@darkroom/core/config';
+import { validName } from '@darkroom/core/elements/refs';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';

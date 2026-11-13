@@ -1,7 +1,7 @@
 // Terminal glue: clack prompts (Escape goes back, Ctrl+C quits with 130), spinners, run progress and results.
 import path from 'node:path';
 import * as p from '@clack/prompts';
-import { withLateCosts } from '@darkroom/core/audio-run';
+import { withLateCosts } from '@darkroom/core/audio/audio-run';
 import { OUT_DIR } from '@darkroom/core/config';
 import type { ManifestEntry, RunEvent } from '@darkroom/core/contract';
 import { AppError } from '@darkroom/core/errors';

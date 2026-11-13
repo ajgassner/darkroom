@@ -1,13 +1,7 @@
 // What the interactive mode offers: choices for privacy, models, sizes and voices, their defaults and the summary.
 // Pure functions on catalog data, so the prompts in flow.ts stay thin.
-import {
-  imagePriceLabel,
-  isNewModel,
-  privacyAllows,
-  releaseMonth,
-  speechPriceLabel,
-  zdrStatus,
-} from '@darkroom/core/catalog';
+
+import { voiceGroups } from '@darkroom/core/audio/voice-lang';
 import type { PrivacyMode } from '@darkroom/core/config';
 import type {
   ImageModel,
@@ -19,8 +13,15 @@ import type {
   VoiceInfo,
   ZdrEndpoint,
 } from '@darkroom/core/contract';
-import { fitParams, maxRefs } from '@darkroom/core/params';
-import { voiceGroups } from '@darkroom/core/voice-lang';
+import { fitParams, maxRefs } from '@darkroom/core/image/params';
+import {
+  imagePriceLabel,
+  isNewModel,
+  privacyAllows,
+  releaseMonth,
+  speechPriceLabel,
+  zdrStatus,
+} from '@darkroom/core/models/catalog';
 import type { ImageRun, MusicRun, SpeechRun } from './command-line.ts';
 
 export interface Choice<T> {
@@ -141,7 +142,7 @@ export function voiceChoices(model: SpeechModel, ownVoices: VoiceInfo[]): Choice
 
 /**
  * How a music run goes in a privacy mode where the model has no matching ZDR endpoint (null when it has one):
- * core sends the prompt anyway (with a notice) instead of blocking it, see musicPrivacy in core's music.ts.
+ * core sends the prompt anyway (with a notice) instead of blocking it, see musicPrivacy in core's audio/music.ts.
  */
 export function musicPrivacyNote(zdr: ZdrEndpoint[], privacy: PrivacyMode): string | null {
   if (privacyAllows(zdr, privacy)) return null;

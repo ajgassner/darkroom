@@ -1,9 +1,10 @@
 // Voice previews (`darkroom preview` and "Listen to a preview" in the interactive speech run): what to say and
 // how to report it. Generating and playing happen in studio.ts.
+
+import { previewSentence } from '@darkroom/core/audio/voice-lang';
 import type { PrivacyMode } from '@darkroom/core/config';
 import type { SpeechModel } from '@darkroom/core/contract';
 import { unknownModel } from '@darkroom/core/errors';
-import { previewSentence } from '@darkroom/core/voice-lang';
 
 export interface PreviewRequest {
   model: string;

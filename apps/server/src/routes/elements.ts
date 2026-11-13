@@ -11,7 +11,7 @@ import {
   saveElement,
   thumbnail,
   validName,
-} from '@darkroom/core/refs';
+} from '@darkroom/core/elements/refs';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';

@@ -4,7 +4,7 @@
 // checks that every command and option appears.
 import { APP_VERSION, DEFAULT_MODEL, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode, ROOT } from '@darkroom/core/config';
 import type { ManifestEntry } from '@darkroom/core/contract';
-import { MODEL_KINDS } from '@darkroom/core/favorites';
+import { MODEL_KINDS } from '@darkroom/core/models/favorites';
 import type { Argument, Command, Option } from 'commander';
 import { failureDocument, runDocument } from './json.ts';
 import { EXIT } from './mode.ts';

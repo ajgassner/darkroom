@@ -19,7 +19,7 @@ pnpm check                   # typecheck + lint + test + analyze, the full gate
 pnpm typecheck               # tsc for node code (tsconfig.json) and web (apps/web/tsconfig.json)
 pnpm lint / pnpm format      # Biome check (warnings are errors) / auto-fix
 pnpm test                    # Vitest, projects "node" and "web"
-pnpm vitest run packages/core/src/refs.test.ts        # single file
+pnpm vitest run packages/core/src/elements/refs.test.ts   # single file
 pnpm vitest run -t "name of test"                     # single test by name
 pnpm vitest run --project web                         # one project
 pnpm coverage                # coverage/; fallow uses it for CRAP scores (regenerate when stale)
@@ -33,7 +33,7 @@ The `agent-browser` project skill drives the UI in a real browser for UI verific
 
 ## CI and releases
 
-`.github/workflows/ci.yml` runs on push/PR (typecheck, lint, coverage, fallow, build) and installs this commit with both installers on Linux, macOS and Windows. `main` is protected by a ruleset: changes go in through a branch and pull request (`gh pr create`), CI must pass, and pull requests are squash-merged, so the PR title and body become the commit on `main`. Label each PR `enhancement`, `bug` or `documentation`; the release notes are generated from the merged PRs and grouped by these labels (`.github/release.yml`). Releases are only made by `.github/workflows/release.yml` (workflow_dispatch with a version bump), whose release commit is pushed with the `RELEASE_DEPLOY_KEY` deploy key, the ruleset's only bypass: never tag or bump the version by hand. The version lives in the root `package.json` (`APP_VERSION`); the update check (`core/src/update-check.ts`) compares it with the latest GitHub release.
+`.github/workflows/ci.yml` runs on push/PR (typecheck, lint, coverage, fallow, build) and installs this commit with both installers on Linux, macOS and Windows. `main` is protected by a ruleset: changes go in through a branch and pull request (`gh pr create`), CI must pass, and pull requests are squash-merged, so the PR title and body become the commit on `main`. Label each PR `enhancement`, `bug` or `documentation`; the release notes are generated from the merged PRs and grouped by these labels (`.github/release.yml`). Releases are only made by `.github/workflows/release.yml` (workflow_dispatch with a version bump), whose release commit is pushed with the `RELEASE_DEPLOY_KEY` deploy key, the ruleset's only bypass: never tag or bump the version by hand. The version lives in the root `package.json` (`APP_VERSION`); the update check (`core/src/system/update-check.ts`) compares it with the latest GitHub release.
 
 ## Stop hook and quality gates
 
@@ -47,12 +47,12 @@ The `agent-browser` project skill drives the UI in a real browser for UI verific
 
 pnpm workspace; Node runs TypeScript directly (type stripping), so only erasable syntax is allowed (no enums, namespaces, parameter properties) and relative imports use explicit `.ts` extensions.
 
-- `packages/core`: all logic (OpenRouter client, generation runs, tools, audio, elements, manifest). Exposed via `"./*": "./src/*.ts"`, imported as `@darkroom/core/<module>` (no extension; relative imports inside a package use `.ts`). Heavy local work (background removal, Whisper) runs in separate worker processes (`*-worker.ts`).
+- `packages/core`: all logic. Exposed via `"./*": "./src/*.ts"`, imported as `@darkroom/core/<path>` (e.g. `@darkroom/core/image/generate`; no extension; relative imports inside a package use `.ts`). `src/` holds the shared base (`contract.ts`, `config.ts`, `errors.ts`) and domain folders: `openrouter/` (client, upstream calls, audio model lists, API key, privacy), `models/` (catalog, favorites), `image/` (generation, params, prompt, tools), `elements/` (refs), `audio/` (speech, music, voices, transcription, WAV), `storage/` (manifest, JSON files, debug log), `system/` (workers, update check). Heavy local work (background removal, Whisper) runs in separate worker processes (`image/removebg-worker.ts`, `audio/transcribe-worker.ts`), started by `system/worker.ts` with paths relative to `src/`.
 - `apps/server`: Fastify, binds to 127.0.0.1 with Host/Origin checks (`http.ts`). Routes in `routes/`; generation runs stream NDJSON events to the client. Also serves `dist/web/`.
 - `apps/cli`: commander + @clack/prompts on top of core. `darkroom skill` (`skill.ts`) prints the usage guide for AI agents, partly generated from the command definitions; `--json` output shapes live in `json.ts`. Update the guide's text when commands, options, defaults or JSON shapes change (`skill.test.ts` checks that every command and option appears).
 - `apps/web`: React 19, Vite, Tailwind 4, zustand, i18next (EN/DE in `src/i18n/`). UI components in `features/`; decision logic lives in pure, tested helpers in `src/lib/`, not in components.
 
-Boundaries enforced by fallow: core imports nothing internal; server and CLI may import core; **web may only import types from core** (`@darkroom/core/contract`, the shared API contract) and talks to the server over HTTP.
+Boundaries enforced by fallow: core imports nothing internal, and inside core each domain folder may only import the base and the folders its rule in `.fallowrc.jsonc` allows; server and CLI may import core; **web may only import types from core** (`@darkroom/core/contract`, the shared API contract) and talks to the server over HTTP.
 
 Data lives under `ROOT` (`packages/core/src/config.ts`): the repo root, or `DARKROOM_HOME`. It holds `.env`, `refs/`, `voices/`, `out/` (results + `manifest.jsonl`), `models/`. App files (`presets.json`, `dist/web/`) always come from the repo. Manifest deletions only mark entries so cost totals stay correct.
 

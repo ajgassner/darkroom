@@ -1,5 +1,5 @@
 // What the selected image models do with a parameter value (the ≈ chips and their hints), and the capability line of
-// a model card. Same rules as the server (fitParams in core/src/params.ts) and the notes: an aspect ratio or size a
+// a model card. Same rules as the server (fitParams in core/src/image/params.ts) and the notes: an aspect ratio or size a
 // model doesn't offer becomes its nearest one, other values (or a parameter it doesn't have) fall back to its default.
 import type { TFunction } from 'i18next';
 import { enumVals, maxRefs, nearestAspect, nearestSize, RES_ORDER, ratio } from './models';

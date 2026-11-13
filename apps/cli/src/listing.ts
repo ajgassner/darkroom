@@ -1,13 +1,7 @@
 // Text blocks for `darkroom models`, `darkroom favorites` and `darkroom voices <model>` (one block per model, kind
 // or voice group). The model lists come ranked from the loaders (favorites, recommended, newest) and keep that order.
-import {
-  imagePriceLabel,
-  isNewModel,
-  privacyAllows,
-  releaseMonth,
-  speechPriceLabel,
-  zdrStatus,
-} from '@darkroom/core/catalog';
+
+import { voiceGroups } from '@darkroom/core/audio/voice-lang';
 import type { PrivacyMode } from '@darkroom/core/config';
 import type {
   Favorites,
@@ -20,8 +14,15 @@ import type {
   VoiceInfo,
   ZdrEndpoint,
 } from '@darkroom/core/contract';
-import { maxRefs } from '@darkroom/core/params';
-import { voiceGroups } from '@darkroom/core/voice-lang';
+import { maxRefs } from '@darkroom/core/image/params';
+import {
+  imagePriceLabel,
+  isNewModel,
+  privacyAllows,
+  releaseMonth,
+  speechPriceLabel,
+  zdrStatus,
+} from '@darkroom/core/models/catalog';
 import pc from 'picocolors';
 import {
   type CatalogImageModel,
