@@ -186,15 +186,6 @@ jobs:
       # the failed build run in Windows PowerShell 5.1, which "darkroom update" uses. Also checks that an
       # update fails cleanly while darkroom runs, that the command finds its data folder without
       # DARKROOM_HOME, and that %VARIABLE% entries in the user PATH survive install and uninstall.
-      # A Dev Drive (ReFS) handles the tens of thousands of small files in node_modules much faster than NTFS;
-      # the install folder goes there (the data folder stays in the home folder, so both drives are covered).
-      - name: Set up a Dev Drive for the install folder (Windows)
-        if: runner.os == 'Windows'
-        uses: samypr100/setup-dev-drive@562171fe8df7401fdf582d766cd3b6ab80d5b1a0 # v4.1.0
-        with:
-          drive-size: 4GB
-          drive-format: ReFS
-
       - name: Install, update, roll back, uninstall (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -207,8 +198,7 @@ jobs:
           $temp = $env:RUNNER_TEMP
           $script = Join-Path $PWD 'install.ps1'
           $version = node -p "require('./package.json').version"
-          $installRoot = if ($env:DEV_DRIVE) { $env:DEV_DRIVE } else { $HOME }
-          $installDir = "$installRoot\.d$([char]0xE5)rkroom"
+          $installDir = "$HOME\.d$([char]0xE5)rkroom"
           $dataDir = "$HOME\J$([char]0xF6)rg's darkroom"
           $darkroom = "$installDir\bin\darkroom.cmd"
           New-Item -ItemType Directory -Force (Join-Path $dataDir 'out') | Out-Null
