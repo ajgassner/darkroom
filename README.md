@@ -50,7 +50,7 @@ darkroom --help     # all commands
 darkroom uninstall  # remove darkroom; your data stays in ~/darkroom
 ```
 
-The installer installs the latest [release](https://github.com/ajgassner/darkroom/releases). When a newer one is out, the web UI shows an **Update** badge and `darkroom start` prints a note (darkroom asks GitHub at most once a day; `DARKROOM_UPDATE_CHECK=off` disables it). `darkroom update` installs it; your data stays untouched, and if the update fails, the previous version keeps working. `darkroom uninstall` removes the app and the PATH entry; `~/darkroom` holds your data, delete it only if you don't need it anymore.
+The installer installs the latest [release](https://github.com/ajgassner/darkroom/releases). When a newer one is out, the web UI shows an **Update** badge and `darkroom start` prints a note (darkroom asks GitHub at most once a day; `DARKROOM_UPDATE_CHECK=off` disables it). `darkroom update` installs it; your data stays untouched, and if the update fails, the previous version keeps working (on macOS and Linux, restart a running darkroom afterwards; on Windows, stop it first). `darkroom uninstall` asks for confirmation (`--yes` skips it), then removes the app, its Node.js and package caches and the PATH entry; `~/darkroom` holds your data, delete it only if you don't need it anymore. The install folder and the data folder must be separate (`DARKROOM_DIR` and `DARKROOM_HOME` change them); the installer refuses folders that overlap.
 
 ### From source
 
