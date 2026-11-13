@@ -4,19 +4,23 @@ import * as p from '@clack/prompts';
 import { withLateCosts } from '@darkroom/core/audio-run';
 import { OUT_DIR } from '@darkroom/core/config';
 import type { ManifestEntry, RunEvent } from '@darkroom/core/contract';
+import { AppError } from '@darkroom/core/errors';
 import pc from 'picocolors';
 import { displayPath } from './args.ts';
 import { type Choice, plural, usd } from './choices.ts';
 import { BACK, type Back, type Prompter } from './flow.ts';
+import { failureDocument, printJson } from './json.ts';
+import { EXIT, jsonMode } from './mode.ts';
 import { out, terminal } from './out.ts';
 
-/** Prompts are only shown when both ends are a terminal; scripts and agents never get one. */
-export const interactive = Boolean(process.stdout.isTTY && process.stdin.isTTY);
+/** Prompts are only shown when both ends are a terminal and the output is not JSON; scripts never get one. */
+export const interactive = Boolean(process.stdout.isTTY && process.stdin.isTTY) && !jsonMode;
 
 /** Leave with exit code 130, as after Ctrl+C in a shell. */
-export function cancelled(): never {
-  out.cancel('Cancelled');
-  process.exit(130);
+export function cancelled(message = 'Cancelled'): never {
+  if (jsonMode) printJson(failureDocument(new AppError('cancelled', message)));
+  out.cancel(message);
+  process.exit(EXIT.cancelled);
 }
 
 // clack cancels a prompt on Escape and on Ctrl+C alike; the last key tells them apart
@@ -130,7 +134,7 @@ function spinner() {
 /** Ctrl+C (or SIGTERM): the first one calls `first`, a second one quits right away. Returns the removal. */
 function onInterrupt(first: () => void): () => void {
   let count = 0;
-  const handler = () => (count++ ? process.exit(130) : first());
+  const handler = () => (count++ ? process.exit(EXIT.cancelled) : first());
   process.on('SIGINT', handler);
   process.on('SIGTERM', handler);
   return () => {
@@ -139,10 +143,10 @@ function onInterrupt(first: () => void): () => void {
   };
 }
 
-/** Run `work` behind a spinner; Ctrl+C quits with 130. */
+/** Run `work` behind a spinner; Ctrl+C cancels (exit code 130). */
 export async function loading<T>(label: string, done: (v: T) => string, work: () => Promise<T>): Promise<T> {
   const spin = spinner();
-  const dispose = onInterrupt(() => process.exit(130));
+  const dispose = onInterrupt(() => cancelled());
   spin.start(label);
   try {
     const v = await work();
@@ -203,7 +207,7 @@ export async function withProgress(
     spin.stop(`${plural(ok, 'result')}, ${plural(entries.length - ok, 'error')}, ${usd(cost)}`);
     report(entries);
     // Unfinished cost lookups are retried by the server at its next start
-    if (ac.signal.aborted) process.exit(130);
+    if (ac.signal.aborted) cancelled();
     return entries;
   } finally {
     dispose();

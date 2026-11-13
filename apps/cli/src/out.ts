@@ -1,7 +1,9 @@
 // Where the CLI writes. In a terminal: clack's framed output. Otherwise (pipes, scripts, AI agents): plain lines
 // without frames or cursor codes, with results and listings on stdout and everything else (progress, totals,
-// warnings, errors) on stderr. Errors and warnings go to stderr in a terminal too.
+// warnings, errors) on stderr. Errors and warnings go to stderr in a terminal too. With --json stdout only gets the
+// one JSON document (see json.ts) and stderr only progress.
 import * as p from '@clack/prompts';
+import { jsonMode } from './mode.ts';
 
 export interface Output {
   intro(title: string): void;
@@ -44,6 +46,19 @@ export function plainOutput(stdout: Writable, stderr: Writable): Output {
   };
 }
 
+/**
+ * --json: the data, results, warnings and errors are all in the JSON document, so only progress, totals and
+ * cancellation reach `stderr` as plain lines; stdout stays free for the document.
+ */
+export function jsonOutput(stderr: Writable): Output {
+  const err = (text: string) => void stderr.write(`${text}\n`);
+  const none = () => {};
+  return {
+    ...{ intro: none, outro: err, message: none, info: none, hint: none, success: none },
+    ...{ warn: none, error: none, status: err, note: none, cancel: err },
+  };
+}
+
 const toStderr = { output: process.stderr };
 
 function clackOutput(): Output {
@@ -62,7 +77,12 @@ function clackOutput(): Output {
   };
 }
 
-/** Whether stdout is a terminal (otherwise the output is plain lines). */
-export const terminal = Boolean(process.stdout.isTTY);
+/** Whether the output is for a terminal (otherwise plain lines, or JSON). */
+export const terminal = Boolean(process.stdout.isTTY) && !jsonMode;
 
-export const out: Output = terminal ? clackOutput() : plainOutput(process.stdout, process.stderr);
+function chooseOutput(): Output {
+  if (jsonMode) return jsonOutput(process.stderr);
+  return terminal ? clackOutput() : plainOutput(process.stdout, process.stderr);
+}
+
+export const out: Output = chooseOutput();

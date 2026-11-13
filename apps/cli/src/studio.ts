@@ -6,7 +6,7 @@ import { listMusicModels, listSpeechModels } from '@darkroom/core/audio-models';
 import { estimateImagePrice, estimateRunCost, estimateSpeechPrice, rankModels } from '@darkroom/core/catalog';
 import { DEFAULT_MODEL, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode } from '@darkroom/core/config';
 import type { CostSummary, ManifestEntry, ModelKind, SpeechModel } from '@darkroom/core/contract';
-import { unknownModel } from '@darkroom/core/errors';
+import { AppError, unknownModel } from '@darkroom/core/errors';
 import { inCatalog, MODEL_KINDS, modelKindOf, readFavorites, setFavorite } from '@darkroom/core/favorites';
 import { runGeneration } from '@darkroom/core/generate';
 import { costSummary, readEntries } from '@darkroom/core/manifest';
@@ -29,6 +29,17 @@ import {
 } from './command-line.ts';
 import { askImage, askMusic, askSpeech, BACK, type Mode, mainMenu, type Prompter, session } from './flow.ts';
 import {
+  costsDocument,
+  elementsDocument,
+  favoritesDocument,
+  imageModelsDocument,
+  modelVoicesDocument,
+  musicModelsDocument,
+  ownVoicesDocument,
+  printJson,
+  speechModelsDocument,
+} from './json.ts';
+import {
   favoriteBlocks,
   imageModelBlocks,
   LEGEND,
@@ -37,6 +48,7 @@ import {
   speechModelBlocks,
   voiceBlocks,
 } from './listing.ts';
+import { jsonMode } from './mode.ts';
 import { fileOpener } from './open.ts';
 import { out } from './out.ts';
 import { type Playback, playFile } from './play.ts';
@@ -106,14 +118,18 @@ export async function totalLine(): Promise<string> {
   return `Total so far: ${usd(all.total)} for ${plural(all.images, 'result')}`;
 }
 
+/** A voice preview: the audio file (absolute), whether it came from the cache, and how playing it went. */
+export interface Preview {
+  file: string;
+  cached: boolean;
+  playback: Playback | 'off';
+}
+
 /**
  * Voice preview: generated (or taken from the cache), its path printed and played unless `play` is false.
  * `models` saves loading the speech catalog again (interactive mode).
  */
-export async function previewVoice(
-  r: PreviewRequest,
-  o: { play: boolean; models?: SpeechModel[] },
-): Promise<Playback | 'off'> {
+export async function previewVoice(r: PreviewRequest, o: { play: boolean; models?: SpeechModel[] }): Promise<Preview> {
   const models = o.models ?? (await loadSpeechModels());
   const call = previewCall(r, models, userLanguage(process.env, Intl.DateTimeFormat().resolvedOptions().locale));
   const demo = await loading(
@@ -123,10 +139,10 @@ export async function previewVoice(
   );
   const file = path.join(OUT_DIR, demo.file);
   out.success(`${pc.bold(displayPath(file, process.cwd()))}  ${pc.dim(previewDetails(r, demo.cached))}`);
-  if (!o.play) return 'off';
+  if (!o.play) return { file, cached: demo.cached, playback: 'off' };
   const playback = await playFile(file, () => out.hint(pc.dim('Playing (Ctrl+C stops)')));
   if (playback === 'none') out.hint('No audio player found (afplay, paplay, aplay or ffplay): open the file above.');
-  return playback;
+  return { file, cached: demo.cached, playback };
 }
 
 // ---------------------------------------------------------------- Listings
@@ -164,7 +180,15 @@ const BLOCKS: Record<ModelKind, (o: ListOptions) => Promise<string[]>> = {
   music: async (o) => musicModelBlocks(await loadMusicModels(), o),
 };
 
+/** The listings as JSON documents (--json). */
+const DOCUMENTS: Record<ModelKind, (o: ListOptions) => Promise<object[]>> = {
+  image: async (o) => imageModelsDocument(await loadImageModels(), o),
+  speech: async (o) => speechModelsDocument(await loadSpeechModels(), o),
+  music: async (o) => musicModelsDocument(await loadMusicModels(), o),
+};
+
 export async function showModels(kind: ModelKind, o: ListOptions): Promise<void> {
+  if (jsonMode) return printJson(await DOCUMENTS[kind](o));
   const blocks = await BLOCKS[kind](o);
   if (!blocks.length) return out.warn('No models match');
   out.message(blocks.join('\n\n'));
@@ -176,7 +200,9 @@ export async function showModels(kind: ModelKind, o: ListOptions): Promise<void>
 
 /** The favorites of one kind or all kinds (no network needed). */
 export async function showFavorites(kind?: ModelKind): Promise<void> {
-  out.message(favoriteBlocks(await readFavorites(), kind ? [kind] : MODEL_KINDS).join('\n\n'));
+  const kinds = kind ? [kind] : MODEL_KINDS;
+  if (jsonMode) return printJson(favoritesDocument(await readFavorites(), kinds));
+  out.message(favoriteBlocks(await readFavorites(), kinds).join('\n\n'));
 }
 
 /** Add a model to the favorites; its kind comes from the catalogs unless given. */
@@ -191,16 +217,18 @@ export async function addFavorite(model: string, kind?: ModelKind): Promise<void
     },
   );
   await setFavorite(k, model, true);
+  if (jsonMode) return printJson({ ok: true, model, kind: k, favorite: true });
   out.success(`${FAVORITE_MARK} ${model} is one of your ${k} favorites`);
 }
 
 /** Remove a model from the favorites of its kind (or of every kind that has it); any id works. */
 export async function removeFavorite(model: string, kind?: ModelKind): Promise<void> {
   const favorites = await readFavorites();
-  const kinds = kind ? [kind] : MODEL_KINDS.filter((k) => favorites[k].includes(model));
-  if (!kinds.some((k) => favorites[k].includes(model))) return out.info(`${model} is not a favorite`);
-  for (const k of kinds) await setFavorite(k, model, false);
-  out.success(`Removed ${model} from your ${kinds.join(' and ')} favorites`);
+  const removed = (kind ? [kind] : MODEL_KINDS).filter((k) => favorites[k].includes(model));
+  for (const k of removed) await setFavorite(k, model, false);
+  if (jsonMode) return printJson({ ok: true, model, removedFrom: removed, favorite: false });
+  if (!removed.length) return out.info(`${model} is not a favorite`);
+  out.success(`Removed ${model} from your ${removed.join(' and ')} favorites`);
 }
 
 /** Next step "Add to favorites" of the interactive mode: the models of the run that are not favorites yet. */
@@ -222,10 +250,15 @@ export async function showVoices(modelId?: string): Promise<void> {
   const own = await listVoices();
   if (modelId) {
     const model = (await loadSpeechModels()).find((m) => m.id === modelId);
-    if (!model) throw new Error(`Unknown speech model: ${modelId} (see darkroom models speech)`);
+    if (!model)
+      throw new AppError('unknown_model', `Unknown speech model: ${modelId} (see darkroom models speech)`, {
+        model: modelId,
+      });
+    if (jsonMode) return printJson(modelVoicesDocument(model, own));
     out.message(voiceBlocks(model, own).join('\n\n'));
     return;
   }
+  if (jsonMode) return printJson(ownVoicesDocument(own));
   if (!own.length) return out.info('No own voices yet. Record one in the web UI (Audio → Own voices).');
   for (const v of own)
     out.message(`${pc.bold(`voice:${v.name}`)}  ${pc.dim(`${v.label} · ${plural(v.samples.length, 'sample')}`)}`);
@@ -233,6 +266,7 @@ export async function showVoices(modelId?: string): Promise<void> {
 
 export async function showElements(): Promise<void> {
   const els = await listElements();
+  if (jsonMode) return printJson(elementsDocument(els));
   if (!els.length) return out.info('No elements yet. Create one in the web UI or add photos to refs/<name>/.');
   for (const e of els)
     out.message(`${pc.bold(`@${e.name}`)}  ${pc.dim(`${e.type} · ${e.label} · ${plural(e.photos.length, 'image')}`)}`);
@@ -240,6 +274,7 @@ export async function showElements(): Promise<void> {
 
 export async function showCosts(): Promise<void> {
   const s = costSummary(await readEntries());
+  if (jsonMode) return printJson(costsDocument(s));
   const lines = Object.entries(s.byModel)
     .sort((a, b) => b[1].cost - a[1].cost)
     .map(([m, v]) => `${usd(v.cost).padStart(10)}  ${String(v.images).padStart(4)}  ${m}`);

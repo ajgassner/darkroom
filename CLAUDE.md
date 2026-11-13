@@ -49,7 +49,7 @@ pnpm workspace; Node runs TypeScript directly (type stripping), so only erasable
 
 - `packages/core`: all logic (OpenRouter client, generation runs, tools, audio, elements, manifest). Exposed via `"./*": "./src/*.ts"`, imported as `@darkroom/core/<module>` (no extension; relative imports inside a package use `.ts`). Heavy local work (background removal, Whisper) runs in separate worker processes (`*-worker.ts`).
 - `apps/server`: Fastify, binds to 127.0.0.1 with Host/Origin checks (`http.ts`). Routes in `routes/`; generation runs stream NDJSON events to the client. Also serves `dist/web/`.
-- `apps/cli`: commander + @clack/prompts on top of core.
+- `apps/cli`: commander + @clack/prompts on top of core. `darkroom skill` (`skill.ts`) prints the usage guide for AI agents, partly generated from the command definitions; `--json` output shapes live in `json.ts`. Update the guide's text when commands, options, defaults or JSON shapes change (`skill.test.ts` checks that every command and option appears).
 - `apps/web`: React 19, Vite, Tailwind 4, zustand, i18next (EN/DE in `src/i18n/`). UI components in `features/`; decision logic lives in pure, tested helpers in `src/lib/`, not in components.
 
 Boundaries enforced by fallow: core imports nothing internal; server and CLI may import core; **web may only import types from core** (`@darkroom/core/contract`, the shared API contract) and talks to the server over HTTP.

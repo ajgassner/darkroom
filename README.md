@@ -25,6 +25,7 @@ A self-hosted alternative to getimg.ai and similar subscription services. Upload
 - **Image tools**: upscale, expand canvas, relight and clean up backgrounds with AI; resize, crop and remove backgrounds locally for free.
 - **Audio**: text-to-speech with 39 models, cloned voices from your own samples, and music with Google Lyria.
 - **Web UI and CLI**: the CLI generates images, speech and music (interactively or scripted) and lists models, elements, voices and costs; image tools, editing elements and voices, transcription and metadata removal are in the web UI, which is available in English and German.
+- **AI-native**: AI agents that can run shell commands (Claude Code, Codex, Gemini CLI, Cursor, …) learn darkroom from `darkroom skill`, a usage guide that matches the installed version, and drive it with `--json`.
 - **Full record**: every result lands in `out/` together with a manifest of prompt, model, parameters, provider, cost and duration, plus the exact request and response for debugging.
 
 ## Install
@@ -162,9 +163,18 @@ darkroom voices elevenlabs/eleven-v4   # a model's voices by language, plus your
 darkroom voices                    # your own voices (voice:<name>)
 darkroom elements                  # reference sets
 darkroom costs                     # cost per model and in total
+darkroom skill                     # usage guide for AI agents; --json on most commands, see below
 ```
 
 `darkroom --help` and `darkroom gen --help` list all options. Options such as `-m` and `-r` take one value each; repeat them or separate models with commas. `darkroom models` checks the models against your privacy mode (`--privacy` to check another one) and marks favorites (♥), recommended models (★), the release month and models released in the last 30 days (new). Music models are never blocked: without a matching ZDR endpoint the prompt is sent without ZDR (with a notice), which the listing shows. `darkroom preview` plays a voice with `afplay` (macOS), `paplay`, `aplay` or `ffplay` (Linux) or PowerShell (Windows) and prints the file path (without a player only the path); previews of model voices are cached (marked "cached, free"), own voices and own texts are always generated, and Ctrl+C stops the playback. Result paths are printed so you can open them or pass them to `-r`. Ctrl+C cancels a running generation, including the upstream calls; a second Ctrl+C quits right away. A cancelled prompt or run exits with code 130. Outside a terminal the output is plain lines without colors or frames: results (path, cost, duration, model) one per line on stdout, progress, totals, warnings and errors on stderr (`FORCE_COLOR=1` keeps the colors).
+
+## Use with AI agents
+
+Tell your agent: _"Run `darkroom skill` and use it."_ The guide explains the commands, how to pick models, privacy, costs and the JSON output, so you can ask for things like _"Make three portrait variants of @me with the recommended models and read this text in my voice."_ The agent may offer to remember darkroom; it then saves a short pointer to `darkroom skill`, so it stays current after updates.
+
+Agents spend your OpenRouter credit like you do; the guide tells them to check prices, start with one image and ask before larger batches. Your API key stays in `.env` or the web UI; never paste it into a chat.
+
+With `--json` (on `gen`, `speak`, `music`, `preview`, `models`, `voices`, `elements`, `favorites` and `costs`) a command never asks and prints exactly one JSON document on stdout, e.g. `{ "ok": true, "results": [{ "file": "/…/out/….png", "model": "…", "cost": 0.04, … }], "errors": [], "cost": { "run": 0.04, "totalSoFar": 1.23 } }`, or `{ "ok": false, "error": { "code", "message", "params" } }` when the command fails. Exit codes: 0 for success (also when only some models failed), 1 when nothing worked or the input was invalid, 130 when cancelled.
 
 ## Privacy
 

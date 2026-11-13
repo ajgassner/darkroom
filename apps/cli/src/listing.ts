@@ -44,6 +44,16 @@ function matches(m: { id: string; name: string }, search: string | undefined): b
   return !search || `${m.id} ${m.name}`.toLowerCase().includes(search.toLowerCase());
 }
 
+/** The models a listing shows: those matching --search (the text listing and --json alike). */
+export function listedModels<M extends { id: string; name: string }>(models: M[], o: ListOptions): M[] {
+  return models.filter((m) => matches(m, o.search));
+}
+
+/** Image models a listing shows: with reference images (unless --all) and matching --search. */
+export function listedImageModels(models: CatalogImageModel[], o: ListOptions): CatalogImageModel[] {
+  return listedModels(models, o).filter((m) => o.all || (maxRefs(m) ?? 0) > 0);
+}
+
 /** ZDR status and whether the privacy mode lets the model run; `music` runs anyway (see musicPrivacyNote). */
 function zdrSummary(zdr: ZdrEndpoint[], privacy: PrivacyMode, music = false): string {
   const status = zdrStatus(zdr);
@@ -117,8 +127,7 @@ function imageDetails(m: CatalogImageModel): string[] {
 }
 
 export function imageModelBlocks(models: CatalogImageModel[], o: ListOptions): string[] {
-  const rows = models.filter((m) => (o.all || (maxRefs(m) ?? 0) > 0) && matches(m, o.search));
-  return rows.map((m) =>
+  return listedImageModels(models, o).map((m) =>
     [
       title(m),
       [
@@ -138,15 +147,13 @@ function audioBlocks<M extends MusicModelInfo>(
   summary: (m: M) => string,
   details: (m: M) => string[],
 ): string[] {
-  return models
-    .filter((m) => matches(m, o.search))
-    .map((m) =>
-      [
-        `${title(m)}  ${pc.dim(m.name)}`,
-        summary(m),
-        ...(o.details ? [...details(m), row('ZDR', zdrEndpointsText(m.zdr)), ...about(m.description)] : []),
-      ].join('\n'),
-    );
+  return listedModels(models, o).map((m) =>
+    [
+      `${title(m)}  ${pc.dim(m.name)}`,
+      summary(m),
+      ...(o.details ? [...details(m), row('ZDR', zdrEndpointsText(m.zdr)), ...about(m.description)] : []),
+    ].join('\n'),
+  );
 }
 
 /** Voices per language, e.g. "German 2, English 1". */
@@ -177,7 +184,7 @@ export function speechModelBlocks(models: SpeechModelInfo[], o: ListOptions): st
 }
 
 /** A 30 s clip or a full song, when the id or description tells. */
-function musicLength(m: MusicModelInfo): string | null {
+export function musicLength(m: MusicModelInfo): string | null {
   if (/clip/i.test(m.id)) return 'clip (about 30 s)';
   return /song|\bpro\b/i.test(`${m.id} ${m.description}`) ? 'full song' : null;
 }
