@@ -67,12 +67,18 @@ export function AudioPlayer({ src, className }: { src: string; className?: strin
         type="button"
         title={playing ? t('player.pause') : t('player.play')}
         aria-label={playing ? t('player.pause') : t('player.play')}
+        disabled={failed}
         onClick={(e) => {
           e.stopPropagation();
           const a = audio.current;
-          if (a) void (a.paused ? a.play() : Promise.resolve(a.pause()));
+          if (!a) return;
+          if (!a.paused) return a.pause();
+          // A pause() right after play() rejects with AbortError; only real failures mark the file unavailable
+          a.play().catch((err: unknown) => {
+            if ((err as Error | null)?.name !== 'AbortError') setFailed(true);
+          });
         }}
-        className="grid size-[30px] cursor-pointer place-items-center rounded-full bg-accent text-white hover:bg-accent-2"
+        className="grid size-[30px] cursor-pointer place-items-center rounded-full bg-accent text-white hover:bg-accent-2 disabled:cursor-default disabled:opacity-45 disabled:hover:bg-accent"
       >
         {playing ? <PauseIcon className="size-3 fill-current" /> : <PlayIcon className="size-3 fill-current" />}
       </button>

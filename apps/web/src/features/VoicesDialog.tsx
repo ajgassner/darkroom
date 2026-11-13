@@ -5,11 +5,12 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
-import { reloadVoices, transcribe, transcribeSettings, uploadSamples } from '@/lib/actions';
+import { errorMessage, reloadVoices, transcribe, uploadSamples } from '@/lib/actions';
 import { api } from '@/lib/api';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { VoiceInfo } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { transcribeOptions } from '@/lib/voices';
 import { MAX_SAMPLE_SEC } from '@/lib/wav';
 import { ListDialog } from './ListDialog';
 import { AudioPlayer, DropZone } from './shared';
@@ -47,12 +48,18 @@ function VoiceEditor({ v }: { v: VoiceInfo }) {
   const status = useData((s) => s.status);
   const set = useSettings((s) => s.set);
   const [label, setLabel] = useState(v.label);
-  const { engine, language } = transcribeSettings();
+  const transcribeEngine = useSettings((s) => s.transcribeEngine);
+  const transcribeLang = useSettings((s) => s.transcribeLang);
+  const { engine, language } = transcribeOptions({ transcribeEngine, transcribeLang }, status?.transcribe.engine);
 
   const save = async () => {
-    await api(`/api/voices/${encodeURIComponent(v.name)}`, { method: 'PUT', body: { label } });
-    await reloadVoices();
-    toast.success(t('toast.saved'));
+    try {
+      await api(`/api/voices/${encodeURIComponent(v.name)}`, { method: 'PUT', body: { label } });
+      await reloadVoices();
+      toast.success(t('toast.saved'));
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
   };
 
   return (
@@ -111,9 +118,35 @@ function VoiceEditor({ v }: { v: VoiceInfo }) {
 function Sample({ v, file }: { v: VoiceInfo; file: string }) {
   const { t } = useTranslation();
   const busy = useUi((s) => s.transcribing.includes(`${v.name}/${file}`));
-  const [text, setText] = useState(v.transcripts?.[file] ?? '');
-  useEffect(() => setText(v.transcripts?.[file] ?? ''), [v.transcripts, file]);
+  // Only a changed saved transcript replaces the text field (reloading the voices must not wipe unsaved edits)
+  const saved = v.transcripts?.[file] ?? '';
+  const [text, setText] = useState(saved);
+  useEffect(() => setText(saved), [saved]);
   const base = `/api/voices/${encodeURIComponent(v.name)}/samples/${encodeURIComponent(file)}`;
+
+  const remove = async () => {
+    if (!window.confirm(t('voices.deleteSample', { file }))) return;
+    try {
+      await api(base, { method: 'DELETE' });
+      await reloadVoices();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  };
+
+  const saveTranscript = async () => {
+    if (text === saved) return;
+    try {
+      await api(`/api/voices/${encodeURIComponent(v.name)}`, {
+        method: 'PUT',
+        body: { transcripts: { [file]: text } },
+      });
+      await reloadVoices();
+      toast.success(t('toast.transcriptSaved'));
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  };
 
   return (
     <div className="flex flex-col gap-1.5 rounded-[10px] border border-line p-2.5">
@@ -123,15 +156,7 @@ function Sample({ v, file }: { v: VoiceInfo; file: string }) {
           <RotateCwIcon className={cn(busy && 'animate-spin')} />
           {t('voices.retranscribe')}
         </Button>
-        <Button
-          size="sm"
-          variant="danger"
-          onClick={async () => {
-            if (!window.confirm(t('voices.deleteSample', { file }))) return;
-            await api(base, { method: 'DELETE' });
-            await reloadVoices();
-          }}
-        >
+        <Button size="sm" variant="danger" onClick={() => void remove()}>
           {t('common.delete')}
         </Button>
       </div>
@@ -141,53 +166,57 @@ function Sample({ v, file }: { v: VoiceInfo; file: string }) {
         value={busy ? '' : text}
         placeholder={busy ? t('voices.transcribing') : t('voices.transcriptPlaceholder')}
         onChange={(e) => setText(e.target.value)}
-        onBlur={async () => {
-          if (text === (v.transcripts?.[file] ?? '')) return;
-          await api(`/api/voices/${encodeURIComponent(v.name)}`, {
-            method: 'PUT',
-            body: { transcripts: { [file]: text } },
-          });
-          await reloadVoices();
-          toast.success(t('toast.transcriptSaved'));
-        }}
+        onBlur={() => void saveTranscript()}
       />
     </div>
   );
+}
+
+const MIC_CONSTRAINTS: MediaStreamConstraints = {
+  audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+};
+
+/** Microphone stream, or null when access was denied or is not available. */
+async function openMic(): Promise<MediaStream | null> {
+  try {
+    return await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+  } catch {
+    return null;
+  }
+}
+
+function stopTracks(stream: MediaStream) {
+  for (const tr of stream.getTracks()) tr.stop();
 }
 
 /** Record from the microphone (browser processing off, so the timbre stays natural). */
 function Recorder({ name }: { name: string }) {
   const { t } = useTranslation();
   const rec = useRef<MediaRecorder | null>(null);
+  const mounted = useRef(false);
+  const startingRef = useRef(false);
+  const [starting, setStarting] = useState(false);
   const [seconds, setSeconds] = useState<number | null>(null);
 
-  useEffect(() => () => rec.current?.stop(), []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      rec.current?.stop();
+    };
+  }, []);
 
-  const start = async () => {
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
-      });
-    } catch {
-      toast.error(t('toast.micDenied'));
-      return;
-    }
+  /** Start recording on an open stream; throws if the browser cannot record it. */
+  const record = (stream: MediaStream) => {
     const chunks: Blob[] = [];
     const r = new MediaRecorder(stream);
-    rec.current = r;
-    const t0 = Date.now();
-    const timer = setInterval(() => {
-      const s = Math.round((Date.now() - t0) / 1000);
-      setSeconds(s);
-      if (s >= MAX_SAMPLE_SEC) r.stop();
-    }, 250);
+    let timer: ReturnType<typeof setInterval> | undefined;
     r.ondataavailable = (e) => {
       if (e.data.size) chunks.push(e.data);
     };
     r.onstop = () => {
       clearInterval(timer);
-      for (const tr of stream.getTracks()) tr.stop();
+      stopTracks(stream);
       rec.current = null;
       setSeconds(null);
       const blob = new Blob(chunks, { type: chunks[0]?.type || 'audio/webm' });
@@ -195,11 +224,42 @@ function Recorder({ name }: { name: string }) {
       void uploadSamples(name, [new File([blob], `recording_${stamp}`, { type: blob.type })]);
     };
     r.start();
+    rec.current = r;
+    const t0 = Date.now();
+    timer = setInterval(() => {
+      const s = Math.round((Date.now() - t0) / 1000);
+      setSeconds(s);
+      if (s >= MAX_SAMPLE_SEC && r.state !== 'inactive') r.stop();
+    }, 250);
     setSeconds(0);
   };
 
+  const start = async () => {
+    if (startingRef.current || rec.current) return;
+    startingRef.current = true;
+    setStarting(true);
+    const stream = await openMic();
+    startingRef.current = false;
+    setStarting(false);
+    // The dialog may have closed while the permission prompt was open: release the mic right away
+    if (!mounted.current) {
+      if (stream) stopTracks(stream);
+      return;
+    }
+    if (!stream) {
+      toast.error(t('toast.micDenied'));
+      return;
+    }
+    try {
+      record(stream);
+    } catch (err) {
+      stopTracks(stream);
+      toast.error(errorMessage(err));
+    }
+  };
+
   return seconds === null ? (
-    <Button onClick={() => void start()}>
+    <Button disabled={starting} onClick={() => void start()}>
       <CircleIcon className="fill-err text-err" />
       {t('voices.record')}
     </Button>

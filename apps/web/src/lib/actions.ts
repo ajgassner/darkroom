@@ -1,6 +1,7 @@
 import { toast } from 'sonner';
 import i18n from '@/i18n';
 import { api, readAsDataUrl } from './api';
+import { elementOnLoad, existingElement } from './mentions';
 import { audioSettingsFrom, extraRefsFrom, imageSettingsFrom } from './reuse';
 import { type DEFAULT_SETTINGS, useData, useSettings, useUi } from './store';
 import type {
@@ -15,6 +16,7 @@ import type {
   UpdateResponse,
   VoiceInfo,
 } from './types';
+import { transcribeOptions } from './voices';
 import { MAX_SAMPLE_SEC, toWav } from './wav';
 
 const t = i18n.t.bind(i18n);
@@ -57,7 +59,12 @@ export async function refreshHistory() {
 }
 
 export async function reloadElements() {
-  useData.setState({ elements: await api<ElementInfo[]>('/api/elements') });
+  const elements = await api<ElementInfo[]>('/api/elements');
+  useData.setState({ elements });
+  // An element deleted elsewhere must not stay selected
+  const s = useSettings.getState();
+  const element = existingElement(s.element, elements);
+  if (element !== s.element) s.set({ element });
 }
 
 export async function reloadVoices() {
@@ -109,7 +116,7 @@ async function loadImageData() {
   if (!hadSettings) patch.privacy = status.defaultPrivacy;
   const valid = s.models.filter((id) => models.some((m) => m.id === id));
   patch.models = valid.length ? valid : [status.defaultModel];
-  if (!s.element && elements.length === 1) patch.element = elements[0].name;
+  patch.element = elementOnLoad(s.element, elements);
   s.set(patch);
 }
 
@@ -212,29 +219,22 @@ export async function uploadPhotos(name: string, files: File[]) {
 
 // ---------------------------------------------------------------- Voices
 
-export function transcribeSettings() {
-  const s = useSettings.getState();
-  return {
-    engine: s.transcribeEngine || useData.getState().status?.transcribe.engine || 'local',
-    language: s.transcribeLang || 'de',
-  };
-}
-
 export async function transcribe(name: string, file: string) {
   const key = `${name}/${file}`;
   useUi.setState((s) => ({ transcribing: [...s.transcribing, key] }));
   try {
-    const { engine, language } = transcribeSettings();
+    const settings = useSettings.getState();
+    const { engine, language } = transcribeOptions(settings, useData.getState().status?.transcribe.engine);
     const r = await api<{ text: string }>(
       `/api/voices/${encodeURIComponent(name)}/samples/${encodeURIComponent(file)}/transcribe`,
-      { body: { engine, language, privacy: useSettings.getState().privacy } },
+      { body: { engine, language, privacy: settings.privacy } },
     );
     if (!r.text) toast.error(t('toast.noSpeechRecognized'));
   } catch (err) {
     toast.error(errorMessage(err));
   } finally {
     useUi.setState((s) => ({ transcribing: s.transcribing.filter((k) => k !== key) }));
-    await reloadVoices();
+    await reloadVoices().catch((err: unknown) => toast.error(errorMessage(err)));
   }
 }
 

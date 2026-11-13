@@ -25,7 +25,10 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
   return data as T;
 }
 
-/** POST and read the NDJSON event stream line by line. */
+/**
+ * POST and read the NDJSON event stream line by line. A fatal event (the run failed as a whole) is thrown as
+ * ApiError, so its code and params reach errorMessage() like those of an HTTP error.
+ */
 export async function streamEvents(
   path: string,
   body: unknown,
@@ -42,7 +45,11 @@ export async function streamEvents(
     const data = (await res.json().catch(() => ({}))) as ErrorBody;
     throw new ApiError(data, res.status);
   }
-  await readNdjson(res.body, (line) => onEvent(JSON.parse(line) as RunEvent));
+  await readNdjson(res.body, (line) => {
+    const ev = JSON.parse(line) as RunEvent;
+    if (ev.type === 'fatal') throw new ApiError(ev, res.status);
+    onEvent(ev);
+  });
 }
 
 /** Call `onLine` for every non-empty line of a text stream (NDJSON: one JSON object per line). */

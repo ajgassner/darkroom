@@ -90,8 +90,12 @@ function ElementEditor({ el }: { el: ElementInfo }) {
 
   const removePhoto = async (f: string) => {
     if (!window.confirm(t('elements.deletePhoto', { file: f }))) return;
-    await api(`/api/elements/${encodeURIComponent(el.name)}/photos/${encodeURIComponent(f)}`, { method: 'DELETE' });
-    await reloadElements();
+    try {
+      await api(`/api/elements/${encodeURIComponent(el.name)}/photos/${encodeURIComponent(f)}`, { method: 'DELETE' });
+      await reloadElements();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
   };
 
   return (

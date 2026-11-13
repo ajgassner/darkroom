@@ -8,6 +8,7 @@ import {
   pricePerThousandChars,
   speechLangs,
   speechPrice,
+  transcribeOptions,
   voiceGroups,
   voiceLang,
 } from './voices';
@@ -91,6 +92,9 @@ describe('voice selection', () => {
     expect(fallbackVoice(tts, 'voice:me', [own('me')])).toBe('de-DE-Katja');
     expect(fallbackVoice(cloner, 'gone', [own('me')])).toBe('voice:me');
     expect(fallbackVoice(model('x/none'), 'gone', [])).toBe('');
+    // Already on the fallback (no voices, nothing to clone): keep it instead of setting it again
+    expect(fallbackVoice(model('x/none'), '', [])).toBeNull();
+    expect(fallbackVoice({ ...model('x/clone'), cloning: true }, '', [])).toBeNull();
   });
 
   it('groups voices by language with own voices first', () => {
@@ -101,5 +105,22 @@ describe('voice selection', () => {
     expect(groups[1].options).toEqual([{ value: 'de-DE-Katja', label: 'de-DE-Katja · German (DE)' }]);
     expect(groups[2].options).toEqual([{ value: 'Rachel', label: 'Rachel' }]);
     expect(voiceGroups(undefined, [], 'en', labels)).toEqual([]);
+  });
+});
+
+describe('transcribeOptions', () => {
+  it('uses the chosen engine and language', () => {
+    expect(transcribeOptions({ transcribeEngine: 'api', transcribeLang: 'fr' }, 'local')).toEqual({
+      engine: 'api',
+      language: 'fr',
+    });
+  });
+
+  it('falls back to the server engine and auto-detect', () => {
+    expect(transcribeOptions({ transcribeEngine: '', transcribeLang: '' }, 'api')).toEqual({
+      engine: 'api',
+      language: 'auto',
+    });
+    expect(transcribeOptions({ transcribeEngine: '', transcribeLang: '' }, undefined).engine).toBe('local');
   });
 });
