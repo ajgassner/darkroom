@@ -300,6 +300,43 @@ describe('runSpeech', () => {
     expect(await findDemo('test/tts', 'alloy')).toBe('demos/test_tts__alloy.mp3');
   });
 
+  it('looks up the cost of a call whose audio could not be saved', async () => {
+    fakeOpenRouter();
+    const write = fs.writeFile;
+    const spy = vi.spyOn(fs, 'writeFile').mockImplementation((file, ...rest) => {
+      if (String(file).includes('_tts_')) return Promise.reject(new Error('disk full'));
+      return write(file, ...rest);
+    });
+    try {
+      const [entry] = await runSpeech({ text: 'Hi', model: 'test/tts', voice: 'alloy' });
+      expect(entry).toMatchObject({ ok: false, error: 'disk full', generationId: 'gen-tts' });
+      await vi.advanceTimersByTimeAsync(2600);
+      await vi.waitFor(async () => {
+        expect((await readEntries()).find((e) => e.id === entry.id)).toMatchObject({ cost: 0.002 });
+      });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('survives a failing manifest update after the late cost lookup', async () => {
+    fakeOpenRouter();
+    const [entry] = await runSpeech({ text: 'Hi', model: 'test/tts', voice: 'alloy' });
+    const write = fs.writeFile;
+    const spy = vi.spyOn(fs, 'writeFile').mockImplementation((file, ...rest) => {
+      if (String(file).endsWith('.lock')) return Promise.reject(Object.assign(new Error('denied'), { code: 'EACCES' }));
+      return write(file, ...rest);
+    });
+    try {
+      await vi.advanceTimersByTimeAsync(2600);
+      await vi.waitFor(() => expect(spy.mock.calls.some(([f]) => String(f).endsWith('.lock'))).toBe(true));
+    } finally {
+      spy.mockRestore();
+    }
+    // The update was lost, but nothing crashed (an unhandled rejection would fail the test run)
+    expect((await readEntries()).find((e) => e.id === entry.id)?.cost).toBeNull();
+  });
+
   it('requires a text', async () => {
     await expect(runSpeech({ text: ' ', model: 'test/tts' })).rejects.toMatchObject({ code: 'text_missing' });
   });
@@ -344,6 +381,19 @@ describe('runMusic', () => {
     expect((await runMusic({ prompt: 'x', model: 'test/lyria' }))[0]).toMatchObject({
       errorCode: 'no_audio_data',
       error: 'No audio data received: I cannot do that',
+    });
+
+    // Charged although no audio came back: the error entry keeps cost and generation
+    fakeOpenRouter({
+      music: () => sse([{ id: 'gen-x', provider: 'Google', choices: [{ delta: {} }], usage: { cost: 0.02 } }]),
+    });
+    expect((await runMusic({ prompt: 'x', model: 'test/lyria' }))[0]).toMatchObject({
+      ok: false,
+      errorCode: 'no_audio_data',
+      cost: 0.02,
+      callCost: 0.02,
+      generationId: 'gen-x',
+      provider: 'Google',
     });
 
     fakeOpenRouter({ music: () => json({ error: { message: 'model offline' } }, { status: 503 }) });

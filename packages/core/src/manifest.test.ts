@@ -1,9 +1,22 @@
+import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { MANIFEST, OUT_DIR } from './config.ts';
 import type { ManifestEntry } from './contract.ts';
-import { appendEntry, costSummary, markDeleted, readEntries, removeFiles, updateEntry } from './manifest.ts';
+import {
+  appendEntry,
+  costSummary,
+  markDeleted,
+  readEntries,
+  removeFiles,
+  unusedDebugIds,
+  updateEntry,
+} from './manifest.ts';
+
+const LOCK = `${MANIFEST}.lock`;
+const tick = (ms = 50) => new Promise((r) => setTimeout(r, ms));
 
 function entry(over: Partial<ManifestEntry>): ManifestEntry {
   return {
@@ -77,5 +90,85 @@ describe('manifest', () => {
     ]);
     expect(removed).toEqual(['gone.png']);
     await expect(fs.stat(outside)).resolves.toBeTruthy();
+  });
+
+  it('counts the cost of charged failures, but not as results', () => {
+    const sum = costSummary([
+      entry({ model: 'm1', cost: 0.04 }),
+      entry({ model: 'm1', ok: false, cost: 0.03 }),
+      entry({ model: 'm2', ok: false, cost: null }),
+    ]);
+    expect(sum).toEqual({ total: expect.closeTo(0.07), images: 1, byModel: { m1: { cost: 0.07, images: 1 } } });
+  });
+
+  it('starts a new line after a cut-off last line', async () => {
+    await fs.rm(MANIFEST, { force: true });
+    await appendEntry(entry({ id: 'before' }));
+    await fs.appendFile(MANIFEST, '{"id":"cut-off","ok":tr');
+    await appendEntry(entry({ id: 'after' }));
+    expect((await readEntries()).map((e) => e.id)).toEqual(['before', 'after']);
+  });
+
+  it('waits for the lock file of another process and takes over a stale one', async () => {
+    await fs.rm(MANIFEST, { force: true });
+    await fs.writeFile(LOCK, '99999');
+    let done = false;
+    const pending = appendEntry(entry({ id: 'waited' })).then(() => {
+      done = true;
+    });
+    await tick();
+    expect(done).toBe(false);
+    await fs.rm(LOCK);
+    await pending;
+    expect((await readEntries()).map((e) => e.id)).toEqual(['waited']);
+
+    // Left behind by a crashed process
+    await fs.writeFile(LOCK, '99999');
+    const old = new Date(Date.now() - 60_000);
+    await fs.utimes(LOCK, old, old);
+    expect(await updateEntry('waited', { cost: 0.5 })).toBe(true);
+    expect((await readEntries())[0].cost).toBe(0.5);
+    await expect(fs.stat(LOCK)).rejects.toThrow();
+    // No temporary files are left over
+    expect((await fs.readdir(OUT_DIR)).filter((f) => f.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('keeps entries another process appends while this one rewrites', async () => {
+    await fs.rm(MANIFEST, { force: true });
+    await appendEntry(entry({ id: 'own' }));
+    const script = `const { appendEntry } = await import(${JSON.stringify(new URL('./manifest.ts', import.meta.url).href)});
+      for (let i = 0; i < 40; i++) await appendEntry({ id: 'child-' + i, runId: 'child', ok: true });`;
+    const child = promisify(execFile)(process.execPath, ['--input-type=module', '-e', script]);
+    let finished = false;
+    void child.finally(() => {
+      finished = true;
+    });
+    let rewrites = 0;
+    while (!finished) {
+      await updateEntry('own', { cost: rewrites });
+      rewrites++;
+    }
+    await child;
+    const ids = (await readEntries()).map((e) => e.id);
+    expect(ids.filter((id) => id?.startsWith('child-'))).toHaveLength(40);
+    expect(ids[0]).toBe('own');
+    expect(rewrites).toBeGreaterThan(0);
+  });
+
+  it('finds debug records that no remaining entry refers to', async () => {
+    await fs.rm(MANIFEST, { force: true });
+    for (const e of [
+      entry({ id: 's1', debugId: 'dbg-shared' }),
+      entry({ id: 's2', debugId: 'dbg-shared' }),
+      entry({ id: 'own', debugId: 'dbg-own' }),
+      entry({ id: 'none' }),
+    ]) {
+      await appendEntry(e);
+    }
+    const first = await markDeleted((e) => e.id === 's1' || e.id === 'own' || e.id === 'none');
+    expect((await unusedDebugIds(first)).sort()).toEqual(['dbg-own']);
+    const second = await markDeleted((e) => e.id === 's2');
+    expect(await unusedDebugIds(second)).toEqual(['dbg-shared']);
+    expect(await unusedDebugIds([])).toEqual([]);
   });
 });

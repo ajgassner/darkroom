@@ -72,7 +72,8 @@ function CardHead({
   entries: ManifestEntry[];
   actions: React.ReactNode;
 }) {
-  const cost = entries.filter((e) => e.ok).reduce((s, e) => s + (e.cost ?? 0), 0);
+  // Failed calls can be charged too (their entries then carry the cost)
+  const cost = entries.reduce((s, e) => s + (e.cost ?? 0), 0);
   return (
     <div className="mb-2.5 flex justify-between gap-4">
       <div className="min-w-0">

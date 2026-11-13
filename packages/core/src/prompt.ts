@@ -55,6 +55,14 @@ function referenceWord(count: number): string {
   return count > 1 ? 'Reference images' : 'Reference image';
 }
 
+/**
+ * Replace {label} and {prompt} in an instruction text in one pass. A replacer function inserts user text
+ * literally (a replacement string would interpret `$&`, `$$` and the like).
+ */
+function fillTemplate(text: string, values: { label: string; prompt?: string }): string {
+  return text.replace(/\{(label|prompt)\}/g, (all, key: 'label' | 'prompt') => values[key] ?? all);
+}
+
 /** Previous behavior: exactly one person with an instruction template ({prompt}, {label}). */
 function templatePrompt(group: ElementGroup, extraCount: number, task: string): string {
   const el = group.info;
@@ -66,7 +74,7 @@ function templatePrompt(group: ElementGroup, extraCount: number, task: string): 
       '',
     );
   }
-  lines.push(el.instructions.replaceAll('{label}', el.label).replaceAll('{prompt}', task));
+  lines.push(fillTemplate(el.instructions, { label: el.label, prompt: task }));
   return lines.join('\n');
 }
 
@@ -84,7 +92,9 @@ function extraLines(extraCount: number, editMode: boolean): string[] {
 function elementLine(el: ElementInfo, range: string): string {
   const who = el.type === 'person' ? `${el.label}, a person` : `a ${TYPE_NAMES[el.type] ?? el.type}`;
   const custom =
-    el.instructions && !isTemplate(el.instructions) ? ` ${el.instructions.replaceAll('{label}', el.label).trim()}` : '';
+    el.instructions && !isTemplate(el.instructions)
+      ? ` ${fillTemplate(el.instructions, { label: el.label }).trim()}`
+      : '';
   return `Reference ${range}: ${who}. ${TYPE_RULES[el.type]}${custom}`;
 }
 

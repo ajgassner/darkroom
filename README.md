@@ -130,7 +130,7 @@ darkroom gen -n 2 -m google/gemini-3.1-flash-image,google/gemini-3-pro-image,byt
   "Outdoor portrait of @me in an autumn park"
 
 # keep editing a result (a file from out/ as an additional reference)
-darkroom gen -e me -r 2026-11-12T18-30-00_google_gemini-3.1-flash-image_1.png "same scene, but with glasses"
+darkroom gen -e me -r 2026-11-12T18-30-00_3f9a2c_google_gemini-3.1-flash-image_1.png "same scene, but with glasses"
 
 darkroom start                     # web UI on http://localhost:5177
 darkroom gen                       # interactive: asks for prompt and element

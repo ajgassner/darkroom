@@ -141,7 +141,40 @@ export async function deletePhoto(name: string, file: string): Promise<void> {
   await fs.unlink(photoPath(name, file));
 }
 
-const encodeCache = new Map<string, string>();
+/** Least recently used cache, bounded by the total length of its values. */
+export class SizedCache {
+  private readonly map = new Map<string, string>();
+  private chars = 0;
+  private readonly maxChars: number;
+  constructor(maxChars: number) {
+    this.maxChars = maxChars;
+  }
+
+  get(key: string): string | undefined {
+    const hit = this.map.get(key);
+    if (hit !== undefined) {
+      this.map.delete(key); // move to the end: most recently used
+      this.map.set(key, hit);
+    }
+    return hit;
+  }
+
+  /** Store a value and drop the least recently used ones beyond the limit (never the new one). */
+  set(key: string, value: string): void {
+    this.chars -= this.map.get(key)?.length ?? 0;
+    this.map.delete(key);
+    this.map.set(key, value);
+    this.chars += value.length;
+    for (const [k, v] of this.map) {
+      if (this.chars <= this.maxChars || k === key) break;
+      this.map.delete(k);
+      this.chars -= v.length;
+    }
+  }
+}
+
+/** Encoded reference images (data URLs), so repeated runs don't re-encode the same photos. */
+const encodeCache = new SizedCache(64 * 1024 * 1024);
 
 /** Downscale an image and encode it as a JPEG data URL. */
 export async function encodeImage(input: Buffer | string, maxSide: number): Promise<string> {

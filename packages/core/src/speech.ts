@@ -7,7 +7,7 @@ import { audioEntry, finish, lookupCostLater } from './audio-run.ts';
 import { apiKey, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode } from './config.ts';
 import type { RunEvent, SpeechModel, VoiceInfo } from './contract.ts';
 import { AppError, addWarning, errorFields, type WarningList } from './errors.ts';
-import { slug, timestamp } from './files.ts';
+import { runStamp, slug } from './files.ts';
 import type { ManifestEntry } from './manifest.ts';
 import { modelRestriction, privacyBlocked, providerField } from './privacy.ts';
 import { CallLog, callSignal, HttpStatusError, jsonOrText, postJson } from './upstream.ts';
@@ -117,15 +117,18 @@ async function audioBytes(res: Response, format: SpeechFormat): Promise<Buffer> 
   return pcmToWav(buf, rate, channels);
 }
 
-async function saveAudio(buf: Buffer, o: SpeechOptions, voiceLabel: string) {
+type Base = Pick<ManifestEntry, 'runId' | 'model' | 'prompt' | 'privacy'> & Partial<ManifestEntry>;
+
+async function saveAudio(buf: Buffer, o: SpeechOptions, base: Base) {
   const { ext, mediaType } = audioType(buf);
-  const file = o.demo ? `demos/${demoBase(o.model, voiceLabel)}.${ext}` : `${timestamp()}_tts_${slug(o.model)}.${ext}`;
+  const file = o.demo
+    ? `demos/${demoBase(o.model, base.voice ?? '')}.${ext}`
+    : `${runStamp(base.runId)}_tts_${slug(o.model)}.${ext}`;
   await fs.mkdir(path.dirname(path.join(OUT_DIR, file)), { recursive: true });
-  await fs.writeFile(path.join(OUT_DIR, file), buf);
+  // Demos are a cache per model and voice (replaced on purpose); results are never overwritten
+  await fs.writeFile(path.join(OUT_DIR, file), buf, { flag: o.demo ? 'w' : 'wx' });
   return { file, mediaType };
 }
-
-type Base = Pick<ManifestEntry, 'runId' | 'model' | 'prompt' | 'privacy'> & Partial<ManifestEntry>;
 
 async function speak(
   o: SpeechOptions,
@@ -135,13 +138,14 @@ async function speak(
   abort?: AbortSignal,
 ): Promise<ManifestEntry[]> {
   const log = new CallLog('/audio/speech', body);
+  let generationId: string | null = null;
   try {
     const { res, format } = await fetchSpeech(body, log, abort);
+    generationId = res.headers.get('x-generation-id');
     const buf = await audioBytes(res, format);
-    const { file, mediaType } = await saveAudio(buf, o, base.voice ?? '');
+    const { file, mediaType } = await saveAudio(buf, o, base);
     const ct = res.headers.get('content-type') || 'audio';
     const debugId = await log.save(`<${ct} ${(buf.length / 1024).toFixed(0)} KB, saved as ${file}>`);
-    const generationId = res.headers.get('x-generation-id');
     const entry = audioEntry({
       ...base,
       ok: true,
@@ -152,14 +156,21 @@ async function speak(
       params: { ...base.params, format },
       durationMs: log.elapsed(),
     });
-    const out = await finish(entry, onEvent);
-    if (generationId && entry.id) lookupCostLater(entry.id, generationId);
-    return out;
+    return await finishWithCost(entry, onEvent);
   } catch (err) {
     const fields = errorFields(err, abort);
     const debugId = await log.save(err instanceof HttpStatusError ? jsonOrText(err.text) : null, fields.error);
-    return finish(audioEntry({ ...base, ...fields, debugId, durationMs: log.elapsed() }), onEvent);
+    // Answered calls are charged even if the audio could not be saved: look the cost up for the error entry too
+    const entry = audioEntry({ ...base, ...fields, debugId, generationId, durationMs: log.elapsed() });
+    return finishWithCost(entry, onEvent);
   }
+}
+
+/** Record the entry; its cost is looked up later via the generation ID. */
+async function finishWithCost(entry: ManifestEntry, onEvent: (e: RunEvent) => void): Promise<ManifestEntry[]> {
+  const out = await finish(entry, onEvent);
+  if (entry.generationId && entry.id) lookupCostLater(entry.id, entry.generationId);
+  return out;
 }
 
 export async function runSpeech(

@@ -6,10 +6,12 @@ import sharp from 'sharp';
 import { apiKey, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode, REF_MAX_SIDE, resolveOut, UPLOADS_DIR } from './config.ts';
 import type { RunEvent } from './contract.ts';
 import { AppError, addWarning, errorFields, type WarningList } from './errors.ts';
-import { slug, timestamp } from './files.ts';
+import { runStamp, slug } from './files.ts';
 import { decodable } from './heic.ts';
 import { appendEntry, type ManifestEntry, newEntry } from './manifest.ts';
 import {
+  type Billing,
+  failedCallInfo,
   generateImages,
   type ImageModel,
   type ImageRequest,
@@ -50,6 +52,7 @@ interface Run {
   o: GenerateOptions;
   prompt: string;
   runId: string;
+  /** Unique file name prefix of the run. */
   stamp: string;
   count: number;
   privacy: PrivacyMode;
@@ -225,22 +228,24 @@ function sniffExt(buf: Buffer): string {
   return 'png';
 }
 
+/** Save the images of one call; each saved image is pushed to `saved` right away (see callModel). */
 async function saveImages(
   run: Run,
   plan: ModelPlan,
   res: ImageResult,
   startIndex: number,
   durationMs: number,
-): Promise<ManifestEntry[]> {
+  saved: ManifestEntry[],
+): Promise<void> {
   const perImage = res.cost !== null ? res.cost / res.images.length : null;
   await fs.mkdir(OUT_DIR, { recursive: true });
-  const entries: ManifestEntry[] = [];
   for (const [i, img] of res.images.entries()) {
     const buf = Buffer.from(img.b64, 'base64');
     const ext = (img.mediaType && EXT[img.mediaType]) || sniffExt(buf);
     const file = `${run.stamp}_${slug(plan.modelId)}_${startIndex + i + 1}.${ext}`;
-    await fs.writeFile(path.join(OUT_DIR, file), buf);
-    entries.push(
+    // 'wx': never overwrite an existing result
+    await fs.writeFile(path.join(OUT_DIR, file), buf, { flag: 'wx' });
+    saved.push(
       await record(run, plan, {
         ok: true,
         file,
@@ -254,22 +259,44 @@ async function saveImages(
       }),
     );
   }
-  return entries;
+}
+
+/** Error entry of a call; carries the part of the call's cost that no saved image accounts for. */
+function recordFailure(
+  run: Run,
+  plan: ModelPlan,
+  err: unknown,
+  durationMs: number,
+  info: { debugId?: string; billing?: Billing; unbilled?: number | null },
+): Promise<ManifestEntry> {
+  const b = info.billing;
+  return record(run, plan, {
+    ...errorFields(err, run.abort),
+    durationMs,
+    debugId: info.debugId,
+    ...(b
+      ? { generationId: b.generationId, provider: b.provider, cost: info.unbilled ?? b.cost, callCost: b.cost }
+      : {}),
+  });
 }
 
 async function callModel(run: Run, plan: ModelPlan, n: number, startIndex: number): Promise<ManifestEntry[]> {
   const t0 = performance.now();
+  const elapsed = () => Math.round(performance.now() - t0);
+  let res: ImageResult;
   try {
-    const res = await generateImages(imageRequest(plan, n), run.abort);
-    return await saveImages(run, plan, res, startIndex, Math.round(performance.now() - t0));
+    res = await generateImages(imageRequest(plan, n), run.abort);
   } catch (err) {
-    return [
-      await record(run, plan, {
-        ...errorFields(err, run.abort),
-        durationMs: Math.round(performance.now() - t0),
-        debugId: (err as { debugId?: string }).debugId,
-      }),
-    ];
+    return [await recordFailure(run, plan, err, elapsed(), failedCallInfo(err))];
+  }
+  const saved: ManifestEntry[] = [];
+  try {
+    await saveImages(run, plan, res, startIndex, elapsed(), saved);
+    return saved;
+  } catch (err) {
+    // The call was paid in full: the error entry keeps the cost of the images that could not be saved
+    const unbilled = res.cost === null ? null : res.cost - saved.reduce((s, e) => s + (e.cost ?? 0), 0);
+    return [...saved, await recordFailure(run, plan, err, elapsed(), { debugId: res.debugId, billing: res, unbilled })];
   }
 }
 
@@ -306,7 +333,7 @@ async function prepare(
     o,
     prompt,
     runId,
-    stamp: timestamp(),
+    stamp: runStamp(runId),
     count: Math.min(Math.max(1, Math.floor(o.count ?? 1)), 10),
     privacy,
     extras,
@@ -350,7 +377,8 @@ export async function runGeneration(
     runId: run.runId,
     images: ok.length,
     failed: all.length - ok.length,
-    cost: ok.reduce((s, e) => s + (e.cost ?? 0), 0),
+    // Failed calls can be charged too (e.g. a response without an image)
+    cost: all.reduce((s, e) => s + (e.cost ?? 0), 0),
   });
   return all;
 }

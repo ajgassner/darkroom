@@ -77,7 +77,7 @@ function progress(total: number) {
     },
     stop: (entries: ManifestEntry[]) => {
       const ok = entries.filter((e) => e.ok);
-      const cost = ok.reduce((s, e) => s + (e.cost ?? 0), 0);
+      const cost = entries.reduce((s, e) => s + (e.cost ?? 0), 0); // failed calls can be charged too
       spin.stop(`${ok.length} result(s), ${entries.length - ok.length} error(s), ${usd(cost)}`);
       for (const e of entries) {
         if (e.ok)

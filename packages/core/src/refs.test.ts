@@ -16,6 +16,7 @@ import {
   listElements,
   photoPath,
   replaceMentions,
+  SizedCache,
   saveElement,
   validName,
 } from './refs.ts';
@@ -117,5 +118,24 @@ describe('encodeImage', () => {
   it('never upscales', async () => {
     const url = await encodeImage(await testImage({ width: 100, height: 50 }), 1024);
     expect(await dataUrlSize(url)).toMatchObject({ width: 100, height: 50, format: 'jpeg' });
+  });
+});
+
+describe('SizedCache', () => {
+  it('drops the least recently used values beyond its size limit', () => {
+    const cache = new SizedCache(10);
+    cache.set('a', 'aaaa');
+    cache.set('b', 'bbbb');
+    expect(cache.get('a')).toBe('aaaa'); // a is now the most recently used
+    cache.set('c', 'cccc');
+    expect(cache.get('b')).toBeUndefined();
+    expect(cache.get('a')).toBe('aaaa');
+    cache.set('a', 'AA'); // replacing frees the old size
+    cache.set('d', 'dddd');
+    expect([cache.get('a'), cache.get('c'), cache.get('d')]).toEqual(['AA', 'cccc', 'dddd']);
+    // A value larger than the limit is still kept until the next one arrives
+    cache.set('big', 'x'.repeat(20));
+    expect(cache.get('big')).toHaveLength(20);
+    expect(cache.get('d')).toBeUndefined();
   });
 });

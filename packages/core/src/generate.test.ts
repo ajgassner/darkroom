@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fakeOpenRouter, json, MODELS, testImage } from '../test/fake-openrouter.ts';
 import { OUT_DIR } from './config.ts';
 import type { ElementInfo, RunEvent } from './contract.ts';
@@ -99,6 +99,14 @@ describe('composePrompt', () => {
     expect(out).not.toContain('Task:');
   });
 
+  it('inserts prompt and label literally (no $ replacement patterns)', () => {
+    const tpl = el({ label: 'Max $& Co', instructions: DEFAULT_INSTRUCTIONS });
+    const out = composePrompt('costs $$5 and $&', [{ info: tpl, count: 1 }], 0, true, false);
+    expect(out).toContain('costs $$5 and $&');
+    const custom = el({ label: 'A$$B', type: 'logo', instructions: 'Show {label} large.' });
+    expect(composePrompt('$& @max', [{ info: custom, count: 1 }], 0, true, false)).toContain('Show A$$B large.');
+  });
+
   it('describes the image to edit in edit mode', () => {
     const out = composePrompt('make it brighter', [], 2, false, true);
     expect(out).toMatch(/^Edit reference image 1/);
@@ -177,6 +185,63 @@ describe('runGeneration', () => {
     });
     const [aborted] = await runGeneration({ prompt: 'p', models: ['test/zdr'] }, () => {}, ac.signal);
     expect(aborted).toMatchObject({ ok: false, errorCode: 'aborted' });
+  });
+
+  it('gives runs in the same second their own files', async () => {
+    fakeOpenRouter();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-13T10:00:00Z'));
+    try {
+      const runs = await Promise.all([1, 2].map(() => runGeneration({ prompt: 'p', models: ['test/zdr'] })));
+      const files = runs.flat().map((e) => e.file as string);
+      expect(new Set(files).size).toBe(2);
+      for (const f of files) {
+        expect(f).toMatch(/^2026-11-13T10-00-00_[0-9a-f]{6}_test_zdr_1\.png$/);
+        await expect(fs.stat(path.join(OUT_DIR, f))).resolves.toBeTruthy();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the cost of a charged response without an image', async () => {
+    fakeOpenRouter({
+      images: () =>
+        json({ data: [], usage: { cost: 0.03 }, provider: 'ZdrCo' }, { headers: { 'x-generation-id': 'gen-empty' } }),
+    });
+    let doneCost = -1;
+    const [failed] = await runGeneration({ prompt: 'p', models: ['test/zdr'] }, (e) => {
+      if (e.type === 'done') doneCost = e.cost;
+    });
+    expect(failed).toMatchObject({
+      ok: false,
+      errorCode: 'no_image_data',
+      cost: 0.03,
+      callCost: 0.03,
+      generationId: 'gen-empty',
+      provider: 'ZdrCo',
+      debugId: expect.any(String),
+    });
+    expect(doneCost).toBe(0.03);
+  });
+
+  it('records the cost of images that could not be saved on the error entry', async () => {
+    fakeOpenRouter();
+    const write = fs.writeFile;
+    const spy = vi.spyOn(fs, 'writeFile').mockImplementation((file, ...rest) => {
+      if (String(file).endsWith('_2.png')) return Promise.reject(new Error('disk full'));
+      return write(file, ...rest);
+    });
+    try {
+      const entries = await runGeneration({ prompt: 'p', models: ['test/safety'], count: 4, privacy: 'off' });
+      expect(entries.map((e) => e.ok)).toEqual([true, false]);
+      expect(entries[0]).toMatchObject({ cost: 0.01, callCost: 0.04 });
+      expect(entries[1]).toMatchObject({ error: 'disk full', callCost: 0.04, generationId: 'gen-123' });
+      expect(entries[1].cost).toBeCloseTo(0.03);
+      expect(entries[1].debugId).toBe(entries[0].debugId);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('validates the input before calling the API', async () => {

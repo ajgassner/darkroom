@@ -13,7 +13,7 @@ import {
 } from '@darkroom/core/config';
 import type { StatusResponse } from '@darkroom/core/contract';
 import { deleteDebug, readDebug } from '@darkroom/core/debug';
-import { costSummary, markDeleted, readEntries, removeFiles } from '@darkroom/core/manifest';
+import { costSummary, markDeleted, readEntries, removeFiles, unusedDebugIds } from '@darkroom/core/manifest';
 import { imagePrices, listImageModels, zdrEndpoints } from '@darkroom/core/openrouter';
 import { DEFAULT_INSTRUCTIONS } from '@darkroom/core/refs';
 import { RELIGHT_PRESETS } from '@darkroom/core/tools';
@@ -113,7 +113,8 @@ export async function metaRoutes(fastify: FastifyInstance) {
           (runId !== null && e.runId === runId),
       );
       const removed = await removeFiles(changed);
-      await Promise.all(changed.map((e) => deleteDebug(e.debugId)));
+      // Results of one call share its debug record: keep it while one of them remains
+      await Promise.all((await unusedDebugIds(changed)).map((id) => deleteDebug(id)));
       return { entries: changed.length, files: removed };
     },
   );

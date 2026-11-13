@@ -24,11 +24,15 @@ export interface ImageRequest {
   provider?: { only?: string[]; allow_fallbacks?: boolean };
 }
 
-export interface ImageResult {
-  images: { b64: string; mediaType?: string }[];
+/** What a call cost and who served it (also known for some failed calls). */
+export interface Billing {
   cost: number | null;
   generationId: string | null;
   provider: string | null;
+}
+
+export interface ImageResult extends Billing {
+  images: { b64: string; mediaType?: string }[];
   usage: Record<string, unknown> | null;
   debugId?: string;
 }
@@ -129,12 +133,17 @@ export function zdrEndpoints(force = false): Promise<Map<string, ZdrEndpoint[]>>
   return zdr.get(force);
 }
 
-/** Error with a reference to the debug record. `code` is only set for errors we generate (not upstream errors). */
+/**
+ * Error with a reference to the debug record. `code` is only set for errors we generate (not upstream errors).
+ * `billing` is set when the call was answered (and possibly charged) but delivered no usable result.
+ */
 class ApiError extends AppError {
   debugId?: string;
-  constructor(message: string, debugId?: string, code?: string, params?: MessageParams) {
+  billing?: Billing;
+  constructor(message: string, debugId?: string, code?: string, params?: MessageParams, billing?: Billing) {
     super(code, message, params);
     this.debugId = debugId;
+    this.billing = billing;
   }
 }
 
@@ -176,14 +185,24 @@ export async function generateImages(req: ImageRequest, abort?: AbortSignal): Pr
   if (!res.ok || !body) throw httpError(res.status, text, body, debugId);
 
   const images = imagesOf(body);
-  if (!images.length) throw new ApiError(`Response without an image: ${text.slice(0, 300)}`, debugId, 'no_image_data');
-  const usage = body.usage ?? null;
+  const billing = billingOf(body, res.headers);
+  if (!images.length) {
+    const message = `Response without an image: ${text.slice(0, 300)}`;
+    throw new ApiError(message, debugId, 'no_image_data', undefined, billing);
+  }
+  return { images, ...billing, usage: body.usage ?? null, debugId };
+}
+
+function billingOf(body: ImagesResponse, headers: Headers): Billing {
+  const cost = body.usage?.cost;
   return {
-    images,
-    cost: typeof usage?.cost === 'number' ? usage.cost : null,
-    generationId: body.id ?? body.generation_id ?? res.headers.get('x-generation-id') ?? null,
-    provider: body.provider ?? res.headers.get('x-openrouter-provider') ?? null,
-    usage,
-    debugId,
+    cost: typeof cost === 'number' ? cost : null,
+    generationId: body.id ?? body.generation_id ?? headers.get('x-generation-id') ?? null,
+    provider: body.provider ?? headers.get('x-openrouter-provider') ?? null,
   };
+}
+
+/** Debug record and billing of a failed image call (empty for other errors). */
+export function failedCallInfo(err: unknown): { debugId?: string; billing?: Billing } {
+  return err instanceof ApiError ? { debugId: err.debugId, billing: err.billing } : {};
 }
