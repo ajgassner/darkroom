@@ -47,7 +47,12 @@
   }
   $DataDir = Get-FullPath $DataDir
 
-  # Updates replace the install folder and uninstall removes it: it must not hold your data or anything else
+  # Updates replace the install folder and uninstall removes it: it must not hold your data or anything else.
+  # The most specific problem first: a drive root or the home folder also contains the data folder, and a
+  # data folder used as install folder also holds files that darkroom did not create.
+  if ((Test-Inside (Get-FullPath $HOME) $InstallDir) -or (Test-Inside ([IO.Path]::GetPathRoot($InstallDir)) $InstallDir)) {
+    throw "$InstallDir is a drive root or your home folder, or contains it; set DARKROOM_DIR to a folder of its own (default: ~\.darkroom)."
+  }
   $problem = if ($InstallDir.TrimEnd('\') -ieq $DataDir.TrimEnd('\')) {
     "The install folder and the data folder are the same ($InstallDir)."
   } elseif (Test-Inside $DataDir $InstallDir) {
@@ -60,9 +65,6 @@
       $problem += ' Don''t run "darkroom uninstall" of the existing installation: older versions delete the whole install folder, with your data in it.'
     }
     throw "$problem darkroom replaces its install folder on updates and removes it on uninstall, so set DARKROOM_DIR and DARKROOM_HOME to two separate folders (defaults: ~\.darkroom and ~\darkroom)."
-  }
-  if ((Test-Inside (Get-FullPath $HOME) $InstallDir) -or (Test-Inside ([IO.Path]::GetPathRoot($InstallDir)) $InstallDir)) {
-    throw "$InstallDir is a drive root or your home folder, or contains it; set DARKROOM_DIR to a folder of its own (default: ~\.darkroom)."
   }
   if (-not $existing -and (Test-Path -LiteralPath $InstallDir -PathType Container)) {
     # Empty, or only what the installer creates (an interrupted first install)
@@ -140,6 +142,20 @@
       if (Test-Path -LiteralPath "$dir.old") { Rename-Dir "$dir.old" $part }
     }
   }
+  # Windows lets node\ be renamed while darkroom runs from it, so look for its processes. Win32_Process also
+  # sees 64-bit processes from a 32-bit PowerShell; processes whose path can't be read are skipped.
+  function Assert-NotRunning {
+    $prefix = (Join-Path $InstallDir 'node') + '\'
+    $paths = @()
+    try {
+      $paths = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | ForEach-Object { $_.ExecutablePath })
+    } catch {
+      $paths = @(Get-Process node -ErrorAction SilentlyContinue | ForEach-Object { try { $_.Path } catch { $null } })
+    }
+    if ($paths | Where-Object { $_ -and $_.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) }) {
+      throw "darkroom is still running from $InstallDir. Stop it (Ctrl+C in its window) and try again."
+    }
+  }
 
   # The installed version can be restored if this update fails. Installations from before the completion
   # markers count as complete unless an earlier update was interrupted.
@@ -152,6 +168,7 @@
     'npm_config_update_notifier'
   $savedEnv = @{}
   foreach ($name in $envNames) { $savedEnv[$name] = [Environment]::GetEnvironmentVariable($name) }
+  Assert-NotRunning
   New-Item -ItemType Directory -Force $tmp, $InstallDir, $DataDir | Out-Null
 
   try {
@@ -201,7 +218,8 @@
     Move-Item -LiteralPath $srcRoot.FullName (Join-Path $staging 'app')
 
     # Everything is downloaded: swap in the new version, keeping the previous one until it is built.
-    # Renaming fails while darkroom is running (Windows locks node.exe); nothing has changed then.
+    # darkroom may have been started during the download; a rename that fails (locked files) also stops here.
+    Assert-NotRunning
     foreach ($part in 'node', 'app') {
       $dir = Join-Path $InstallDir $part
       if (Test-Path -LiteralPath $dir) {
@@ -280,6 +298,18 @@ param([string]`$Confirm = 'ask')
 `$installDir = $(& $psString $InstallDir)
 `$binDir = $(& $psString $binDir)
 `$dataDir = $(& $psString $DataDir)
+# Windows lets node\ be renamed while darkroom runs from it, so look for its processes first
+`$prefix = (Join-Path `$installDir 'node') + '\'
+`$paths = @()
+try {
+  `$paths = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | ForEach-Object { `$_.ExecutablePath })
+} catch {
+  `$paths = @(Get-Process node -ErrorAction SilentlyContinue | ForEach-Object { try { `$_.Path } catch { `$null } })
+}
+if (`$paths | Where-Object { `$_ -and `$_.StartsWith(`$prefix, [StringComparison]::OrdinalIgnoreCase) }) {
+  Write-Host "darkroom is still running from `${installDir}. Stop it (Ctrl+C in its window) and run darkroom uninstall again."
+  exit 1
+}
 if (`$Confirm -ne 'no' -and -not [Console]::IsInputRedirected) {
   `$answer = Read-Host "Remove darkroom from `${installDir}? Your data in `$dataDir stays. [y/N]"
   if (`$answer -notmatch '^(y|yes)$') {
@@ -296,7 +326,7 @@ function Remove-Tree(`$dir) {
 function Test-Data(`$dir) {
   `$dataDir.TrimEnd('\') -ieq `$dir -or `$dataDir.StartsWith("`$dir\", [StringComparison]::OrdinalIgnoreCase)
 }
-# Renaming node\ fails while darkroom is running (Windows locks node.exe); nothing has changed then
+# Renaming node\ first: if a file in it is locked, nothing has been removed yet
 `$node = Join-Path `$installDir 'node'
 if ((Test-Path -LiteralPath `$node) -and -not (Test-Data `$node)) {
   try {

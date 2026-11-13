@@ -74,6 +74,11 @@ check_folders() {
   install=$(canonical "$INSTALL_DIR")
   data=$(canonical "$DATA_DIR")
   home=$(canonical "$HOME")
+  # The most specific problem first: the home folder (or /) also contains the data folder, and a data folder
+  # used as install folder also holds files that darkroom did not create
+  if inside "$home" "$install"; then
+    fail "$INSTALL_DIR is your home folder or contains it; set DARKROOM_DIR to a folder of its own (default: ~/.darkroom)."
+  fi
   if [ "$install" = "$data" ]; then
     problem="the install folder and the data folder are the same ($INSTALL_DIR)"
   elif inside "$data" "$install"; then
@@ -86,9 +91,6 @@ check_folders() {
       problem="$problem. Don't run \"darkroom uninstall\" of the existing installation: older versions delete the whole install folder, with your data in it"
     fi
     fail "$problem. darkroom replaces its install folder on updates and removes it on uninstall, so set DARKROOM_DIR and DARKROOM_HOME to two separate folders (defaults: ~/.darkroom and ~/darkroom)."
-  fi
-  if inside "$home" "$install"; then
-    fail "$INSTALL_DIR is your home folder or contains it; set DARKROOM_DIR to a folder of its own (default: ~/.darkroom)."
   fi
   if [ -d "$INSTALL_DIR" ] && ! looks_like_install "$INSTALL_DIR"; then
     fail "$INSTALL_DIR already contains files that darkroom did not create; set DARKROOM_DIR to a new or empty folder (default: ~/.darkroom)."
