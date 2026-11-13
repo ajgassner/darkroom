@@ -1,8 +1,8 @@
 // Image tools that run locally (sharp, background removal in a worker process): free, nothing leaves the machine.
+// Result files are always written via resolveOut, so no option can place them outside out/.
 import fs from 'node:fs/promises';
-import path from 'node:path';
 import sharp from 'sharp';
-import { OUT_DIR } from './config.ts';
+import { resolveOut } from './config.ts';
 import { AppError } from './errors.ts';
 import { runWorker } from './worker.ts';
 
@@ -16,10 +16,13 @@ export interface LocalResult {
 /** A local tool: source image (absolute path), effective options, file name prefix for the result. */
 export type LocalTool = (src: string, o: Record<string, string>, prefix: string) => Promise<LocalResult>;
 
-function ratio(r: string): number {
-  const [a, b] = r.split(':').map(Number);
-  if (!a || !b) throw new AppError('invalid_aspect', `Invalid aspect ratio: ${r}`, { value: r });
-  return a / b;
+/** Aspect ratio "w:h" with positive whole numbers; anything else (it ends up in a file name) is rejected. */
+function parseAspect(r: string): { w: number; h: number } {
+  const m = /^(\d{1,5}):(\d{1,5})$/.exec(r ?? '');
+  const w = Number(m?.[1]);
+  const h = Number(m?.[2]);
+  if (!m || !w || !h) throw new AppError('invalid_aspect', `Invalid aspect ratio: ${r}`, { value: r });
+  return { w, h };
 }
 
 async function dimensions(src: string): Promise<{ width: number; height: number }> {
@@ -35,18 +38,15 @@ function cropBox(width: number, height: number, r: number): { w: number; h: numb
 
 const crop: LocalTool = async (src, o, prefix) => {
   const { width, height } = await dimensions(src);
-  const { w, h } = cropBox(width, height, ratio(o.aspect));
-  const file = `${prefix}_crop_${o.aspect.replace(':', 'x')}.png`;
+  const aspect = parseAspect(o.aspect);
+  const { w, h } = cropBox(width, height, aspect.w / aspect.h);
+  const file = `${prefix}_crop_${aspect.w}x${aspect.h}.png`;
   const position = o.position === 'center' ? 'centre' : sharp.strategy.attention;
-  await sharp(src)
-    .rotate()
-    .resize({ width: w, height: h, fit: 'cover', position })
-    .png()
-    .toFile(path.join(OUT_DIR, file));
+  await sharp(src).rotate().resize({ width: w, height: h, fit: 'cover', position }).png().toFile(resolveOut(file));
   return {
     file,
-    label: `Crop to ${o.aspect} (${w}×${h})`,
-    params: { aspect_ratio: o.aspect, position: o.position, width: w, height: h },
+    label: `Crop to ${aspect.w}:${aspect.h} (${w}×${h})`,
+    params: { aspect_ratio: `${aspect.w}:${aspect.h}`, position: o.position, width: w, height: h },
   };
 };
 
@@ -57,7 +57,7 @@ const resize: LocalTool = async (src, o, prefix) => {
     throw new AppError('invalid_width', 'Invalid target width (16–12000 px)', { min: 16, max: 12000 });
   }
   const file = `${prefix}_resize_${width}w.png`;
-  await sharp(src).rotate().resize({ width, kernel: 'lanczos3' }).png().toFile(path.join(OUT_DIR, file));
+  await sharp(src).rotate().resize({ width, kernel: 'lanczos3' }).png().toFile(resolveOut(file));
   const height = Math.round((h0 * width) / w0);
   return { file, label: `Resize to ${width}×${height} (local)`, params: { width, height, kernel: 'lanczos3' } };
 };
@@ -68,7 +68,7 @@ const removeBackground: LocalTool = async (src, o, prefix) => {
     throw new AppError('invalid_background', 'Background color must be "transparent" or #rrggbb', { value: bg });
   }
   const file = `${prefix}_cutout.png`;
-  const tmp = path.join(OUT_DIR, `.${file}.tmp.png`);
+  const tmp = resolveOut(`.${file}.tmp.png`);
   await runWorker('removebg-worker.ts', [src, tmp], {
     timeout: 180_000,
     notInstalled: () =>
@@ -79,9 +79,9 @@ const removeBackground: LocalTool = async (src, o, prefix) => {
     failed: (message) => new AppError('removebg_failed', `Background removal failed: ${message}`, { message }),
   });
   if (bg === 'transparent') {
-    await fs.rename(tmp, path.join(OUT_DIR, file));
+    await fs.rename(tmp, resolveOut(file));
   } else {
-    await sharp(tmp).flatten({ background: bg }).png().toFile(path.join(OUT_DIR, file));
+    await sharp(tmp).flatten({ background: bg }).png().toFile(resolveOut(file));
     await fs.unlink(tmp);
   }
   const label = `Remove background${bg === 'transparent' ? ' (transparent)' : ` (background ${bg})`}`;

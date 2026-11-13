@@ -2,13 +2,13 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { listMusicModels } from './audio-models.ts';
 import { audioEntry, finish } from './audio-run.ts';
 import { apiKey, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode, REQUEST_TIMEOUT_MS } from './config.ts';
 import type { RunEvent } from './contract.ts';
 import { AppError, addWarning, errorFields, type WarningList } from './errors.ts';
 import { slug, timestamp } from './files.ts';
 import type { ManifestEntry } from './manifest.ts';
+import { modelRestriction, providerField } from './privacy.ts';
 import { CallLog, callSignal, ensureOk, HttpStatusError, jsonOrText, postJson } from './upstream.ts';
 import { audioType } from './wav.ts';
 
@@ -93,18 +93,21 @@ async function saveMusic(s: MusicStream, model: string) {
   return { file, mediaType, kb: (buf.length / 1024).toFixed(0) };
 }
 
-/** Music contains no personal data: it also runs without a ZDR endpoint, with a notice. */
-async function privacyNotes(model: string, privacy: PrivacyMode): Promise<WarningList> {
+/**
+ * Music contains no personal data: without a ZDR endpoint allowed by the mode it still runs, unrestricted and
+ * with a notice. With one, the call is restricted to those endpoints like images and speech.
+ */
+async function musicPrivacy(model: string, privacy: PrivacyMode) {
   const notes: WarningList = { warnings: [], notices: [] };
-  const m = (await listMusicModels()).find((x) => x.id === model);
-  if (privacy !== 'off' && m && !m.zdr.length) {
+  const allowed = await modelRestriction(model, privacy);
+  if (allowed && !allowed.length) {
     addWarning(
       notes,
       'music_no_zdr',
       'No ZDR endpoint: the music prompt was sent to the provider without Zero Data Retention',
     );
   }
-  return notes;
+  return { notes, restriction: allowed?.length ? allowed : null };
 }
 
 export async function runMusic(
@@ -118,13 +121,15 @@ export async function runMusic(
   const privacy = o.privacy ?? DEFAULT_PRIVACY;
   const runId = crypto.randomUUID();
   onEvent({ type: 'start', runId, plan: [{ model: o.model, count: 1 }] });
+  const { notes, restriction } = await musicPrivacy(o.model, privacy);
   const base = {
     runId,
     model: o.model,
     prompt,
     privacy,
     params: { mode: 'music' },
-    ...(await privacyNotes(o.model, privacy)),
+    providerRestriction: restriction,
+    ...notes,
   };
 
   const request = {
@@ -132,6 +137,7 @@ export async function runMusic(
     modalities: ['audio', 'text'],
     stream: true,
     messages: [{ role: 'user', content: prompt }],
+    ...providerField(restriction),
   };
   const log = new CallLog('/chat/completions', request);
   const stream: MusicStream = { audio: '', text: '', cost: null, generationId: null, provider: null, last: null };

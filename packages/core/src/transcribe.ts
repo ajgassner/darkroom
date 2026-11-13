@@ -5,6 +5,7 @@ import { audioEntry } from './audio-run.ts';
 import { DEFAULT_PRIVACY, type PrivacyMode, TRANSCRIBE_MODEL } from './config.ts';
 import { AppError } from './errors.ts';
 import { appendEntry } from './manifest.ts';
+import { modelRestriction, privacyBlocked, providerField } from './privacy.ts';
 import { callSignal, ensureOk, postJson } from './upstream.ts';
 import { samplePath, saveVoice } from './voices.ts';
 import { runWorker } from './worker.ts';
@@ -51,6 +52,12 @@ async function transcribeLocal(file: string, language: string): Promise<Transcri
 
 async function transcribeApi(file: string, language: string, privacy: PrivacyMode, label: string): Promise<Transcript> {
   const model = TRANSCRIBE_MODEL;
+  // Voice samples are personal data: only ZDR endpoints allowed by the mode, no fallback to other providers
+  const restriction = await modelRestriction(model, privacy);
+  if (restriction && !restriction.length) {
+    const blocked = privacyBlocked(privacy);
+    throw new AppError(blocked.errorCode, blocked.error);
+  }
   const audio = await fs.readFile(file);
   const res = await postJson(
     '/audio/transcriptions',
@@ -58,7 +65,7 @@ async function transcribeApi(file: string, language: string, privacy: PrivacyMod
       model,
       input_audio: { data: audio.toString('base64'), format: file.toLowerCase().endsWith('.wav') ? 'wav' : 'mp3' },
       ...(language && language !== 'auto' ? { language } : {}),
-      ...(privacy !== 'off' ? { provider: { zdr: true } } : {}),
+      ...providerField(restriction),
     },
     callSignal(),
   ).then(ensureOk);
@@ -71,6 +78,7 @@ async function transcribeApi(file: string, language: string, privacy: PrivacyMod
       model,
       prompt: `Transcription ${label}`,
       privacy,
+      providerRestriction: restriction,
       ok: true,
       demo: true,
       tool: 'transcribe',

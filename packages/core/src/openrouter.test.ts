@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fakeOpenRouter, json } from '../test/fake-openrouter.ts';
 import { readDebug } from './debug.ts';
 import { cheapestPrice, generateImages, imagePrices, listImageModels, zdrEndpoints } from './openrouter.ts';
-import { allowedProviders, privacyAllows } from './privacy.ts';
+import { allowedProviders } from './privacy.ts';
 
 describe('allowedProviders', () => {
   const zdr = new Map([
@@ -73,18 +73,6 @@ describe('generateImages', () => {
       },
     });
     await expect(generateImages(req, ac.signal)).rejects.toMatchObject({ code: 'aborted' });
-  });
-});
-
-describe('privacyAllows', () => {
-  const strict = { tag: 'a', provider: 'A', safetyRetention: false };
-  const safety = { tag: 'b', provider: 'B', safetyRetention: true };
-  it('follows the privacy mode', () => {
-    expect(privacyAllows([], 'off')).toBe(true);
-    expect(privacyAllows([], 'zdr')).toBe(false);
-    expect(privacyAllows([safety], 'zdr')).toBe(true);
-    expect(privacyAllows([safety], 'zdr-strict')).toBe(false);
-    expect(privacyAllows([safety, strict], 'zdr-strict')).toBe(true);
   });
 });
 

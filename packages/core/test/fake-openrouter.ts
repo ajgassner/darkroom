@@ -32,6 +32,15 @@ const ZDR = [
   { model_id: 'test/safety', tag: 'safety-provider', provider_name: 'SafeCo', safety_retention: true },
   { model_id: 'test/tts', tag: 'tts-provider', provider_name: 'VoiceCo', safety_retention: false },
   { model_id: 'test/clone', tag: 'clone-provider', provider_name: 'CloneCo', safety_retention: false },
+  { model_id: 'test/tts-safety', tag: 'tts-safety-provider', provider_name: 'SafeVoice', safety_retention: true },
+  { model_id: 'test/lyria-zdr', tag: 'lyria-provider', provider_name: 'Google', safety_retention: false },
+  // Default transcription model (TRANSCRIBE_MODEL): only an endpoint with safety retention
+  {
+    model_id: 'openai/whisper-large-v3-turbo',
+    tag: 'whisper-provider',
+    provider_name: 'WhisperCo',
+    safety_retention: true,
+  },
 ];
 
 /** Speech and music models (OpenRouter /models with output modalities). */
@@ -40,9 +49,11 @@ const SPEECH_MODELS = [
   { id: 'test/clone', name: 'Test Clone', description: 'Voice cloning', supported_voices: [] },
   { id: 'google/test-tts', name: 'Test PCM TTS', supported_voices: ['Kore'] },
   { id: 'test/tts-open', name: 'Test TTS without ZDR', supported_voices: ['x'] },
+  { id: 'test/tts-safety', name: 'Test TTS with safety retention', supported_voices: ['y'] },
 ];
 const MUSIC_MODELS = [
   { id: 'test/lyria', name: 'Test Lyria', description: 'Music generation' },
+  { id: 'test/lyria-zdr', name: 'Test Lyria with ZDR', description: 'Music generation' },
   { id: 'openai/gpt-audio', name: 'GPT Audio', description: 'music and chat' },
 ];
 

@@ -154,7 +154,7 @@ Your photos, voice samples and results stay on your disk. Only the data needed f
 | `zdr-strict`                     | only ZDR endpoints without safety retention                                                                                       |
 | `off`                            | normal OpenRouter routing                                                                                                         |
 
-For images, darkroom pins each request to the model's ZDR endpoints without fallbacks; models without one (e.g. GPT Image 2 or FLUX.2 as of November 2026) are skipped in ZDR mode. For speech it sets `provider.zdr`. For extra safety, also enforce ZDR and disable training in your [OpenRouter privacy settings](https://openrouter.ai/settings/privacy).
+For images, speech (including cloned voices) and API transcription, darkroom pins each request to the model's ZDR endpoints allowed by the mode, without fallbacks; models without one (e.g. GPT Image 2 or FLUX.2 as of November 2026) are skipped in ZDR mode. Music contains no personal data: it is pinned to ZDR endpoints when the model has one and otherwise runs with a notice. For extra safety, also enforce ZDR and disable training in your [OpenRouter privacy settings](https://openrouter.ai/settings/privacy).
 
 ## Configuration
 

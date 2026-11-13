@@ -160,6 +160,31 @@ describe('files below out/', () => {
     expect((await get('/out/..%2F..%2Fetc%2Fpasswd')).statusCode).toBe(403);
   });
 
+  it('cannot be tricked into serving them by case, detours, separators or trailing dots', async () => {
+    await fs.mkdir(path.join(OUT_DIR, 'debug'), { recursive: true });
+    await fs.writeFile(path.join(OUT_DIR, 'debug', 'x.json'), '{}');
+    await fs.writeFile(path.join(OUT_DIR, 'manifest.jsonl'), '{}\n');
+    for (const url of [
+      '/out/MANIFEST.JSONL',
+      '/out/Manifest.jsonl',
+      '/out/./manifest.jsonl',
+      '/out/uploads/../manifest.jsonl',
+      '/out/uploads%2F..%2Fmanifest.jsonl',
+      '/out/manifest.jsonl.',
+      '/out/manifest.jsonl.tmp',
+      '/out/DEBUG/X.JSON',
+      '/out/debug/../debug/x.json',
+      '/out/debug%5Cx.json',
+      '/out/debug/x.json.',
+    ]) {
+      expect((await get(url)).statusCode, url).toBe(404);
+    }
+    // Other files below debug/ (sent reference images) stay available
+    await fs.mkdir(path.join(OUT_DIR, 'debug', 'refs'), { recursive: true });
+    await fs.writeFile(path.join(OUT_DIR, 'debug', 'refs', 'r.png'), await testImage());
+    expect((await get('/out/debug/refs/r.png')).statusCode).toBe(200);
+  });
+
   it('downloads without metadata on request', async () => {
     const jpeg = await sharp(await testImage({ format: 'jpeg' }))
       .withExif({ IFD0: { Copyright: 'secret-owner' } })

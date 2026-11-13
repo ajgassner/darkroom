@@ -31,6 +31,7 @@ describe('local tools', () => {
       source: SOURCE,
     });
     expect(await size(entry.file)).toEqual([150, 200]);
+    expect(entry.file).toMatch(/^[^/]+_crop_3x4\.png$/);
 
     const [square] = await runTool({ tool: 'crop', source: SOURCE, options: { position: 'center' } });
     expect(await size(square.file)).toEqual([200, 200]);
@@ -51,6 +52,16 @@ describe('local tools', () => {
     const [crop] = await runTool({ tool: 'crop', source: SOURCE, options: { aspect: 'wide' } });
     expect(crop).toMatchObject({ ok: false, errorCode: 'invalid_aspect' });
     expect((await readEntries()).filter((e) => !e.ok)).toHaveLength(2);
+  });
+
+  it('rejects crop aspect ratios that are not two positive whole numbers', async () => {
+    const before = await fs.readdir(path.dirname(OUT_DIR));
+    for (const aspect of ['3:2:/../../../../tmp/evil', '3:2/../../evil', '../3:2', '0:1', '3:-2', '1.5:1', '3:2 ']) {
+      const [entry] = await runTool({ tool: 'crop', source: SOURCE, options: { aspect } });
+      expect(entry, aspect).toMatchObject({ ok: false, errorCode: 'invalid_aspect', file: null });
+    }
+    // Nothing was written next to out/
+    expect(await fs.readdir(path.dirname(OUT_DIR))).toEqual(before);
   });
 
   it('rejects unknown tools and paths outside out/', async () => {
