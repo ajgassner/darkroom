@@ -28,7 +28,7 @@ import {
   shortList,
   sortModels,
 } from '@/lib/models/models';
-import { historyAvg, priceExtras, type UnitPrice, unitPrice } from '@/lib/models/pricing';
+import { historyAvg, type UnitPrice, unitPrice } from '@/lib/models/pricing';
 import { useData, useSettings, useUi } from '@/lib/store';
 import { usd } from '@/lib/text/format';
 import { promptMentions } from '@/lib/text/mentions';
@@ -137,12 +137,7 @@ function PriceLine({ m }: { m: ImageModel }) {
   const hist = historyAvg(costs, m.id);
   const parts = [unitPriceText(t, unitPrice(m.price))];
   if (hist) parts.push(t('models.history', { price: usd(hist.avg), count: hist.n }));
-  const extras = priceExtras(m.price).map((x) => `${x.label}: ${x.value}`);
-  return (
-    <Tooltip content={[t('models.priceHint'), ...extras].join(' · ')}>
-      <span>{parts.join(' · ')}</span>
-    </Tooltip>
-  );
+  return parts.join(' · ');
 }
 
 /** "1K–4K · 5 ratios · max 8 refs · PNG/JPEG"; the ratio count opens the full list (hover, focus or tap). */

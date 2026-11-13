@@ -94,8 +94,6 @@ export const de: Bundle<typeof en> = {
     unitImage: '{{value}}/Bild',
     unitMegapixel: '{{value}}/Megapixel',
     unitToken: '{{value}}/1 Mio. Bild-Tokens',
-    priceHint:
-      'Listenpreis von OpenRouter (günstigster Anbieter); „Ø bei dir“ = echte Kosten deiner bisherigen Bilder.',
   },
   params: {
     aspect: 'Seitenverhältnis',

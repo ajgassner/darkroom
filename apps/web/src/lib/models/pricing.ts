@@ -78,15 +78,3 @@ export function unitPrice(p: ImagePrice | null): UnitPrice | null {
   if (p.unit === 'token') return { unit: 'token', value: money(p.cost * 1_000_000, 2) };
   return { unit: 'other', value: `${money(p.cost, 2, 6)}/${p.unit}` };
 }
-
-/** Surcharge variants and the input-image price as "label: value" pairs for the price tooltip (list prices). */
-export function priceExtras(p: ImagePrice | null): { label: string; value: string }[] {
-  if (!p) return [];
-  const extras = Object.entries(p.variants).map(([name, cost]) => ({
-    label: name.replace(/_/g, ' '),
-    value: unitPrice({ ...p, cost })?.value ?? money(cost, 2, 6),
-  }));
-  if (p.inputImage)
-    extras.push({ label: 'input image', value: `${money(p.inputImage.cost, 2, 6)}/${p.inputImage.unit}` });
-  return extras;
-}

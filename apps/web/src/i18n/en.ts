@@ -90,7 +90,6 @@ export const en = {
     unitImage: '{{value}}/image',
     unitMegapixel: '{{value}}/megapixel',
     unitToken: '{{value}}/1M image tokens',
-    priceHint: 'List price from OpenRouter (cheapest provider); “Ø for you” = real cost of your previous images.',
   },
   params: {
     aspect: 'Aspect ratio',
