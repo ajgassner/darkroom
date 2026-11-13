@@ -94,20 +94,30 @@ async function saveMusic(s: MusicStream, model: string, runId: string) {
 }
 
 /**
- * Music contains no personal data: without a ZDR endpoint allowed by the mode it still runs, unrestricted and
- * with a notice. With one, the call is restricted to those endpoints like images and speech.
+ * Music contains no personal data, so it never fails for privacy reasons: the call is pinned to the ZDR endpoints
+ * the mode allows. In zdr-strict mode a model whose ZDR endpoints all have safety retention still uses those (with a
+ * notice) rather than none at all; only without any ZDR endpoint does it run unrestricted, with a notice.
  */
 async function musicPrivacy(model: string, privacy: PrivacyMode) {
   const notes: WarningList = { warnings: [], notices: [] };
-  const allowed = await modelRestriction(model, privacy);
-  if (allowed && !allowed.length) {
+  if (privacy === 'off') return { notes, restriction: null };
+  const allowed = (await modelRestriction(model, privacy)) ?? [];
+  if (allowed.length) return { notes, restriction: allowed };
+  const zdr = privacy === 'zdr-strict' ? ((await modelRestriction(model, 'zdr')) ?? []) : [];
+  if (zdr.length) {
     addWarning(
       notes,
-      'music_no_zdr',
-      'No ZDR endpoint: the music prompt was sent to the provider without Zero Data Retention',
+      'music_safety_retention',
+      'No ZDR endpoint without safety retention: the music prompt was sent to a ZDR endpoint with safety retention',
     );
+    return { notes, restriction: zdr };
   }
-  return { notes, restriction: allowed?.length ? allowed : null };
+  addWarning(
+    notes,
+    'music_no_zdr',
+    'No ZDR endpoint: the music prompt was sent to the provider without Zero Data Retention',
+  );
+  return { notes, restriction: null };
 }
 
 export async function runMusic(

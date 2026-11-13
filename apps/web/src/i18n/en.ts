@@ -403,6 +403,8 @@ export const en = {
     clone_not_flagged: 'Model is not marked as able to clone, trying anyway',
     samples_partial: 'Only {{used}} of {{total}} samples used (different formats or 60 s limit)',
     music_no_zdr: 'No ZDR endpoint: the music prompt went to the provider without Zero Data Retention',
+    music_safety_retention:
+      'No ZDR endpoint without safety retention: the music prompt went to a ZDR endpoint with safety retention',
   },
   // Codes sent by the server (entry.errorCode / API error code)
   error: {
@@ -429,6 +431,7 @@ export const en = {
     element_not_found: 'Element “@{{name}}” no longer exists',
     element_no_photos: 'Element “@{{name}}” has no photos yet',
     voice_not_found: 'Voice “{{name}}” no longer exists',
+    voice_config_invalid: 'voices/{{name}}/voice.json is damaged and was left unchanged. Fix or delete it.',
     invalid_name: 'Invalid name “{{name}}” (allowed: letters, digits, _ - .)',
     invalid_filename: 'Invalid file name',
     invalid_path: 'Invalid path: {{path}}',
