@@ -1,178 +1,64 @@
 #!/usr/bin/env node
 // darkroom CLI: generate images, speech and music from the terminal (same core as the web UI).
-import { spawn } from 'node:child_process';
-import os from 'node:os';
-import path from 'node:path';
+// Without the required input in a terminal it asks interactively (see studio.ts); scripts never get a prompt.
 import * as p from '@clack/prompts';
-import { withLateCosts } from '@darkroom/core/audio-run';
 import {
   APP_VERSION,
   DEFAULT_MODEL,
   DEFAULT_PRIVACY,
   OUT_DIR,
+  PORT,
   type PrivacyMode,
   parsePrivacy,
 } from '@darkroom/core/config';
-import type { ManifestEntry, RunEvent } from '@darkroom/core/contract';
-import { runGeneration } from '@darkroom/core/generate';
-import { costSummary, readEntries } from '@darkroom/core/manifest';
-import { runMusic } from '@darkroom/core/music';
-import { listImageModels, zdrEndpoints } from '@darkroom/core/openrouter';
-import { maxRefs } from '@darkroom/core/params';
-import { listElements } from '@darkroom/core/refs';
-import { runSpeech } from '@darkroom/core/speech';
-import { listVoices } from '@darkroom/core/voices';
-import { Command, InvalidArgumentError, Option } from 'commander';
+import type { ManifestEntry } from '@darkroom/core/contract';
+import { Argument, Command, InvalidArgumentError, Option } from 'commander';
 import pc from 'picocolors';
-import { collect, hasMention, parseModels, resolveRefs } from './args.ts';
+import { collect, explicitOptions, floatArg, intArg, parseModels, resolveRefs } from './args.ts';
+import type { ImageRun, MusicRun, SpeechRun } from './command-line.ts';
+import { MODEL_KINDS } from './listing.ts';
+import {
+  interactiveMode,
+  MUSIC_MODEL,
+  runImage,
+  runMusicRun,
+  runSpeechRun,
+  SPEECH_MODEL,
+  showCosts,
+  showElements,
+  showModels,
+  showVoices,
+  startWeb,
+  totalLine,
+} from './studio.ts';
+import { clackPrompter, failSpinner, interactive } from './term.ts';
 
-const usd = (v: number | null | undefined) => (v === null || v === undefined ? 'n/a' : `$${v.toFixed(4)}`);
-const interactive = process.stdout.isTTY && process.stdin.isTTY;
-
-function privacyOption() {
-  return new Option('--privacy <mode>', 'zdr | zdr-strict | off')
-    .default(DEFAULT_PRIVACY)
-    .argParser((v): PrivacyMode => {
-      const mode = parsePrivacy(v);
-      if (!mode) throw new InvalidArgumentError('must be zdr, zdr-strict or off');
-      return mode;
-    });
-}
-
-function intArg(min: number, max: number) {
-  return (v: string) => {
-    const n = Number(v);
-    if (!Number.isInteger(n) || n < min || n > max)
-      throw new InvalidArgumentError(`must be an integer from ${min} to ${max}`);
-    return n;
-  };
-}
-
-/** Ask for a missing value in interactive terminals; fail with a hint otherwise. */
-async function ask(message: string, placeholder: string): Promise<string> {
-  if (!interactive) throw new Error(`${message} (missing argument)`);
-  const v = await p.text({ message, placeholder, validate: (s) => (s?.trim() ? undefined : 'Required') });
-  if (p.isCancel(v)) {
-    p.cancel('Cancelled');
-    process.exit(1);
-  }
-  return v.trim();
-}
-
-type Spinner = ReturnType<typeof p.spinner>;
-/** The spinner that is running (its timer keeps the process alive until it is stopped). */
-let activeSpinner: Spinner | null = null;
-
-/** A command failed: stop its spinner with an error mark. */
-function failSpinner() {
-  activeSpinner?.error('Failed');
-  activeSpinner = null;
-}
-
-/**
- * clack's spinner switches a terminal to raw mode, where Ctrl+C is a key press that quits with exit code 0 at once.
- * Back in normal mode Ctrl+C is a SIGINT again, which aborts the running work cleanly (see onInterrupt).
- */
-function spinner() {
-  const spin = p.spinner({ cancelMessage: 'Cancelled' });
-  return {
-    start(label: string) {
-      spin.start(label);
-      activeSpinner = spin;
-      if (process.stdin.isTTY) process.stdin.setRawMode(false);
-    },
-    message: (label: string) => spin.message(label),
-    stop(label: string) {
-      spin.stop(label);
-      activeSpinner = null;
-    },
-  };
-}
-
-/** Ctrl+C (or SIGTERM): the first one calls `first`, a second one quits right away. */
-function onInterrupt(first: () => void) {
-  let count = 0;
-  const handler = () => (count++ ? process.exit(130) : first());
-  process.on('SIGINT', handler);
-  process.on('SIGTERM', handler);
-}
-
-/** Ctrl+C aborts the running API calls (not delivered results are not billed according to OpenRouter). */
-function abortOnInterrupt(): AbortSignal {
-  const ac = new AbortController();
-  onInterrupt(() => ac.abort());
-  return ac.signal;
-}
-
-/** Resolves with `value` once `signal` is aborted. */
-function onAbort<T>(signal: AbortSignal, value: T): Promise<T> {
-  return new Promise((resolve) => {
-    if (signal.aborted) resolve(value);
-    else signal.addEventListener('abort', () => resolve(value), { once: true });
+function privacyOption(description = 'zdr | zdr-strict | off') {
+  return new Option('--privacy <mode>', description).default(DEFAULT_PRIVACY).argParser((v): PrivacyMode => {
+    const mode = parsePrivacy(v);
+    if (!mode) throw new InvalidArgumentError('must be zdr, zdr-strict or off');
+    return mode;
   });
 }
 
-function report(entries: ManifestEntry[]) {
-  for (const e of entries) {
-    if (e.ok)
-      p.log.success(
-        `${pc.bold(`out/${e.file}`)}  ${pc.dim(`${usd(e.cost)} · ${(e.durationMs / 1000).toFixed(1)} s · ${e.model}`)}`,
-      );
-    else p.log.error(`${e.model}: ${e.error}`);
-    for (const w of e.warnings) p.log.warn(pc.yellow(w));
-  }
+/** A required text is missing outside a terminal: an error, as scripts and agents must never get a prompt. */
+function missing(what: string): never {
+  throw new Error(`${what} (missing argument)`);
 }
 
-/** Spinner with progress while a run streams its results; Ctrl+C aborts the run (aborted entries, exit code 130). */
-function progress(total: number) {
-  const spin = spinner();
-  const signal = abortOnInterrupt();
-  let done = 0;
-  return {
-    signal,
-    start: (label: string) => spin.start(label),
-    onEvent: (ev: RunEvent) => {
-      if (ev.type !== 'image' && ev.type !== 'error') return;
-      done++;
-      spin.message(`${done}/${total} done`);
-    },
-    /** Wait for costs that are looked up later (speech), then list the results. */
-    stop: async (results: ManifestEntry[]) => {
-      const late = withLateCosts(results, () => spin.message('Fetching cost'));
-      const entries = await Promise.race([late, onAbort(signal, results)]);
-      const ok = entries.filter((e) => e.ok);
-      const cost = entries.reduce((s, e) => s + (e.cost ?? 0), 0); // failed calls can be charged too
-      spin.stop(`${ok.length} result(s), ${entries.length - ok.length} error(s), ${usd(cost)}`);
-      report(entries);
-      // Unfinished cost lookups are retried by the server at its next start
-      if (signal.aborted) process.exit(130);
-      if (entries.length && !ok.length) process.exitCode = 1;
-    },
-  };
+/** Exit code 1 when a run delivered nothing but errors. */
+function setExitCode(entries: ManifestEntry[]) {
+  if (entries.length && !entries.some((e) => e.ok)) process.exitCode = 1;
 }
 
-/** Ask for an element in interactive terminals when the prompt has no @mentions. */
-async function chooseElement(prompt: string): Promise<string | null> {
-  if (!interactive || hasMention(prompt)) return null;
-  const els = await listElements();
-  if (!els.length) return null;
-  const pick = await p.select({
-    message: 'Element',
-    options: [
-      { value: '', label: 'none' },
-      ...els.map((e) => ({ value: e.name, label: `@${e.name}`, hint: `${e.type}, ${e.photos.length} images` })),
-    ],
-  });
-  if (p.isCancel(pick)) {
-    p.cancel('Cancelled');
-    process.exit(1);
-  }
-  return pick || null;
-}
+/** Where a command's option values came from ('cli' when given on the command line). */
+const sourceOf = (cmd: Command) => (key: string) => cmd.getOptionValueSource(key);
 
 const program = new Command()
   .name('darkroom')
-  .description('Local, private images and audio with your own references via OpenRouter')
+  .description(
+    'Local, private images and audio with your own references via OpenRouter.\nWithout a command in a terminal: interactive menu.',
+  )
   .version(APP_VERSION)
   .showHelpAfterError();
 
@@ -204,7 +90,7 @@ program
 program
   .command('gen')
   .alias('generate')
-  .description('Generate images (several models run in parallel)')
+  .description('Generate images (several models run in parallel); without a prompt in a terminal it asks')
   .argument('[prompt...]', 'prompt; use @name to include elements')
   .option('-e, --element <name>', 'element (reference set from refs/<name>/)')
   // Options take one value each (repeat them for more): a variadic option would swallow the prompt after it
@@ -219,168 +105,120 @@ program
   .option('--no-prefix', 'do not prepend the element instructions')
   .option('--max-side <px>', 'longest side of the references', intArg(256, 4096))
   .addOption(privacyOption())
-  .action(async (words: string[], o) => {
+  .action(async (words: string[], o, cmd: Command) => {
     p.intro(pc.inverse(' darkroom · images '));
-    const prompt =
-      words.join(' ').trim() || (await ask('Prompt', 'Business portrait in a bright office, soft window light'));
-    const element = o.element ?? (await chooseElement(prompt));
-    const extraRefs = resolveRefs(o.ref, OUT_DIR);
-    const models = parseModels(o.model ?? [DEFAULT_MODEL]);
-    const run = progress(models.length * o.count);
-    run.start(`Generating ${models.map((m) => `${o.count}× ${m}`).join(', ')}`);
-    const entries = await runGeneration(
-      {
-        prompt,
-        models,
-        element,
-        usePrefix: o.prefix,
-        extraRefs,
-        count: o.count,
-        aspectRatio: o.aspect,
-        resolution: o.size,
-        outputFormat: o.format,
-        quality: o.quality,
-        seed: o.seed,
-        maxSide: o.maxSide,
-        privacy: o.privacy,
-      },
-      run.onEvent,
-      run.signal,
-    );
-    await run.stop(entries);
-    const all = costSummary(await readEntries());
-    p.outro(pc.dim(`Total so far: ${usd(all.total)} for ${all.images} results`));
+    const run: ImageRun = {
+      privacy: o.privacy,
+      models: parseModels(o.model ?? [DEFAULT_MODEL]),
+      element: o.element ?? null,
+      aspect: o.aspect,
+      size: o.size,
+      count: o.count,
+      prompt: words.join(' ').trim(),
+      format: o.format,
+      quality: o.quality,
+      seed: o.seed,
+      refs: o.ref,
+      prefix: o.prefix,
+      maxSide: o.maxSide,
+    };
+    resolveRefs(run.refs, OUT_DIR); // a missing reference fails before any question
+    if (!run.prompt) {
+      if (!interactive) missing('Prompt');
+      const fixed = explicitOptions(run, sourceOf(cmd), {
+        ...{ privacy: 'privacy', models: 'model', element: 'element', aspect: 'aspect', size: 'size', count: 'count' },
+        ...{ format: 'format', quality: 'quality', seed: 'seed', refs: 'ref', prefix: 'prefix', maxSide: 'maxSide' },
+      });
+      await interactiveMode(clackPrompter, 'image', { image: fixed });
+    }
+    setExitCode(await runImage(run));
+    p.outro(pc.dim(await totalLine()));
   });
 
 program
   .command('speak')
-  .description('Text to speech (model voice or own cloned voice)')
+  .description('Text to speech (model voice or own cloned voice); without text in a terminal it asks')
   .argument('[text...]', 'text to speak')
-  .option('-m, --model <id>', 'speech model', 'elevenlabs/eleven-v4')
-  .option('-v, --voice <voice>', 'model voice, or voice:<name> for an own voice')
+  .option('-m, --model <id>', 'speech model', SPEECH_MODEL)
+  .option('-v, --voice <voice>', 'model voice, or voice:<name> for an own voice (list: darkroom voices <model>)')
   .option('-i, --instructions <text>', 'delivery instructions (Gemini, Fish Audio, OpenAI)')
-  .option('--speed <x>', 'speed, e.g. 0.9 or 1.1', Number.parseFloat)
+  .option('--speed <x>', 'speed from 0.25 to 4, e.g. 0.9 or 1.1', floatArg(0.25, 4))
   .addOption(privacyOption())
-  .action(async (words: string[], o) => {
+  .action(async (words: string[], o, cmd: Command) => {
     p.intro(pc.inverse(' darkroom · speech '));
-    const text = words.join(' ').trim() || (await ask('Text', 'Hello! This is a short test.'));
-    const run = progress(1);
-    run.start(`Speaking with ${o.model}`);
-    await run.stop(
-      await runSpeech(
-        { text, model: o.model, voice: o.voice, instructions: o.instructions, speed: o.speed, privacy: o.privacy },
-        run.onEvent,
-        run.signal,
-      ),
-    );
+    const run: SpeechRun = {
+      privacy: o.privacy,
+      model: o.model,
+      voice: o.voice,
+      text: words.join(' ').trim(),
+      instructions: o.instructions,
+      speed: o.speed,
+    };
+    if (!run.text) {
+      if (!interactive) missing('Text');
+      const fixed = explicitOptions(run, sourceOf(cmd), {
+        ...{ privacy: 'privacy', model: 'model', voice: 'voice', instructions: 'instructions', speed: 'speed' },
+      });
+      await interactiveMode(clackPrompter, 'speech', { speech: fixed });
+    }
+    setExitCode(await runSpeechRun(run));
     p.outro(pc.dim('Done'));
   });
 
 program
   .command('music')
-  .description('Generate a music clip (Google Lyria)')
+  .description('Generate a music clip (Google Lyria); without a prompt in a terminal it asks')
   .argument('[prompt...]', 'style, instruments, tempo, mood, lyrics')
-  .option('-m, --model <id>', 'music model', 'google/lyria-3-clip-preview')
+  .option('-m, --model <id>', 'music model', MUSIC_MODEL)
   .addOption(privacyOption())
-  .action(async (words: string[], o) => {
+  .action(async (words: string[], o, cmd: Command) => {
     p.intro(pc.inverse(' darkroom · music '));
-    const prompt = words.join(' ').trim() || (await ask('Describe the music', 'calm acoustic guitar jingle, 120 bpm'));
-    const run = progress(1);
-    run.start(`Composing with ${o.model}`);
-    await run.stop(await runMusic({ prompt, model: o.model, privacy: o.privacy }, run.onEvent, run.signal));
+    const run: MusicRun = { privacy: o.privacy, model: o.model, prompt: words.join(' ').trim() };
+    if (!run.prompt) {
+      if (!interactive) missing('Describe the music');
+      const fixed = explicitOptions(run, sourceOf(cmd), { privacy: 'privacy', model: 'model' });
+      await interactiveMode(clackPrompter, 'music', { music: fixed });
+    }
+    setExitCode(await runMusicRun(run));
     p.outro(pc.dim('Done'));
   });
 
 program
   .command('models')
-  .description('Image models with reference support, parameters and ZDR status')
-  .option('--all', 'include models without reference images')
+  .description('Image, speech or music models with price, ZDR status and capabilities')
+  .addArgument(new Argument('[kind]', 'which models').choices(MODEL_KINDS).default('image'))
+  .option('--all', 'image models: include models without reference images')
   .option('--search <text>', 'filter by id or name')
-  .action(async (o) => {
-    const spin = spinner();
-    onInterrupt(() => process.exit(130));
-    spin.start('Loading models');
-    const [models, zdr] = await Promise.all([listImageModels(), zdrEndpoints()]);
-    spin.stop(`${models.length} image models`);
-    const needle = (o.search as string | undefined)?.toLowerCase();
-    const rows = models
-      .filter((m) => o.all || (maxRefs(m) ?? 0) > 0)
-      .filter((m) => !needle || `${m.id} ${m.name}`.toLowerCase().includes(needle))
-      .sort((a, b) => a.id.localeCompare(b.id));
-    for (const m of rows) {
-      const sp = m.supported_parameters;
-      const vals = (k: string) => {
-        const s = sp[k];
-        return s?.type === 'enum' ? s.values.join(' ') : s?.type === 'range' ? `${s.min}–${s.max}` : s ? 'yes' : '–';
-      };
-      const z = zdr.get(m.id) ?? [];
-      const zdrText = z.length
-        ? pc.green(z.map((e) => `${e.tag}${e.safetyRetention ? ' (safety retention)' : ''}`).join(', '))
-        : pc.dim('no ZDR');
-      p.log.message(
-        [
-          pc.bold(m.id),
-          `${pc.dim('refs')} ${vals('input_references')}  ${pc.dim('n')} ${vals('n')}  ${pc.dim('size')} ${vals('resolution')}  ${pc.dim('format')} ${vals('output_format')}`,
-          `${pc.dim('aspect')} ${vals('aspect_ratio')}`,
-          `${pc.dim('ZDR')} ${zdrText}`,
-        ].join('\n'),
-      );
-    }
-  });
+  .addOption(privacyOption('privacy mode the models are checked against: zdr | zdr-strict | off'))
+  .action((kind, o) => showModels(kind, o));
 
 program
-  .command('start')
-  .description('Start the web UI on http://localhost (Ctrl+C stops it)')
-  .action(() => {
-    // The server is its own app: run it as a child process instead of importing it into the CLI
-    const server = path.resolve(import.meta.dirname, '../../server/src/server.ts');
-    const child = spawn(process.execPath, [server], { stdio: 'inherit' });
-    // Pass signals on and wait for the server to shut down. Ctrl+C in a terminal also reaches the server directly
-    // (same process group): it takes the forwarded copy right after as the same Ctrl+C. Windows has no signals:
-    // kill() ends the server abruptly there, so Ctrl+C (which reaches it through the shared console) is not passed on.
-    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-      process.on(signal, () => {
-        if (signal === 'SIGTERM' || process.platform !== 'win32') child.kill(signal);
-      });
-    }
-    child.on('exit', (code, signal) => process.exit(code ?? 128 + (signal ? os.constants.signals[signal] : 0)));
-  });
+  .command('voices')
+  .description('Own voices, or the voices of a speech model by language (with your own voices)')
+  .argument('[model]', 'speech model, e.g. elevenlabs/eleven-v4')
+  .action((model?: string) => showVoices(model));
 
 program
   .command('elements')
   .description('Reference sets in refs/')
-  .action(async () => {
-    const els = await listElements();
-    if (!els.length) return p.log.info('No elements yet. Create one in the web UI or add photos to refs/<name>/.');
-    for (const e of els)
-      p.log.message(`${pc.bold(`@${e.name}`)}  ${pc.dim(`${e.type} · ${e.label} · ${e.photos.length} image(s)`)}`);
-  });
-
-program
-  .command('voices')
-  .description('Own voices in voices/')
-  .action(async () => {
-    const vs = await listVoices();
-    if (!vs.length) return p.log.info('No own voices yet. Record one in the web UI (Audio → Own voices).');
-    for (const v of vs)
-      p.log.message(`${pc.bold(`voice:${v.name}`)}  ${pc.dim(`${v.label} · ${v.samples.length} sample(s)`)}`);
-  });
+  .action(() => showElements());
 
 program
   .command('costs')
   .description('Cost total per model from out/manifest.jsonl')
-  .action(async () => {
-    const s = costSummary(await readEntries());
-    const lines = Object.entries(s.byModel)
-      .sort((a, b) => b[1].cost - a[1].cost)
-      .map(([m, v]) => `${usd(v.cost).padStart(10)}  ${String(v.images).padStart(4)}  ${m}`);
-    p.note(
-      [...lines, pc.bold(`${usd(s.total).padStart(10)}  ${String(s.images).padStart(4)}  total`)].join('\n'),
-      'Costs',
-    );
-  });
+  .action(() => showCosts());
+
+program
+  .command('start')
+  .description(`Start the web UI on http://localhost:${PORT} (Ctrl+C stops it)`)
+  .action(() => startWeb());
 
 try {
+  // Plain `darkroom` in a terminal opens the main menu; elsewhere commander prints the help as before
+  if (process.argv.length <= 2 && interactive) {
+    p.intro(pc.inverse(' darkroom '));
+    await interactiveMode(clackPrompter, 'menu');
+  }
   await program.parseAsync();
 } catch (err) {
   failSpinner();

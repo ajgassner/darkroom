@@ -122,6 +122,10 @@ Available in the detail view of every image:
 
 ## CLI
 
+Run `darkroom` without a command in a terminal for an interactive menu: image, speech, music, model lists, elements and voices, costs and the web UI. It asks for the privacy mode, models (type to search; recommended first, with price and ZDR status), element, aspect ratio and size (only values the chosen models support), the number of images and the prompt, shows a summary with the estimated cost and runs after you confirm. Afterwards it prints the same run as a command line (to reuse it or give it to an agent) and offers to open the result, run again, change settings or go back to the menu. Escape goes back one question, Ctrl+C quits. Your last choices (not prompts or texts) are remembered in `.cli-state.json` in your data folder.
+
+`darkroom gen`, `darkroom speak` and `darkroom music` without a prompt or text start the same questions; options given on the command line are not asked again. Outside a terminal (scripts, AI agents) the CLI never asks: a missing prompt is an error.
+
 ```bash
 # default model, element "me", portrait 3:4 in 2K
 darkroom gen -e me -a 3:4 -s 2K "Business portrait in a bright office, suit, soft window light"
@@ -130,23 +134,28 @@ darkroom gen -e me -a 3:4 -s 2K "Business portrait in a bright office, suit, sof
 darkroom gen -n 2 -m google/gemini-3.1-flash-image,google/gemini-3-pro-image,bytedance-seed/seedream-4.5 \
   "Outdoor portrait of @me in an autumn park"
 
-# keep editing a result (a file from out/ as an additional reference)
+# keep editing a result: the path it printed, or just the file name from out/
 darkroom gen -e me -r 2026-11-12T18-30-00_3f9a2c_google_gemini-3.1-flash-image_1.png "same scene, but with glasses"
 
 # your own cloned voice: needs a model that can clone (Fish Audio, Seed Audio, HeyGen)
 darkroom speak -m fish-audio/s2.1-pro -v voice:me "Hello, this is my cloned voice."
 
-darkroom start                     # web UI on http://localhost:5177
-darkroom gen                       # interactive: asks for prompt and element
-darkroom speak "Hello! This is a short test."
+darkroom                           # interactive menu (in a terminal)
+darkroom gen                       # interactive image run; also: darkroom speak, darkroom music
+darkroom gen -m google/gemini-3-pro-image   # asks only for what is missing
+darkroom start                     # web UI on http://localhost:5177 (or PORT)
+darkroom speak --speed 1.1 "Hello! This is a short test."
 darkroom music "calm acoustic guitar jingle, 120 bpm"
-darkroom models --search gemini    # models with reference support, parameters and ZDR status
+darkroom models                    # image models: references, parameters, price, ZDR status
+darkroom models speech             # speech models: price, voices, voice cloning, ZDR status
+darkroom models music --privacy off --search lyria
+darkroom voices elevenlabs/eleven-v4   # a model's voices by language, plus your own voices
+darkroom voices                    # your own voices (voice:<name>)
 darkroom elements                  # reference sets
-darkroom voices                    # your voices
 darkroom costs                     # cost per model and in total
 ```
 
-`darkroom --help` and `darkroom gen --help` list all options. Options such as `-m` and `-r` take one value each; repeat them or separate models with commas. Ctrl+C cancels a running generation, including the upstream calls; a second Ctrl+C quits right away.
+`darkroom --help` and `darkroom gen --help` list all options. Options such as `-m` and `-r` take one value each; repeat them or separate models with commas. `darkroom models` checks the models against your privacy mode (`--privacy` to check another one). Result paths are printed so you can open them or pass them to `-r`. Ctrl+C cancels a running generation, including the upstream calls; a second Ctrl+C quits right away. A cancelled prompt or run exits with code 130.
 
 ## Privacy
 
