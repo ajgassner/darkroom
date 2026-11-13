@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Business portrait",
+    "prompt": "Professional business headshot, wearing a dark navy suit and white shirt, bright modern office in the background with soft bokeh, soft window light from the left, shot on a full-frame camera with an 85mm lens at f/2, natural confident smile"
+  },
+  {
+    "name": "Outdoor",
+    "prompt": "Candid outdoor portrait while walking through a park in autumn, golden hour sunlight, casual knit sweater, shallow depth of field, shot on 50mm, natural relaxed expression"
+  },
+  {
+    "name": "Event / stage",
+    "prompt": "Speaking on stage at a tech conference, holding a microphone, audience silhouettes in the foreground, stage lighting with warm spotlight, documentary photo style, 70-200mm lens"
+  },
+  {
+    "name": "LinkedIn profile",
+    "prompt": "Clean LinkedIn profile photo, neutral light grey studio background, soft even studio lighting, smart casual shirt, head and shoulders framing, friendly approachable smile"
+  },
+  {
+    "name": "Café / working",
+    "prompt": "Working on a laptop in a cozy Viennese café, natural daylight from a large window, coffee cup on the marble table, candid lifestyle photo, 35mm lens"
+  }
+]

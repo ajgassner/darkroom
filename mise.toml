@@ -1,0 +1,11 @@
+# Tool versions for this project (https://mise.jdx.dev).
+# Node 25+ no longer bundles corepack, so it is installed as a separate tool;
+# corepack then provides the pnpm version pinned in package.json ("packageManager").
+[tools]
+node = "26"
+"npm:corepack" = "latest"
+# Browser automation for UI checks during development (vercel-labs/agent-browser)
+"npm:agent-browser" = "0.42.0"
+
+[hooks]
+postinstall = "corepack enable"

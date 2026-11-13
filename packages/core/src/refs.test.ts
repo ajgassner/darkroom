@@ -1,0 +1,121 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import sharp from 'sharp';
+import { describe, expect, it } from 'vitest';
+import { testImage } from '../test/fake-openrouter.ts';
+import { REFS_DIR } from './config.ts';
+import {
+  addPhoto,
+  DEFAULT_INSTRUCTIONS,
+  deletePhoto,
+  elementReferences,
+  encodeImage,
+  findMentions,
+  getElement,
+  isTemplate,
+  listElements,
+  photoPath,
+  replaceMentions,
+  saveElement,
+  validName,
+} from './refs.ts';
+
+async function dataUrlSize(url: string) {
+  const meta = await sharp(Buffer.from(url.split(',')[1], 'base64')).metadata();
+  return { width: meta.width, height: meta.height, format: meta.format, alpha: meta.hasAlpha };
+}
+
+describe('mentions', () => {
+  const names = ['Max', 'ag-logo', 'office.v2'];
+
+  it('finds known elements case-insensitively, once each, in prompt order', () => {
+    expect(findMentions('Put the @AG-LOGO next to @max and @max again', names)).toEqual(['ag-logo', 'Max']);
+  });
+
+  it('ignores unknown names and trailing punctuation', () => {
+    expect(findMentions('Hi @max. Meet @nobody, see @office.v2!', names)).toEqual(['Max', 'office.v2']);
+  });
+
+  it('replaces mentions by label and keeps unknown ones', () => {
+    const labels = new Map([
+      ['max', 'Max Mustermann'],
+      ['ag-logo', '[logo, reference image 3]'],
+    ]);
+    expect(replaceMentions('@Max with @ag-logo and @other', labels)).toBe(
+      'Max Mustermann with [logo, reference image 3] and @other',
+    );
+  });
+});
+
+describe('validName / isTemplate', () => {
+  it.each(['me', 'ag-logo', 'office_2', 'a.b'])('accepts %s', (n) => expect(validName(n)).toBe(true));
+  it.each(['', '../x', 'a/b', '.hidden', 'a..b', 'x'.repeat(65), 'ä'])('rejects %j', (n) =>
+    expect(validName(n)).toBe(false),
+  );
+
+  it('detects the legacy person template', () => {
+    expect(isTemplate(DEFAULT_INSTRUCTIONS)).toBe(true);
+    expect(isTemplate('Use the white logo on dark backgrounds')).toBe(false);
+  });
+});
+
+describe('element storage', () => {
+  it('creates elements with defaults per type and lists them sorted', async () => {
+    const person = await saveElement('zed', {});
+    expect(person).toMatchObject({ name: 'zed', label: 'zed', type: 'person', instructions: DEFAULT_INSTRUCTIONS });
+
+    const logo = await saveElement('acme', { label: 'ACME', type: 'logo', instructions: '' });
+    expect(logo).toMatchObject({ label: 'ACME', type: 'logo', instructions: '', photos: [] });
+
+    // Partial updates keep the other fields
+    expect(await saveElement('acme', { instructions: 'white on dark' })).toMatchObject({
+      label: 'ACME',
+      type: 'logo',
+      instructions: 'white on dark',
+    });
+    expect((await listElements()).map((e) => e.name)).toEqual(['acme', 'zed']);
+  });
+
+  it('falls back to person for an unknown type in element.json', async () => {
+    await fs.mkdir(path.join(REFS_DIR, 'odd'), { recursive: true });
+    await fs.writeFile(path.join(REFS_DIR, 'odd', 'element.json'), '{"type":"alien"}');
+    expect((await getElement('odd')).type).toBe('person');
+  });
+
+  it('reports missing elements and invalid names with codes', async () => {
+    await expect(getElement('missing')).rejects.toMatchObject({ code: 'element_not_found' });
+    await expect(getElement('../etc')).rejects.toMatchObject({ code: 'invalid_name' });
+    await expect(elementReferences('zed', 512)).rejects.toMatchObject({ code: 'element_no_photos' });
+  });
+
+  it('stores opaque photos as JPEG (max. 2048 px) and transparent ones as PNG', async () => {
+    await saveElement('photos', {});
+    const big = await addPhoto('photos', 'IMG 0001.png', await testImage({ width: 3000, height: 1500 }));
+    const logo = await addPhoto('photos', 'logo.png', await testImage({ alpha: true }));
+    expect(big).toMatch(/^\d+_IMG_0001\.jpg$/);
+    expect(logo).toMatch(/_logo\.png$/);
+
+    const stored = await sharp(photoPath('photos', big)).metadata();
+    expect([stored.width, stored.height, stored.format]).toEqual([2048, 1024, 'jpeg']);
+    expect((await getElement('photos')).photos).toEqual([big, logo].sort());
+
+    const { urls } = await elementReferences('photos', 512);
+    const sizes = await Promise.all(urls.map(dataUrlSize));
+    expect(sizes).toContainEqual({ width: 512, height: 256, format: 'jpeg', alpha: false });
+    expect(sizes).toContainEqual(expect.objectContaining({ format: 'png', alpha: true }));
+
+    await deletePhoto('photos', logo);
+    expect((await getElement('photos')).photos).toEqual([big]);
+  });
+
+  it.each(['../element.json', 'a/b.jpg', '.hidden.jpg', 'notes.txt'])('rejects photo path %j', (file) => {
+    expect(() => photoPath('photos', file)).toThrow();
+  });
+});
+
+describe('encodeImage', () => {
+  it('never upscales', async () => {
+    const url = await encodeImage(await testImage({ width: 100, height: 50 }), 1024);
+    expect(await dataUrlSize(url)).toMatchObject({ width: 100, height: 50, format: 'jpeg' });
+  });
+});

@@ -1,0 +1,17 @@
+{
+  "name": "@darkroom/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Command line interface",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "darkroom": "src/cli.ts"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.9.0",
+    "@darkroom/core": "workspace:*",
+    "commander": "^15.1.0",
+    "picocolors": "^1.1.1"
+  }
+}

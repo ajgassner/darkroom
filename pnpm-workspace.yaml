@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+allowBuilds:
+  onnxruntime-node: true
+  protobufjs: false
+  sharp: true
+permissions:
+  fallow:
+    skills: true

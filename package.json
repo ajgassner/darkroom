@@ -1,0 +1,39 @@
+{
+  "name": "darkroom",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local, private studio for images, audio and voices with your own references, powered by OpenRouter",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.ts",
+    "build": "pnpm --filter @darkroom/web build",
+    "start": "node apps/server/src/server.ts",
+    "cli": "node apps/cli/src/cli.ts",
+    "mock": "node scripts/mock-openrouter.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json",
+    "lint": "biome check --error-on-warnings .",
+    "format": "biome check --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "analyze": "fallow",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm analyze"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.7",
+    "@types/node": "^26.6.6",
+    "@vitest/coverage-v8": "^5.1.0",
+    "fallow": "^3.42.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ajgassner/darkroom.git"
+  }
+}

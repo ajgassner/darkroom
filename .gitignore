@@ -1,0 +1,10 @@
+# Private data (reference photos, voice samples, results) and keys: never commit
+.env
+refs/
+voices/
+out/
+node_modules/
+.DS_Store
+models/
+dist/
+coverage/

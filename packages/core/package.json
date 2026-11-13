@@ -1,0 +1,17 @@
+{
+  "name": "@darkroom/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Generation logic: images, tools, speech, voices, music, elements, manifest, OpenRouter client",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./test/*": "./test/*.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.3.2",
+    "@imgly/background-removal-node": "^1.4.5",
+    "sharp": "^0.35.5"
+  }
+}

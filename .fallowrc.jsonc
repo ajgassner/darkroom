@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "workspaces": { "patterns": ["apps/*", "packages/*"] },
+  // The packages are internal: their package.json exports are not a public API, so unused exports are reported there too
+  "includeEntryExports": true,
+
+  // Architecture: core holds the logic; server and CLI build on it; the web UI talks to the server over HTTP
+  // and may only use core's types (the shared API contract), never its runtime code.
+  "boundaries": {
+    "zones": [
+      { "name": "core", "patterns": ["packages/core/**"] },
+      { "name": "server", "patterns": ["apps/server/**"] },
+      { "name": "cli", "patterns": ["apps/cli/**"] },
+      { "name": "web", "patterns": ["apps/web/**"] },
+      { "name": "scripts", "patterns": ["scripts/**"] }
+    ],
+    "rules": [
+      { "from": "core", "allow": [] },
+      { "from": "server", "allow": ["core"] },
+      { "from": "cli", "allow": ["core"] },
+      { "from": "web", "allow": [], "allowTypeOnly": ["core"] },
+      { "from": "scripts", "allow": [] }
+    ]
+  },
+
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCognitive": 15,
+    // CRAP = complexity² × untested share + complexity. 60 means: untested functions stay small (≈ 7 branches),
+    // more complex logic needs tests. Without coverage data fallow estimates coverage from the test files.
+    "maxCrap": 60
+  }
+}
