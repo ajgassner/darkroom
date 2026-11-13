@@ -6,7 +6,7 @@ import type { VoiceInfo } from './contract.ts';
 import { AppError } from './errors.ts';
 import { safeBaseName } from './files.ts';
 import { readJsonObject, serialized, writeJsonAtomic } from './json-file.ts';
-import { validName } from './refs.ts';
+import { removeNamedDir, validName } from './refs.ts';
 import { parseWav, pcmToWav, type WavInfo } from './wav.ts';
 
 export type { VoiceInfo };
@@ -94,6 +94,17 @@ export async function saveVoice(
     });
   });
   return getVoice(name);
+}
+
+/** Deletes an own voice: voices/<name>/ with its samples and voice.json. */
+export async function deleteVoice(name: string): Promise<void> {
+  await updateConfig(name, () =>
+    removeNamedDir(
+      VOICES_DIR,
+      name,
+      () => new AppError('voice_not_found', `Voice "${name}" not found (voices/${name}/)`, { name }),
+    ),
+  );
 }
 
 export function samplePath(name: string, file: string): string {

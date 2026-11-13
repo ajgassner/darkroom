@@ -80,6 +80,31 @@ function elementDir(name: string): string {
   return path.join(REFS_DIR, name);
 }
 
+/**
+ * Removes the folder <base>/<name>/ with everything in it. Only direct subfolders of base with a valid name are
+ * removed; a missing folder is reported with notFound.
+ */
+export async function removeNamedDir(base: string, name: string, notFound: () => Error): Promise<void> {
+  if (!validName(name)) throw new AppError('invalid_name', `Invalid name: ${name}`, { name });
+  const root = path.resolve(base);
+  const dir = path.resolve(root, name);
+  if (path.dirname(dir) !== root) throw new AppError('invalid_name', `Invalid name: ${name}`, { name });
+  const st = await fs.lstat(dir).catch(() => null);
+  if (!st?.isDirectory()) throw notFound();
+  await fs.rm(dir, { recursive: true });
+}
+
+/** Deletes an element: refs/<name>/ with its photos and element.json. */
+export async function deleteElement(name: string): Promise<void> {
+  await serialized(`element:${name}`, () =>
+    removeNamedDir(
+      REFS_DIR,
+      name,
+      () => new AppError('element_not_found', `Element "${name}" not found (refs/${name}/)`, { name }),
+    ),
+  );
+}
+
 export async function listElements(): Promise<ElementInfo[]> {
   await fs.mkdir(REFS_DIR, { recursive: true });
   const dirs = await fs.readdir(REFS_DIR, { withFileTypes: true });

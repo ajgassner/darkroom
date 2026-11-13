@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { errorMessage } from '@/lib/actions';
 import { api, outUrl } from '@/lib/api';
+import { num } from '@/lib/format';
 import { debugRows } from '@/lib/labels';
 import { useUi } from '@/lib/store';
 import type { DebugRecord, ManifestEntry } from '@/lib/types';
@@ -127,7 +128,7 @@ function SentFileFigure({ f }: { f: SentFile }) {
       )}
       <figcaption className="text-xs text-muted">
         #{f.index} · {f.mime.replace(/^(image|audio)\//, '')} · {f.width ? `${f.width}×${f.height} · ` : ''}
-        {(f.bytes / 1024).toFixed(0)} KB
+        {num(f.bytes / 1024)} KB
       </figcaption>
     </figure>
   );

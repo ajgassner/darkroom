@@ -1,12 +1,13 @@
 import { Trash2Icon } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/misc';
 import { deleteEntries, entryError, reuseSettings } from '@/lib/actions';
-import { downloadUrl, outUrl } from '@/lib/api';
+import { canBeTransparent, downloadUrl, outUrl } from '@/lib/api';
+import { num, usd } from '@/lib/format';
 import { deleteTexts, runMetaParts, voiceLabel } from '@/lib/labels';
-import { usd } from '@/lib/pricing';
+import { focusComposer } from '@/lib/scroll';
 import { type LiveRun, useData, useSettings, useUi } from '@/lib/store';
 import { entryTitle } from '@/lib/tools';
 import type { ManifestEntry } from '@/lib/types';
@@ -80,12 +81,13 @@ function CardHead({
   // Failed calls can be charged too (their entries then carry the cost)
   const cost = entries.reduce((s, e) => s + (e.cost ?? 0), 0);
   return (
-    <div className="mb-2.5 flex justify-between gap-4">
+    // Below md the actions go under the title, so title and meta keep the full width
+    <div className="mb-2.5 flex flex-col gap-2 md:flex-row md:justify-between md:gap-4">
       <div className="min-w-0">
         <div className="line-clamp-2 text-[13px] break-words">{entryTitle(t, first)}</div>
         <RunMeta first={first} entries={entries} />
       </div>
-      <div className="flex shrink-0 items-start gap-2">
+      <div className="flex shrink-0 items-center gap-2 md:items-start">
         <span className="text-muted tabular-nums">{usd(cost)}</span>
         {actions}
       </div>
@@ -143,13 +145,31 @@ function LiveCard({ run }: { run: LiveRun }) {
     for (let i = got; i < count; i++) pending.push({ model, i });
   }
   const seconds = Math.round((now - run.startedAt) / 1000);
+  const card = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = card.current;
+    // The card disappears when the run ends (e.g. after cancelling with the keyboard): move the focus to the
+    // composer instead of losing it to the page. Layout cleanups run while the card is still in the DOM.
+    return () => {
+      if (el?.contains(document.activeElement)) requestAnimationFrame(focusComposer);
+    };
+  }, []);
   return (
-    <div>
+    <div ref={card}>
       <CardHead
         first={run.first}
         entries={run.entries}
         actions={
-          <Button size="sm" variant="danger" disabled={run.cancelling} onClick={run.cancel}>
+          // aria-disabled instead of disabled: a disabled button would drop the keyboard focus right away
+          <Button
+            size="sm"
+            variant="danger"
+            aria-disabled={run.cancelling}
+            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            onClick={() => {
+              if (!run.cancelling) run.cancel();
+            }}
+          >
             {run.cancelling ? t('gallery.cancelling') : t('gallery.cancel')}
           </Button>
         }
@@ -165,7 +185,7 @@ function LiveCard({ run }: { run: LiveRun }) {
           >
             <Spinner />
             <div>{name(p.model)}</div>
-            <div className="text-muted">{seconds} s</div>
+            <div className="text-muted">{num(seconds)} s</div>
           </div>
         ))}
       </Grid>
@@ -227,16 +247,28 @@ function Tile({ e }: { e: ManifestEntry }) {
       className="group relative min-h-40 cursor-zoom-in overflow-hidden rounded-[10px] border border-line bg-panel-2 text-left"
     >
       <DeleteButton e={e} />
-      {e.file && (
-        <img src={outUrl(e.file)} loading="lazy" alt={entryTitle(t, e)} className="block size-full object-cover" />
-      )}
+      {e.file && <TileImage file={e.file} alt={entryTitle(t, e)} />}
       <div className="absolute inset-x-0 bottom-0 flex justify-between gap-1.5 bg-gradient-to-b from-transparent to-black/75 px-2 pt-[18px] pb-1.5 text-[11px] text-white">
         <span>{name(e.model)}</span>
         <span>
-          {usd(e.cost)} · {(e.durationMs / 1000).toFixed(0)} s
+          {usd(e.cost)} · {num(e.durationMs / 1000)} s
         </span>
       </div>
     </button>
+  );
+}
+
+/** Result image; PNG/WebP get the checkerboard behind transparent parts once loaded (no flash while loading). */
+function TileImage({ file, alt }: { file: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <img
+      src={outUrl(file)}
+      loading="lazy"
+      alt={alt}
+      onLoad={() => setLoaded(true)}
+      className={cn('block size-full object-cover', loaded && canBeTransparent(file) && 'checker')}
+    />
   );
 }
 
@@ -261,7 +293,7 @@ function AudioTile({ e }: { e: ManifestEntry }) {
           {music ? '' : ` · ${voiceLabel(e.voice)}`}
         </span>
         <span>
-          {usd(e.cost)} · {(e.durationMs / 1000).toFixed(0)} s
+          {usd(e.cost)} · {num(e.durationMs / 1000)} s
         </span>
       </div>
       <div className="flex justify-between text-xs">

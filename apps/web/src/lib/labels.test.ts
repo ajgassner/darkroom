@@ -9,6 +9,8 @@ import {
   modelName,
   runMetaParts,
   type SummaryInput,
+  transcribeApiLabel,
+  transcribeBlockedText,
   voiceLabel,
 } from './labels';
 import type { DebugRecord, ImageModel, ManifestEntry } from './types';
@@ -190,7 +192,7 @@ describe('detail rows', () => {
     expect(Object.fromEntries(debugRows(t, entry(), d))).toEqual({
       'debug.endpoint': 'POST /chat/completions',
       'debug.status': 'debug.noResponse',
-      'debug.duration': '1.5 s',
+      'debug.duration': 'lightbox.seconds:1.5',
       'debug.model': 'x/a',
       'debug.provider': 'Google',
       'debug.generationId': 'gen-1',
@@ -198,6 +200,27 @@ describe('detail rows', () => {
       'debug.elements': 'common.none',
       'debug.refsSent': '0',
     });
+  });
+});
+
+describe('transcription texts', () => {
+  it('names the API engine with the current privacy mode', () => {
+    expect(transcribeApiLabel(t, 'openai/whisper-1', 'zdr')).toBe('voices.engineApi:whisper-1/topbar.privacyZdrShort');
+    expect(transcribeApiLabel(t, undefined, 'zdr-strict')).toBe('voices.engineApi:Whisper/topbar.privacyStrictShort');
+    expect(transcribeApiLabel(t, 'x/w', 'off')).toBe('voices.engineApi:w/zdr.none');
+  });
+
+  it('suggests the local engine when the privacy mode blocks the API transcription', () => {
+    const blocked = { code: 'privacy_blocked_strict' };
+    expect(transcribeBlockedText(t, blocked, 'api', 'zdr-strict')).toBe(
+      'voices.privacyBlocked:topbar.privacyStrictShort',
+    );
+    expect(transcribeBlockedText(t, { code: 'privacy_blocked' }, 'api', 'zdr')).toBe(
+      'voices.privacyBlocked:topbar.privacyZdrShort',
+    );
+    expect(transcribeBlockedText(t, blocked, 'local', 'zdr-strict')).toBeNull();
+    expect(transcribeBlockedText(t, new Error('x'), 'api', 'zdr')).toBeNull();
+    expect(transcribeBlockedText(t, null, 'api', 'zdr')).toBeNull();
   });
 });
 

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Tooltip } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
 import { LANGUAGES, type Lang } from '@/i18n';
-import { usd } from '@/lib/pricing';
+import { usd } from '@/lib/format';
 import { useData, useSettings } from '@/lib/store';
 import type { PrivacyMode } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,7 @@ export function Topbar() {
             <button
               key={m}
               type="button"
+              aria-pressed={mode === m}
               onClick={() => set({ mode: m })}
               className={cn('cursor-pointer rounded-md px-3.5 py-1 text-[13px]', mode === m && 'bg-accent text-white')}
             >

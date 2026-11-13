@@ -8,6 +8,7 @@ import { composerSummary } from '@/lib/labels';
 import { mentionKeyAction, mentionQuery } from '@/lib/mentions';
 import { allowedByPrivacy } from '@/lib/models';
 import { generate } from '@/lib/runs';
+import { PROMPT_ID } from '@/lib/scroll';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { ElementInfo } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -44,6 +45,8 @@ export function Composer() {
       <div className="relative rounded-[14px] border border-line bg-panel p-3">
         <Textarea
           ref={ref}
+          id={PROMPT_ID}
+          aria-label={placeholder}
           rows={3}
           value={prompt}
           placeholder={placeholder}

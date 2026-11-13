@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { estimateImagePrice, estimateRun, fmtTime, unitPrice, usd } from './pricing';
+import { estimateImagePrice, estimateRun, unitPrice } from './pricing';
 import type { CostSummary, ImageModel, ImagePrice } from './types';
 
 function model(id: string, price: ImagePrice | null, resolutions?: string[]): ImageModel {
@@ -58,14 +58,15 @@ describe('estimateRun', () => {
   });
 });
 
-describe('formatting', () => {
-  it('formats prices and times', () => {
-    expect(usd(null)).toBe('n/a');
-    expect(usd(0.0391)).toBe('$0.0391');
-    expect(usd(1.5)).toBe('$1.500');
-    expect(fmtTime(75.9)).toBe('1:15');
-    expect(fmtTime(Number.NaN)).toBe('0:00');
+describe('unitPrice', () => {
+  it('formats list prices per unit', () => {
     expect(unitPrice({ cost: 0.00003, unit: 'token', variants: {} })).toEqual({ unit: 'token', value: '$0.030' });
+    expect(unitPrice({ cost: 0.04, unit: 'image', variants: {} })).toEqual({ unit: 'image', value: '$0.04' });
+    expect(unitPrice({ cost: 0.0125, unit: 'megapixel', variants: {} })).toEqual({
+      unit: 'megapixel',
+      value: '$0.0125',
+    });
+    expect(unitPrice({ cost: 0.5, unit: 'second', variants: {} })).toEqual({ unit: 'other', value: '$0.50/second' });
     expect(unitPrice(null)).toBeNull();
   });
 });

@@ -1,7 +1,10 @@
 import { toast } from 'sonner';
 import i18n from '@/i18n';
 import { api, readAsDataUrl } from './api';
+import { num } from './format';
+import { transcribeBlockedText } from './labels';
 import { elementOnLoad, existingElement } from './mentions';
+import { selectionAfterDelete } from './names';
 import { audioSettingsFrom, extraRefsFrom, imageSettingsFrom } from './reuse';
 import { type DEFAULT_SETTINGS, useData, useSettings, useUi } from './store';
 import type {
@@ -16,7 +19,7 @@ import type {
   UpdateResponse,
   VoiceInfo,
 } from './types';
-import { transcribeOptions } from './voices';
+import { transcribeOptions, voiceAfterDelete } from './voices';
 import { MAX_SAMPLE_SEC, toWav } from './wav';
 
 const t = i18n.t.bind(i18n);
@@ -219,21 +222,56 @@ export async function uploadPhotos(name: string, files: File[]) {
   if (n) toast.success(t('toast.photosAdded', { count: n }));
 }
 
+/** Delete an element with its folder refs/<name>/ (after asking); selects the next one in the dialog. */
+export async function deleteElement(el: ElementInfo) {
+  if (!window.confirm(t('elements.confirmDelete', { label: el.label, name: el.name }))) return;
+  const names = useData.getState().elements.map((e) => e.name);
+  try {
+    await api(`/api/elements/${encodeURIComponent(el.name)}`, { method: 'DELETE' });
+    toast.success(t('toast.elementDeleted', { label: el.label }));
+    useUi.setState({ editingElement: selectionAfterDelete(names, el.name) });
+  } catch (err) {
+    toast.error(errorMessage(err));
+  }
+  // Also clears the element selection if it pointed to the deleted element
+  await reloadElements().catch((err: unknown) => toast.error(errorMessage(err)));
+}
+
 // ---------------------------------------------------------------- Voices
+
+/** Delete an own voice with its folder voices/<name>/ (after asking); selects the next one in the dialog. */
+export async function deleteVoice(v: VoiceInfo) {
+  if (!window.confirm(t('voices.confirmDelete', { label: v.label, name: v.name }))) return;
+  const names = useData.getState().voices.map((x) => x.name);
+  try {
+    await api(`/api/voices/${encodeURIComponent(v.name)}`, { method: 'DELETE' });
+    toast.success(t('toast.voiceDeleted', { label: v.label }));
+    useUi.setState({ editingVoice: selectionAfterDelete(names, v.name) });
+    const s = useSettings.getState();
+    const voice = voiceAfterDelete(s.voice, v.name);
+    if (voice !== s.voice) s.set({ voice });
+  } catch (err) {
+    toast.error(errorMessage(err));
+  }
+  await reloadVoices().catch((err: unknown) => toast.error(errorMessage(err)));
+}
 
 export async function transcribe(name: string, file: string) {
   const key = `${name}/${file}`;
   useUi.setState((s) => ({ transcribing: [...s.transcribing, key] }));
+  const settings = useSettings.getState();
+  const { engine, language } = transcribeOptions(settings, useData.getState().status?.transcribe.engine);
   try {
-    const settings = useSettings.getState();
-    const { engine, language } = transcribeOptions(settings, useData.getState().status?.transcribe.engine);
     const r = await api<{ text: string }>(
       `/api/voices/${encodeURIComponent(name)}/samples/${encodeURIComponent(file)}/transcribe`,
       { body: { engine, language, privacy: settings.privacy } },
     );
     if (!r.text) toast.error(t('toast.noSpeechRecognized'));
   } catch (err) {
-    toast.error(errorMessage(err));
+    // A privacy-blocked API transcription points to the local engine (one toast for several blocked samples)
+    const blocked = transcribeBlockedText(t, err, engine, settings.privacy);
+    if (blocked) toast.error(blocked, { id: 'transcribe-blocked' });
+    else toast.error(errorMessage(err));
   } finally {
     useUi.setState((s) => ({ transcribing: s.transcribing.filter((k) => k !== key) }));
     await reloadVoices().catch((err: unknown) => toast.error(errorMessage(err)));
@@ -249,7 +287,7 @@ async function uploadSample(name: string, f: File): Promise<string | null> {
       body: { filename: label, dataUrl: await readAsDataUrl(blob) },
     });
     if (truncated) toast(t('toast.sampleTruncated', { name: f.name, sec: MAX_SAMPLE_SEC }));
-    else if (seconds < 5) toast.warning(t('toast.sampleShort', { name: f.name, sec: seconds.toFixed(1) }));
+    else if (seconds < 5) toast.warning(t('toast.sampleShort', { name: f.name, sec: num(seconds, 1) }));
     return r.file;
   } catch (err) {
     toast.error(`${label}: ${errorMessage(err)}`);

@@ -1,6 +1,7 @@
-// Elements (reference sets in refs/<name>/): create, edit, photos, thumbnails.
+// Elements (reference sets in refs/<name>/): create, edit, delete, photos, thumbnails.
 import {
   addPhoto,
+  deleteElement,
   deletePhoto,
   ELEMENT_TYPES,
   getElement,
@@ -64,6 +65,11 @@ export async function elementRoutes(fastify: FastifyInstance) {
       });
     },
   );
+
+  app.delete('/api/elements/:name', { schema: { params } }, async (req) => {
+    await deleteElement(req.params.name);
+    return { ok: true };
+  });
 
   app.post(
     '/api/elements/:name/photos',

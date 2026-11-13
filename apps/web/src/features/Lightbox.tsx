@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, SectionTitle, Tag } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
 import { deleteEntries, entryNotices, reuseSettings } from '@/lib/actions';
-import { downloadUrl, outUrl } from '@/lib/api';
+import { canBeTransparent, downloadUrl, outUrl } from '@/lib/api';
 import { entryInfoRows } from '@/lib/labels';
 import { ASPECTS, preferredModel, toolModels, zdrState } from '@/lib/models';
 import { runTool } from '@/lib/runs';
@@ -32,7 +32,7 @@ export function Lightbox() {
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <div className="grid h-full grid-cols-1 md:grid-cols-[1fr_340px]">
           <div className="flex min-h-0 items-center justify-center bg-black">
-            <img src={outUrl(file)} alt={title} className="max-h-[92vh] max-w-full object-contain" />
+            <FullImage file={file} alt={title} />
           </div>
           <div className="flex flex-col gap-3.5 overflow-y-auto px-[18px] pt-12 pb-[18px] text-[13px]">
             <div className="flex flex-col gap-2">
@@ -98,6 +98,17 @@ export function Lightbox() {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The result at full size; PNG/WebP with a checkerboard behind transparent parts (as in the debug dialog). */
+function FullImage({ file, alt }: { file: string; alt: string }) {
+  return (
+    <img
+      src={outUrl(file)}
+      alt={alt}
+      className={cn('max-h-[92vh] max-w-full object-contain', canBeTransparent(file) && 'checker')}
+    />
   );
 }
 
@@ -257,6 +268,7 @@ function Tools({ e, onRun }: { e: ManifestEntry; onRun: () => void }) {
           <button
             key={d.id}
             type="button"
+            aria-pressed={toolId === d.id}
             onClick={() => setToolId(toolId === d.id ? null : d.id)}
             className={cn(
               'flex cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-line bg-panel-2 px-2 py-1.5 text-left text-xs hover:border-accent',

@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { ChevronDownIcon } from 'lucide-react';
+import { type ReactNode, useEffect, useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Toaster } from 'sonner';
 import { TooltipProvider } from '@/components/ui/misc';
 import { AudioPanel } from '@/features/audio/AudioPanel';
@@ -12,16 +14,15 @@ import { Lightbox } from '@/features/Lightbox';
 import { LoadingScreen } from '@/features/LoadingScreen';
 import { PasteDialog, usePasteHandler } from '@/features/PasteDialog';
 import { Topbar } from '@/features/Topbar';
+import { useMediaQuery } from '@/features/useMediaQuery';
 import { VoicesDialog } from '@/features/VoicesDialog';
 import { loadAll } from '@/lib/actions';
 import { useData, useSettings, useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
 export function App() {
-  const mode = useSettings((s) => s.mode);
   const ready = useUi((s) => s.load.state === 'ready');
   const needsKey = useData((s) => s.status?.hasKey === false);
-  const [dragOver, setDragOver] = useState(false);
   usePasteHandler();
   useEffect(() => {
     void loadAll();
@@ -35,14 +36,25 @@ export function App() {
       </>
     );
   }
+  return <Studio />;
+}
 
+/** The loaded app: settings panel, composer and gallery, plus the dialogs. */
+function Studio() {
+  const mode = useSettings((s) => s.mode);
+  const [dragOver, setDragOver] = useState(false);
+  // Narrow screens: the prompt comes first and the settings fold away below it (instead of a long panel above it)
+  const wide = useMediaQuery('(min-width: 768px)');
+  const panel = mode === 'image' ? <ImagePanel /> : <AudioPanel />;
   return (
     <TooltipProvider>
       <Topbar />
       <div className="grid grid-cols-1 md:min-h-[calc(100vh-52px)] md:grid-cols-[340px_1fr]">
-        <aside className="border-b border-line bg-panel px-4 pt-3.5 pb-10 md:sticky md:top-[52px] md:h-[calc(100vh-52px)] md:overflow-y-auto md:border-r md:border-b-0">
-          {mode === 'image' ? <ImagePanel /> : <AudioPanel />}
-        </aside>
+        {wide && (
+          <aside className="sticky top-[52px] h-[calc(100vh-52px)] overflow-y-auto border-r border-line bg-panel px-4 pt-3.5 pb-10">
+            {panel}
+          </aside>
+        )}
         <main
           className={cn(
             'min-w-0 px-4 pt-[18px] pb-[60px] md:px-6 md:pt-1.5',
@@ -65,6 +77,7 @@ export function App() {
           }}
         >
           <Composer />
+          {!wide && <CollapsibleSettings>{panel}</CollapsibleSettings>}
           <Gallery />
         </main>
       </div>
@@ -75,6 +88,32 @@ export function App() {
       <PasteDialog />
       <AppToaster />
     </TooltipProvider>
+  );
+}
+
+/** Settings below the composer on narrow screens, folded away until opened. */
+function CollapsibleSettings({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <section className="mt-1 rounded-[14px] border border-line bg-panel">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen(!open)}
+        className="flex w-full cursor-pointer items-center justify-between rounded-[14px] px-3 py-2.5 text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+      >
+        {t('layout.settings')}
+        <ChevronDownIcon className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div id={id} className="border-t border-line px-3 pt-3.5 pb-5">
+          {children}
+        </div>
+      )}
+    </section>
   );
 }
 

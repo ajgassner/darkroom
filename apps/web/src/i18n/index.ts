@@ -1,6 +1,7 @@
 import i18n from 'i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { initReactI18next } from 'react-i18next';
+import { setFormatLang } from '@/lib/format';
 import { de } from './de';
 import { en } from './en';
 
@@ -31,8 +32,10 @@ void i18n
     },
   });
 
+// Registered before the components subscribe, so numbers are formatted in the new language when they re-render
 const syncHtmlLang = (lng: string) => {
   document.documentElement.lang = lng;
+  setFormatLang(lng);
 };
 syncHtmlLang(i18n.resolvedLanguage ?? 'en');
 i18n.on('languageChanged', syncHtmlLang);

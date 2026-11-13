@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { streamEvents } from './api';
+import { api, canBeTransparent, streamEvents } from './api';
 import type { RunEvent } from './types';
 
 function stream(chunks: string[]): ReadableStream<Uint8Array<ArrayBuffer>> {
@@ -11,6 +11,60 @@ function stream(chunks: string[]): ReadableStream<Uint8Array<ArrayBuffer>> {
     },
   });
 }
+
+describe('server not reachable', () => {
+  const failedFetch = async () => {
+    throw new TypeError('Failed to fetch');
+  };
+
+  it('throws a coded error instead of "Failed to fetch"', async () => {
+    vi.stubGlobal('fetch', failedFetch);
+    await expect(api('/api/status')).rejects.toMatchObject({ code: 'server_unreachable' });
+    await expect(streamEvents('/api/generate', {}, () => {}, new AbortController().signal)).rejects.toMatchObject({
+      code: 'server_unreachable',
+      message: expect.stringContaining('darkroom start'),
+    });
+  });
+
+  it('reports a stream that breaks off as unreachable', async () => {
+    const broken = new ReadableStream({
+      pull(c) {
+        c.error(new TypeError('network error'));
+      },
+    });
+    vi.stubGlobal('fetch', async () => new Response(broken));
+    await expect(streamEvents('/api/generate', {}, () => {}, new AbortController().signal)).rejects.toMatchObject({
+      code: 'server_unreachable',
+    });
+  });
+
+  it('keeps cancelling distinguishable', async () => {
+    vi.stubGlobal('fetch', async () => {
+      throw new DOMException('aborted', 'AbortError');
+    });
+    await expect(streamEvents('/api/generate', {}, () => {}, new AbortController().signal)).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+  });
+});
+
+describe('canBeTransparent', () => {
+  it('is true for formats with an alpha channel', () => {
+    expect(canBeTransparent('run/a.PNG')).toBe(true);
+    expect(canBeTransparent('a.webp')).toBe(true);
+    expect(canBeTransparent('a.jpg')).toBe(false);
+    expect(canBeTransparent('a.png.jpeg')).toBe(false);
+  });
+});
+
+describe('api', () => {
+  it('returns the JSON body and throws server errors with their code', async () => {
+    vi.stubGlobal('fetch', async () => Response.json({ ok: true }));
+    expect(await api('/api/x', { body: { a: 1 } })).toEqual({ ok: true });
+    vi.stubGlobal('fetch', async () => Response.json({ error: 'gone', code: 'not_found' }, { status: 404 }));
+    await expect(api('/api/x')).rejects.toMatchObject({ message: 'gone', code: 'not_found' });
+  });
+});
 
 describe('streamEvents', () => {
   it('reads NDJSON events split across chunks', async () => {

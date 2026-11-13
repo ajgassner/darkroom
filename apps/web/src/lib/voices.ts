@@ -1,3 +1,4 @@
+import { money } from './format';
 import type { SpeechModel, VoiceInfo } from './types';
 
 /** ISO 639-1 codes we can name; display names come from Intl.DisplayNames in the UI language. */
@@ -144,7 +145,7 @@ export function speechLangs(m: SpeechModel): Set<string> {
 
 /** Price per 1,000 characters from a per-character price, e.g. "$0.015". */
 export function pricePerThousandChars(perChar: string | number): string {
-  return `$${(Number(perChar) * 1000).toFixed(3)}`;
+  return money(Number(perChar) * 1000, 3);
 }
 
 export type SpeechPrice = { per: 'chars' | 'unit'; value: string };
@@ -154,7 +155,7 @@ export function speechPrice(m: SpeechModel): SpeechPrice | null {
   const perChar = Number(m.pricing?.prompt || 0);
   if (perChar) return { per: 'chars', value: pricePerThousandChars(perChar) };
   const perUnit = Number(m.pricing?.completion || 0);
-  if (perUnit) return { per: 'unit', value: `$${perUnit}` };
+  if (perUnit) return { per: 'unit', value: money(perUnit, 2, 6) };
   return null;
 }
 
@@ -171,6 +172,11 @@ export function fallbackVoice(model: SpeechModel, voice: string, ownVoices: Voic
   );
   const next = byLang[0] ?? (model.cloning && ownVoices[0] ? `voice:${ownVoices[0].name}` : '');
   return next === voice ? null : next;
+}
+
+/** Selected voice after deleting an own voice: cleared if it was the deleted one (the panel then picks a fallback). */
+export function voiceAfterDelete(voice: string, deleted: string): string {
+  return voice === `voice:${deleted}` ? '' : voice;
 }
 
 type TranscribeEngine = 'local' | 'api';

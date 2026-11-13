@@ -187,6 +187,7 @@ function SpeechRow({ m, checked, onPick }: { m: SpeechModel; checked: boolean; o
     <Tooltip content={allowed ? m.id : t('models.blocked', { id: m.id })}>
       <button
         type="button"
+        aria-pressed={checked}
         onClick={onPick}
         className={cn(
           'grid cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left hover:bg-panel-2',
@@ -292,6 +293,7 @@ function MusicSection() {
             <button
               key={m.id}
               type="button"
+              aria-pressed={m.id === musicModel}
               onClick={() => set({ musicModel: m.id })}
               className={cn(
                 'grid cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left hover:bg-panel-2',

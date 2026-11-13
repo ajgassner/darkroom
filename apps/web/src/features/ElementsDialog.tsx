@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
-import { errorMessage, reloadElements, uploadPhotos } from '@/lib/actions';
+import { deleteElement, errorMessage, reloadElements, uploadPhotos } from '@/lib/actions';
 import { api } from '@/lib/api';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { ElementInfo, ElementType } from '@/lib/types';
@@ -55,8 +55,9 @@ export function ElementsDialog() {
       onSelect={(name) => useUi.setState({ editingElement: name })}
       newPlaceholder={t('elements.newPlaceholder')}
       createLabel={t('elements.create')}
-      onCreate={async (name) => {
-        await api('/api/elements', { body: { name, label: name } });
+      folder="refs"
+      onCreate={async (name, label) => {
+        await api('/api/elements', { body: { name, label } });
         await reloadElements();
         useUi.setState({ editingElement: name });
         const s = useSettings.getState();
@@ -134,6 +135,9 @@ function ElementEditor({ el }: { el: ElementInfo }) {
         {type === 'person' && (
           <Button onClick={() => setInstr(defaultInstructions)}>{t('elements.defaultTemplate')}</Button>
         )}
+        <Button variant="danger" className="ml-auto" onClick={() => void deleteElement(el)}>
+          {t('elements.delete')}
+        </Button>
       </div>
       <DropZone
         label={t('elements.drop')}

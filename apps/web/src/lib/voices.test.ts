@@ -9,6 +9,7 @@ import {
   speechLangs,
   speechPrice,
   transcribeOptions,
+  voiceAfterDelete,
   voiceGroups,
   voiceLang,
 } from './voices';
@@ -105,6 +106,14 @@ describe('voice selection', () => {
     expect(groups[1].options).toEqual([{ value: 'de-DE-Katja', label: 'de-DE-Katja · German (DE)' }]);
     expect(groups[2].options).toEqual([{ value: 'Rachel', label: 'Rachel' }]);
     expect(voiceGroups(undefined, [], 'en', labels)).toEqual([]);
+  });
+});
+
+describe('voiceAfterDelete', () => {
+  it('clears the selection only if it was the deleted own voice', () => {
+    expect(voiceAfterDelete('voice:me', 'me')).toBe('');
+    expect(voiceAfterDelete('voice:mel', 'me')).toBe('voice:mel');
+    expect(voiceAfterDelete('alloy', 'alloy')).toBe('alloy');
   });
 });
 

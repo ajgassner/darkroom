@@ -5,8 +5,9 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
-import { errorMessage, reloadVoices, transcribe, uploadSamples } from '@/lib/actions';
+import { deleteVoice, errorMessage, reloadVoices, transcribe, uploadSamples } from '@/lib/actions';
 import { api } from '@/lib/api';
+import { transcribeApiLabel } from '@/lib/labels';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { VoiceInfo } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -32,8 +33,9 @@ export function VoicesDialog() {
       onSelect={(name) => useUi.setState({ editingVoice: name })}
       newPlaceholder={t('voices.newPlaceholder')}
       createLabel={t('voices.create')}
-      onCreate={async (name) => {
-        await api('/api/voices', { body: { name, label: name } });
+      folder="voices"
+      onCreate={async (name, label) => {
+        await api('/api/voices', { body: { name, label } });
         await reloadVoices();
         useUi.setState({ editingVoice: name });
       }}
@@ -47,6 +49,7 @@ function VoiceEditor({ v }: { v: VoiceInfo }) {
   const { t, i18n } = useTranslation();
   const status = useData((s) => s.status);
   const set = useSettings((s) => s.set);
+  const privacy = useSettings((s) => s.privacy);
   const [label, setLabel] = useState(v.label);
   const transcribeEngine = useSettings((s) => s.transcribeEngine);
   const transcribeLang = useSettings((s) => s.transcribeLang);
@@ -65,12 +68,15 @@ function VoiceEditor({ v }: { v: VoiceInfo }) {
   return (
     <>
       <h2 className="section-title">voices/{v.name}/</h2>
-      <div className="flex items-end gap-2">
-        <Field label={t('voices.displayName')} className="flex-1">
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label={t('voices.displayName')} className="min-w-40 flex-1">
           <Input value={label} onChange={(e) => setLabel(e.target.value)} />
         </Field>
         <Button variant="primary" onClick={() => void save()}>
           {t('common.save')}
+        </Button>
+        <Button variant="danger" onClick={() => void deleteVoice(v)}>
+          {t('voices.delete')}
         </Button>
       </div>
       <div className="flex items-end gap-2">
@@ -81,12 +87,7 @@ function VoiceEditor({ v }: { v: VoiceInfo }) {
             onValueChange={(x) => set({ transcribeEngine: x as 'local' | 'api' })}
             options={[
               { value: 'local', label: t('voices.engineLocal') },
-              {
-                value: 'api',
-                label: t('voices.engineApi', {
-                  model: (status?.transcribe.apiModel ?? 'Whisper').replace(/^[^/]+\//, ''),
-                }),
-              },
+              { value: 'api', label: transcribeApiLabel(t, status?.transcribe.apiModel, privacy) },
             ]}
           />
         </Field>

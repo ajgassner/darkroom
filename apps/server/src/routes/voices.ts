@@ -1,11 +1,19 @@
-// Own voices (voices/<name>/): samples, transcripts, transcription; speech/music model lists; voice previews.
+// Own voices (voices/<name>/): create, delete, samples, transcripts, transcription; speech/music model lists; voice previews.
 import path from 'node:path';
 import { listMusicModels, listSpeechModels } from '@darkroom/core/audio-models';
 import { parsePrivacy, TRANSCRIBE_ENGINE } from '@darkroom/core/config';
 import { validName } from '@darkroom/core/refs';
 import { speechDemo } from '@darkroom/core/speech';
 import { transcribeSample } from '@darkroom/core/transcribe';
-import { addSample, deleteSample, getVoice, listVoices, samplePath, saveVoice } from '@darkroom/core/voices';
+import {
+  addSample,
+  deleteSample,
+  deleteVoice,
+  getVoice,
+  listVoices,
+  samplePath,
+  saveVoice,
+} from '@darkroom/core/voices';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -50,6 +58,11 @@ export async function voiceRoutes(fastify: FastifyInstance) {
       return saveVoice(req.params.name, req.body);
     },
   );
+
+  app.delete('/api/voices/:name', { schema: { params } }, async (req) => {
+    await deleteVoice(req.params.name);
+    return { ok: true };
+  });
 
   app.post(
     '/api/voices/:name/samples',
