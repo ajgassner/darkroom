@@ -4,7 +4,10 @@ import { ENV_FILE, hasApiKey, PORT } from '@darkroom/core/config';
 import { checkForUpdate } from '@darkroom/core/system/update-check';
 import { buildApp } from './app.ts';
 import { listenErrorMessage, signalHandler } from './lifecycle.ts';
+import { ensureWebBuild } from './web-build.ts';
 
+// Source checkout: rebuild the web UI first if a git pull changed it (installed copies are built by the installer)
+ensureWebBuild();
 const app = await buildApp();
 try {
   await app.listen({ host: '127.0.0.1', port: PORT });

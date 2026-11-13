@@ -70,7 +70,7 @@ pnpm build                  # build the web UI
 pnpm start                  # open http://localhost:5177 and enter your API key
 ```
 
-In a checkout, `pnpm cli <command>` runs the same commands as `darkroom <command>` (except `update` and `uninstall`, which only say what to do in a checkout: `git pull && pnpm install && pnpm build`, or delete the folder), and the data lives in the checkout itself. Node runs the TypeScript backend and CLI directly; only the web UI is built. The server only listens on `127.0.0.1`.
+In a checkout, `pnpm cli <command>` runs the same commands as `darkroom <command>` (except `update` and `uninstall`, which only say what to do in a checkout: `git pull && pnpm install && pnpm build`, or delete the folder), and the data lives in the checkout itself. Node runs the TypeScript backend and CLI directly; only the web UI is built, and `pnpm start` / `pnpm cli start` rebuild it by themselves when it is missing or older than its sources (after a `git pull`, for example). The server only listens on `127.0.0.1`.
 
 ## First steps
 
