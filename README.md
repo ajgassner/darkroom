@@ -1,3 +1,5 @@
+<img src="apps/web/public/favicon.svg" width="72" alt="darkroom icon: a violet lens on a dark background">
+
 # darkroom
 
 **A private, local studio for AI photos of yourself, your voice and your music, powered by [OpenRouter](https://openrouter.ai).**

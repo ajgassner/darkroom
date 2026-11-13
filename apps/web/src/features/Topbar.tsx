@@ -18,8 +18,11 @@ export function Topbar() {
   return (
     <header className="sticky top-0 z-10 flex h-[52px] items-center justify-between border-b border-line bg-panel px-4">
       <div className="flex items-center gap-[22px]">
-        <div className="font-bold tracking-[0.02em]">
-          dark<span className="font-semibold text-accent-2">room</span>
+        <div className="flex items-center gap-2 font-bold tracking-[0.02em]">
+          <img src="/favicon.svg" alt="" className="size-6" />
+          <span>
+            dark<span className="font-semibold text-accent-2">room</span>
+          </span>
         </div>
         <nav className="flex gap-1 rounded-[9px] border border-line bg-panel-2 p-[3px]">
           {(['image', 'audio'] as const).map((m) => (
