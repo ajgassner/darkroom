@@ -103,6 +103,19 @@ describe('API', () => {
     expect(broken.json()).toMatchObject({ code: 'image_unreadable' });
   });
 
+  it('serves voice samples to the player, with range requests', async () => {
+    await post('/api/voices', { name: 'me', label: 'Me' });
+    const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(40)]);
+    const dataUrl = `data:audio/wav;base64,${wav.toString('base64')}`;
+    const { file } = (await post('/api/voices/me/samples', { dataUrl, filename: 'sample.wav' })).json();
+    const full = await get(`/api/voices/me/samples/${file}`);
+    expect(full.statusCode).toBe(200);
+    expect(full.rawPayload.subarray(0, 4).toString()).toBe('RIFF');
+    const ranged = await get(`/api/voices/me/samples/${file}`, { range: 'bytes=0-3' });
+    expect(ranged.statusCode).toBe(206);
+    expect(ranged.headers['content-range']).toBe(`bytes 0-3/${wav.length}`);
+  });
+
   it('streams a generation as NDJSON, serves the result and deletes it', async () => {
     fakeOpenRouter();
     const res = await post('/api/generate', { prompt: 'a red square', models: ['test/zdr'], aspectRatio: '' });
