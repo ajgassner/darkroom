@@ -1,6 +1,6 @@
 // Settings to restore when an earlier result is reused ("reuse settings" in the gallery and lightbox).
-import type { Settings } from './store';
-import type { ManifestEntry } from './types';
+import type { Settings } from '../store';
+import type { ManifestEntry } from '../types';
 
 type Entry = Pick<ManifestEntry, 'model' | 'params' | 'voice'>;
 

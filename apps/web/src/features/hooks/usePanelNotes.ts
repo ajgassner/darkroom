@@ -1,5 +1,5 @@
-import { audioNotes, imageNotes, type Note } from '@/lib/notes';
 import { useData, useSettings, useUi } from '@/lib/store';
+import { audioNotes, imageNotes, type Note } from '@/lib/text/notes';
 import { useModelName } from './useModelName';
 
 /** Notes of the open side panel (image or audio) for the current settings. */

@@ -2,8 +2,8 @@
 // a model card. Same rules as the server (fitParams in core/src/image/params.ts) and the notes: an aspect ratio or size a
 // model doesn't offer becomes its nearest one, other values (or a parameter it doesn't have) fall back to its default.
 import type { TFunction } from 'i18next';
+import type { ImageModel } from '../types';
 import { enumVals, maxRefs, nearestAspect, nearestSize, RES_ORDER, ratio } from './models';
-import type { ImageModel } from './types';
 
 export type ParamKey = 'aspect_ratio' | 'resolution' | 'quality' | 'output_format';
 

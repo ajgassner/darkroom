@@ -3,11 +3,11 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SectionTitle, Tooltip } from '@/components/ui/misc';
 import { elementPhotoUrl } from '@/lib/api';
-import { fmtTime } from '@/lib/format';
-import type { Note, NoteKey } from '@/lib/notes';
+import { fmtTime } from '@/lib/text/format';
+import type { Note, NoteKey } from '@/lib/text/notes';
 import type { ElementInfo } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { usePanelNotes } from './usePanelNotes';
+import { usePanelNotes } from './hooks/usePanelNotes';
 
 /** Compact audio player with play/pause, seek slider and time; only one plays at a time. */
 export function AudioPlayer({ src, className }: { src: string; className?: string }) {

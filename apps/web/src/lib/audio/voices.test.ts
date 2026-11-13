@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SpeechModel, VoiceInfo } from './types';
+import type { SpeechModel, VoiceInfo } from '../types';
 import {
   demoText,
   fallbackVoice,

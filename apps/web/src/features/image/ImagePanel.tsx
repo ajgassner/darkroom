@@ -14,9 +14,7 @@ import {
   type ParamKey,
   type ValueSupport,
   valueSupport,
-} from '@/lib/capabilities';
-import { usd } from '@/lib/format';
-import { promptMentions } from '@/lib/mentions';
+} from '@/lib/models/capabilities';
 import {
   ASPECTS,
   allowedByPrivacy,
@@ -29,14 +27,16 @@ import {
   SIZES,
   shortList,
   sortModels,
-} from '@/lib/models';
-import { estimateImagePrice, historyAvg, type UnitPrice, unitPrice } from '@/lib/pricing';
+} from '@/lib/models/models';
+import { estimateImagePrice, historyAvg, type UnitPrice, unitPrice } from '@/lib/models/pricing';
 import { useData, useSettings, useUi } from '@/lib/store';
+import { usd } from '@/lib/text/format';
+import { promptMentions } from '@/lib/text/mentions';
 import type { ImageModel } from '@/lib/types';
-import { FavoriteStar, ModelRow, ModelTitle } from '../ModelMarks';
+import { FavoriteStar, ModelRow, ModelTitle } from '../app/ModelMarks';
+import { ZdrTag } from '../app/ZdrTag';
+import { useModelName } from '../hooks/useModelName';
 import { Chip, DropZone, ElementThumb, PanelNotes } from '../shared';
-import { useModelName } from '../useModelName';
-import { ZdrTag } from '../ZdrTag';
 
 export function ImagePanel() {
   return (

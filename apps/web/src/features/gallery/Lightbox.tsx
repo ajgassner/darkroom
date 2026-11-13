@@ -7,14 +7,14 @@ import { Checkbox, Field, Input, SectionTitle, Tag } from '@/components/ui/misc'
 import { Select } from '@/components/ui/select';
 import { deleteEntries, entryNotices, reuseSettings } from '@/lib/actions';
 import { canBeTransparent, downloadUrl, outUrl } from '@/lib/api';
-import { entryInfoRows } from '@/lib/labels';
-import { ASPECTS, isNewModel, preferredModel, releaseMonth, toolModels, zdrState } from '@/lib/models';
+import { ASPECTS, isNewModel, preferredModel, releaseMonth, toolModels, zdrState } from '@/lib/models/models';
+import { entryTitle, relightOptions } from '@/lib/models/tools';
 import { runTool } from '@/lib/runs';
 import { useData, useSettings, useUi } from '@/lib/store';
-import { entryTitle, relightOptions } from '@/lib/tools';
+import { entryInfoRows } from '@/lib/text/labels';
 import type { ImageModel, ManifestEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { useModelName } from './useModelName';
+import { useModelName } from '../hooks/useModelName';
 
 export function Lightbox() {
   const { t } = useTranslation();

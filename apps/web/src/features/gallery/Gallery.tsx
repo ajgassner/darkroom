@@ -5,15 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/misc';
 import { deleteEntries, entryError, reuseSettings } from '@/lib/actions';
 import { canBeTransparent, downloadUrl, outUrl } from '@/lib/api';
-import { num, usd } from '@/lib/format';
-import { deleteTexts, runMetaParts, voiceLabel } from '@/lib/labels';
-import { focusComposer } from '@/lib/scroll';
+import { entryTitle } from '@/lib/models/tools';
 import { type LiveRun, useData, useSettings, useUi } from '@/lib/store';
-import { entryTitle } from '@/lib/tools';
+import { num, usd } from '@/lib/text/format';
+import { deleteTexts, runMetaParts, voiceLabel } from '@/lib/text/labels';
 import type { ManifestEntry } from '@/lib/types';
+import { focusComposer } from '@/lib/ui/scroll';
 import { cn } from '@/lib/utils';
-import { AudioPlayer } from './shared';
-import { useModelName } from './useModelName';
+import { useModelName } from '../hooks/useModelName';
+import { AudioPlayer } from '../shared';
 
 export function Gallery() {
   const { t } = useTranslation();

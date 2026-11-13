@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import { describe, expect, it } from 'vitest';
+import type { DebugRecord, ImageModel, ManifestEntry } from '../types';
 import {
   composerSummary,
   debugRows,
@@ -13,7 +14,6 @@ import {
   transcribeBlockedText,
   voiceLabel,
 } from './labels';
-import type { DebugRecord, ImageModel, ManifestEntry } from './types';
 
 /** Returns the key, followed by the param values: "composer.images:2". */
 const t = ((key: string, params?: Record<string, unknown>) =>

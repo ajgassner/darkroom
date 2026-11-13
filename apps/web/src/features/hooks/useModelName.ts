@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { modelName } from '@/lib/labels';
 import { useData } from '@/lib/store';
+import { modelName } from '@/lib/text/labels';
 
 /** Display name for any model id (image, speech, music, local tools). */
 export function useModelName() {

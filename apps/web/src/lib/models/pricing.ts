@@ -1,6 +1,6 @@
-import { money } from './format';
+import { money } from '../text/format';
+import type { CostSummary, ImageModel, ImagePrice } from '../types';
 import { enumVals } from './models';
-import type { CostSummary, ImageModel, ImagePrice } from './types';
 
 const MP_BY_SIZE: Record<string, number> = { '512': 0.25, '768': 0.6, '1K': 1, '1.5K': 2.25, '2K': 4, '4K': 16 };
 const GPT_TOKENS: Record<string, number> = { low: 272, medium: 1056, high: 4160, '': 1056 };

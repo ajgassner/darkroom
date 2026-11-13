@@ -3,7 +3,7 @@ import type * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tag, Tooltip } from '@/components/ui/misc';
 import { toggleFavorite } from '@/lib/actions';
-import { isNewModel, releaseMonth } from '@/lib/models';
+import { isNewModel, releaseMonth } from '@/lib/models/models';
 import type { ModelKind } from '@/lib/types';
 import { cn } from '@/lib/utils';
 

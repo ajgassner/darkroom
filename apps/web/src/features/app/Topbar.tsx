@@ -2,8 +2,8 @@ import { useTranslation } from 'react-i18next';
 import { Tooltip } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
 import { LANGUAGES, type Lang } from '@/i18n';
-import { usd } from '@/lib/format';
 import { useData, useSettings } from '@/lib/store';
+import { usd } from '@/lib/text/format';
 import type { PrivacyMode } from '@/lib/types';
 import { cn } from '@/lib/utils';
 

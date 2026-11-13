@@ -9,8 +9,8 @@ import { deleteElement, reloadElements, toastError, uploadPhotos } from '@/lib/a
 import { api } from '@/lib/api';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { ElementInfo, ElementType } from '@/lib/types';
+import { DropZone, ElementThumb } from '../shared';
 import { ListDialog } from './ListDialog';
-import { DropZone, ElementThumb } from './shared';
 
 const TYPES: ElementType[] = ['person', 'logo', 'object', 'location', 'style'];
 const HINT = {

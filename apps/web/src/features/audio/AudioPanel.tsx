@@ -7,9 +7,6 @@ import { Input, RadioDot, SectionTitle, Tag, Tooltip } from '@/components/ui/mis
 import { Select, type SelectGroup } from '@/components/ui/select';
 import { refreshHistory, toastError } from '@/lib/actions';
 import { api, outUrl } from '@/lib/api';
-import { allowedByPrivacy, shortList, shortName, sortModels } from '@/lib/models';
-import { useData, useSettings, useUi } from '@/lib/store';
-import type { SpeechModel } from '@/lib/types';
 import {
   demoText,
   fallbackVoice,
@@ -20,10 +17,13 @@ import {
   speechPrice,
   voiceGroups,
   voiceLang,
-} from '@/lib/voices';
-import { FavoriteStar, ModelRow, ModelTitle } from '../ModelMarks';
+} from '@/lib/audio/voices';
+import { allowedByPrivacy, shortList, shortName, sortModels } from '@/lib/models/models';
+import { useData, useSettings, useUi } from '@/lib/store';
+import type { SpeechModel } from '@/lib/types';
+import { FavoriteStar, ModelRow, ModelTitle } from '../app/ModelMarks';
+import { ZdrTag } from '../app/ZdrTag';
 import { Chip, PanelNotes } from '../shared';
-import { ZdrTag } from '../ZdrTag';
 
 export function AudioPanel() {
   const { t } = useTranslation();

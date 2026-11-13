@@ -2,12 +2,12 @@ import { toast } from 'sonner';
 import i18n from '@/i18n';
 import { entryError, refreshHistory, toastError } from './actions';
 import { streamEvents } from './api';
-import { usd } from './format';
-import { existingElement } from './mentions';
-import { allowedByPrivacy } from './models';
-import { revealGallery } from './scroll';
+import { allowedByPrivacy } from './models/models';
 import { type LiveFirst, type LiveRun, type Settings, updateLiveRun, useData, useSettings, useUi } from './store';
+import { usd } from './text/format';
+import { existingElement } from './text/mentions';
 import type { ManifestEntry, RunEvent } from './types';
+import { revealGallery } from './ui/scroll';
 
 const t = i18n.t.bind(i18n);
 let runCounter = 0;

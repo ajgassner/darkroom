@@ -1,4 +1,4 @@
-import type { ElementInfo } from './types';
+import type { ElementInfo } from '../types';
 
 /** @name mentions; the lookbehind-like prefix group avoids matching e-mail addresses. */
 const MENTION_RE = /(^|[^A-Za-z0-9_.@-])@([A-Za-z0-9_](?:[A-Za-z0-9_.-]*[A-Za-z0-9_])?)/g;

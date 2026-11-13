@@ -1,12 +1,12 @@
 // Which notes/warnings the side panels show for the current settings. Pure: returns translation keys
 // (below `notes.`) with their params, the panels translate and render them.
 import type { en } from '@/i18n/en';
-import { fallbackOf } from './capabilities';
+import { followsInstructions, pricePerThousandChars } from '../audio/voices';
+import { fallbackOf } from '../models/capabilities';
+import { allowedByPrivacy, maxRefs } from '../models/models';
+import type { Settings } from '../store';
+import type { ElementInfo, ImageModel, MusicModel, SpeechModel, Status, VoiceInfo } from '../types';
 import { activeElements, promptMentions } from './mentions';
-import { allowedByPrivacy, maxRefs } from './models';
-import type { Settings } from './store';
-import type { ElementInfo, ImageModel, MusicModel, SpeechModel, Status, VoiceInfo } from './types';
-import { followsInstructions, pricePerThousandChars } from './voices';
 
 export type NoteKey = Exclude<keyof (typeof en)['notes'], 'title'>;
 export type NoteTone = '' | 'warn' | 'err';

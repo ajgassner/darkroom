@@ -1,7 +1,7 @@
 // Translated titles of tool results and relight presets. The server stores English labels as the prompt; the UI
 // builds its own from `tool` + `toolOptions` and falls back to the stored prompt for unknown tools or old entries.
 import type { TFunction } from 'i18next';
-import type { ManifestEntry } from './types';
+import type { ManifestEntry } from '../types';
 
 /** Relight presets with a translation (tools.preset.*); others keep the server's English label. */
 const RELIGHT_PRESETS = ['golden', 'studio', 'window', 'dramatic', 'overcast', 'blue', 'night'] as const;

@@ -7,14 +7,14 @@ import { Field, Input, Textarea } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
 import { deleteVoice, reloadVoices, toastError, transcribe, uploadSamples } from '@/lib/actions';
 import { api } from '@/lib/api';
-import { transcribeApiLabel } from '@/lib/labels';
+import { transcribeOptions } from '@/lib/audio/voices';
+import { MAX_SAMPLE_SEC } from '@/lib/audio/wav';
 import { useData, useSettings, useUi } from '@/lib/store';
+import { transcribeApiLabel } from '@/lib/text/labels';
 import type { VoiceInfo } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { transcribeOptions } from '@/lib/voices';
-import { MAX_SAMPLE_SEC } from '@/lib/wav';
+import { AudioPlayer, DropZone } from '../shared';
 import { ListDialog } from './ListDialog';
-import { AudioPlayer, DropZone } from './shared';
 
 export function VoicesDialog() {
   const { t } = useTranslation();

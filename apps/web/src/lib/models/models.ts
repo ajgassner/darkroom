@@ -1,4 +1,4 @@
-import type { ImageModel, ModelMarks, ParamSpec, PrivacyMode, ZdrEndpoint } from './types';
+import type { ImageModel, ModelMarks, ParamSpec, PrivacyMode, ZdrEndpoint } from '../types';
 
 export const ASPECTS = ['1:1', '4:5', '3:4', '2:3', '9:16', '5:4', '4:3', '3:2', '16:9', '21:9'];
 export const SIZES = ['', '512', '1K', '2K', '4K'];
