@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { plainOutput } from './out.ts';
+import { jsonOutput, plainOutput } from './out.ts';
 
 describe('plain output', () => {
   it('writes results and listings to stdout, everything else to stderr, as plain lines', () => {
@@ -31,5 +31,17 @@ describe('plain output', () => {
       'Total so far: $0.0100\n',
       'Cancelled\n',
     ]);
+  });
+
+  it('keeps stdout free with --json: only progress, totals and cancellation on stderr', () => {
+    const stderr: string[] = [];
+    const out = jsonOutput({ write: (s: string) => stderr.push(s) });
+    out.intro('darkroom · images');
+    out.status('1 result, 0 errors, $0.0100');
+    for (const write of [out.success, out.message, out.info, out.hint, out.warn, out.error]) write('data');
+    out.note(['$0.01  1  x/y'], 'Costs');
+    out.outro('Done');
+    out.cancel('Cancelled');
+    expect(stderr).toEqual(['1 result, 0 errors, $0.0100\n', 'Done\n', 'Cancelled\n']);
   });
 });

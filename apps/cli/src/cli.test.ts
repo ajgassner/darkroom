@@ -1,9 +1,9 @@
-import { spawn } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const CLI = path.join(import.meta.dirname, 'cli.ts');
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'darkroom-cli-run-'));
@@ -116,5 +116,95 @@ describe('CLI process', () => {
     expect(add.code).toBe(1);
     expect(add.output).toContain('Network error');
     expect((await cli(['favorites', 'video'])).output).toContain("'video' is invalid for argument 'kind'");
+  });
+});
+
+/** stdout as the one JSON document it must be. */
+const json = (res: Run) => JSON.parse(res.stdout);
+
+describe('CLI process with --json', () => {
+  it('prints an error document on stdout for invalid input, with exit code 1', async () => {
+    const size = await cli(['gen', '--json', '-s', '8k', 'a cat']);
+    expect(size.code).toBe(1);
+    expect(json(size)).toEqual({
+      ok: false,
+      error: { code: 'commander.invalidArgument', message: expect.stringContaining("'8k' is invalid"), params: {} },
+    });
+    expect(size.stderr).toBe('');
+    const prompt = await cli(['gen', '--json', '-m', 'a/b']);
+    expect(json(prompt).error).toMatchObject({ code: 'missing_argument', params: { argument: 'Prompt' } });
+    const key = await cli(['speak', '--json', 'hello']);
+    expect(key.code).toBe(1);
+    expect(json(key).error.code).toBe('api_key_missing');
+    expect(json(await cli(['--json'])).error.code).toBe('commander.unknownOption');
+  });
+
+  it('lists favorites, elements and costs without network', async () => {
+    await fs.writeFile(path.join(home, 'favorites.json'), JSON.stringify({ image: ['a/one'], speech: [], music: [] }));
+    expect(json(await cli(['favorites', '--json']))).toEqual([{ kind: 'image', model: 'a/one' }]);
+    const removed = await cli(['favorites', 'rm', 'a/one', '--json']);
+    expect(json(removed)).toEqual({ ok: true, model: 'a/one', removedFrom: ['image'], favorite: false });
+    expect(json(await cli(['elements', '--json']))).toEqual([]);
+    expect(json(await cli(['voices', '--json']))).toEqual([]);
+    expect(json(await cli(['costs', '--json']))).toEqual({ total: 0, results: 0, models: [] });
+  });
+
+  it('prints the skill guide as plain Markdown', async () => {
+    const res = await cli(['skill'], { CI: 'true' });
+    expect(res.code).toBe(0);
+    expect(res.stdout).toMatch(/^---\nname: darkroom\n/);
+    expect(res.stdout).not.toContain('\u001b');
+  });
+});
+
+describe('CLI process with --json against the OpenRouter mock', () => {
+  let mock: ChildProcess;
+  let base = '';
+  const MOCK = path.join(import.meta.dirname, '../../../scripts/mock-openrouter.ts');
+
+  beforeAll(async () => {
+    mock = spawn(process.execPath, [MOCK], { env: { ...process.env, MOCK_PORT: '0' } });
+    base = await new Promise<string>((resolve) => {
+      mock.stdout?.on('data', (d) => {
+        const url = /http:\/\/\S+/.exec(String(d));
+        if (url) resolve(url[0]);
+      });
+    });
+  });
+  afterAll(() => mock.kill());
+
+  const run = (args: string[]) => cli([...args, '--json'], { OPENROUTER_API_KEY: 'test', OPENROUTER_BASE: base });
+
+  it('prints a run with absolute result paths, coded warnings, errors and costs', async () => {
+    const res = await run(['gen', '-m', 'mock/image,mock/image-error', '-a', '5:4', 'a cat']);
+    expect(res.code).toBe(0);
+    const doc = json(res);
+    expect(doc).toMatchObject({
+      ok: true,
+      results: [{ kind: 'image', model: 'mock/image', cost: 0.01, warnings: [{ code: 'aspect_adjusted' }] }],
+      errors: [{ model: 'mock/image-error', code: null, message: expect.stringContaining('overloaded') }],
+      cost: { run: 0.01 },
+    });
+    expect(path.isAbsolute(doc.results[0].file)).toBe(true);
+    await expect(fs.stat(doc.results[0].file)).resolves.toBeTruthy();
+    // Progress on stderr as plain lines, nothing else on stdout
+    expect(res.stderr).toContain('1 result, 1 error');
+    expect(res.stdout.trim().split('\n')).toHaveLength(1);
+
+    const failed = await run(['gen', '-m', 'mock/image-error', 'a cat']);
+    expect(failed.code).toBe(1);
+    expect(json(failed)).toMatchObject({ ok: false, results: [], errors: [{ model: 'mock/image-error' }] });
+  });
+
+  it('prints speech results and model listings', async () => {
+    const speech = json(await run(['speak', '-m', 'mock/tts', '-v', 'en-US-Mock', 'hello']));
+    expect(speech.results).toEqual([
+      expect.objectContaining({ kind: 'speech', model: 'mock/tts', voice: 'en-US-Mock' }),
+    ]);
+    const models = json(await run(['models', 'speech', '--details']));
+    expect(models.map((m: { id: string }) => m.id)).toContain('mock/clone');
+    expect(models.find((m: { id: string }) => m.id === 'mock/tts')).toMatchObject({ voiceCount: 2, usable: true });
+    const voices = json(await run(['voices', 'mock/tts']));
+    expect(voices[0]).toEqual({ voice: 'de-DE-Mock', label: expect.any(String), language: 'German', own: false });
   });
 });

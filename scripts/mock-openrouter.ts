@@ -1,9 +1,10 @@
 // Local stand-in for the OpenRouter endpoints darkroom uses: for trying out and testing the UI without an API key
 // and without costs. Results are solid-color images, a short beep as speech and a few bytes as music.
 //
-//   node scripts/mock-openrouter.ts            (port 5299, or MOCK_PORT)
+//   node scripts/mock-openrouter.ts            (port 5299, or MOCK_PORT; 0 picks a free port, printed at start)
 //   OPENROUTER_BASE=http://127.0.0.1:5299 OPENROUTER_API_KEY=test DARKROOM_HOME=$(mktemp -d) pnpm start
 import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import zlib from 'node:zlib';
 
 const PORT = Number(process.env.MOCK_PORT ?? 5299);
@@ -219,6 +220,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   console.log(`${method} ${path} → ${status}`);
 }
 
-http
-  .createServer((req, res) => void handle(req, res))
-  .listen(PORT, '127.0.0.1', () => console.log(`Mock OpenRouter at http://127.0.0.1:${PORT}${BASE}`));
+const server = http.createServer((req, res) => void handle(req, res));
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`Mock OpenRouter at http://127.0.0.1:${(server.address() as AddressInfo).port}${BASE}`);
+});

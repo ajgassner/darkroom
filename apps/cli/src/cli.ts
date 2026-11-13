@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // darkroom CLI: generate images, speech and music from the terminal (same core as the web UI).
 // Without the required input in a terminal it asks interactively (see studio.ts); scripts never get a prompt.
+// --json prints one JSON document instead (json.ts), and `darkroom skill` prints the guide for AI agents (skill.ts).
 import './no-color.ts';
 import {
   APP_VERSION,
@@ -12,12 +13,17 @@ import {
   parsePrivacy,
 } from '@darkroom/core/config';
 import type { ManifestEntry, ModelKind } from '@darkroom/core/contract';
+import { AppError } from '@darkroom/core/errors';
 import { MODEL_KINDS } from '@darkroom/core/favorites';
-import { Argument, Command, InvalidArgumentError, Option } from 'commander';
+import { costSummary, readEntries } from '@darkroom/core/manifest';
+import { Argument, Command, CommanderError, InvalidArgumentError, Option } from 'commander';
 import pc from 'picocolors';
 import { collect, explicitOptions, floatArg, intArg, parseModels, resolveRefs, sizeArg } from './args.ts';
 import type { ImageRun, MusicRun, SpeechRun } from './command-line.ts';
+import { failureDocument, printJson, type RunKind, runDocument } from './json.ts';
+import { EXIT, jsonMode } from './mode.ts';
 import { out } from './out.ts';
+import { skillGuide } from './skill.ts';
 import {
   addFavorite,
   interactiveMode,
@@ -36,7 +42,7 @@ import {
   startWeb,
   totalLine,
 } from './studio.ts';
-import { clackPrompter, failSpinner, interactive } from './term.ts';
+import { cancelled, clackPrompter, failSpinner, interactive } from './term.ts';
 
 function privacyOption(description = 'zdr | zdr-strict | off') {
   return new Option('--privacy <mode>', description).default(DEFAULT_PRIVACY).argParser((v): PrivacyMode => {
@@ -46,26 +52,34 @@ function privacyOption(description = 'zdr | zdr-strict | off') {
   });
 }
 
+/** --json on the commands that print data or results. */
+const jsonOption = () =>
+  new Option('--json', 'print one JSON document on stdout, never ask (for scripts and AI agents; see darkroom skill)');
+
 /** A required text is missing outside a terminal: an error, as scripts and agents must never get a prompt. */
 function missing(what: string): never {
-  throw new Error(`${what} (missing argument)`);
+  throw new AppError('missing_argument', `${what} (missing argument)`, { argument: what });
 }
 
-/** Exit code 1 when a run delivered nothing but errors. */
-function setExitCode(entries: ManifestEntry[]) {
-  if (entries.length && !entries.some((e) => e.ok)) process.exitCode = 1;
+/** After a run: exit code 1 when it delivered nothing but errors; the JSON document or the closing line. */
+async function finish(kind: RunKind, entries: ManifestEntry[], outro: () => Promise<string> | string) {
+  if (entries.length && !entries.some((e) => e.ok)) process.exitCode = EXIT.failed;
+  if (jsonMode) return printJson(runDocument(kind, entries, costSummary(await readEntries()), OUT_DIR));
+  out.outro(pc.dim(await outro()));
 }
 
 /** Where a command's option values came from ('cli' when given on the command line). */
 const sourceOf = (cmd: Command) => (key: string) => cmd.getOptionValueSource(key);
 
-const program = new Command()
+export const program = new Command()
   .name('darkroom')
   .description(
     'Local, private images and audio with your own references via OpenRouter.\nWithout a command in a terminal: interactive menu.',
   )
   .version(APP_VERSION)
   .showHelpAfterError();
+// --json: invalid arguments become the JSON error document (see the catch below) instead of commander's text
+if (jsonMode) program.exitOverride().configureOutput({ writeErr: () => {} });
 
 // The installed darkroom command handles "darkroom update" and "darkroom uninstall [--yes]" itself (they replace
 // or remove the app the CLI runs from). They reach the CLI only with other arguments (like --help) or in a git
@@ -110,6 +124,7 @@ program
   .option('--no-prefix', 'do not prepend the element instructions')
   .option('--max-side <px>', 'longest side of the references', intArg(256, 4096))
   .addOption(privacyOption())
+  .addOption(jsonOption())
   .action(async (words: string[], o, cmd: Command) => {
     out.intro(pc.inverse(' darkroom · images '));
     const run: ImageRun = {
@@ -136,8 +151,7 @@ program
       });
       await interactiveMode(clackPrompter, 'image', { image: fixed });
     }
-    setExitCode(await runImage(run));
-    out.outro(pc.dim(await totalLine()));
+    await finish('image', await runImage(run), totalLine);
   });
 
 program
@@ -149,6 +163,7 @@ program
   .option('-i, --instructions <text>', 'delivery instructions (Gemini, Fish Audio, OpenAI)')
   .option('--speed <x>', 'speed from 0.25 to 4, e.g. 0.9 or 1.1', floatArg(0.25, 4))
   .addOption(privacyOption())
+  .addOption(jsonOption())
   .action(async (words: string[], o, cmd: Command) => {
     out.intro(pc.inverse(' darkroom · speech '));
     const run: SpeechRun = {
@@ -166,8 +181,7 @@ program
       });
       await interactiveMode(clackPrompter, 'speech', { speech: fixed });
     }
-    setExitCode(await runSpeechRun(run));
-    out.outro(pc.dim('Done'));
+    await finish('speech', await runSpeechRun(run), () => 'Done');
   });
 
 program
@@ -178,6 +192,7 @@ program
   .option('-v, --voice <voice>', 'model voice, or voice:<name> for an own voice (default: the model default voice)')
   .option('--no-play', 'do not play it, only print the path of the audio file')
   .addOption(privacyOption())
+  .addOption(jsonOption())
   .addHelpText(
     'after',
     '\nPlays with afplay (macOS), paplay, aplay or ffplay (Linux) or PowerShell (Windows); without a player it\n' +
@@ -186,10 +201,11 @@ program
   .action(async (words: string[], o) => {
     out.intro(pc.inverse(' darkroom · voice preview '));
     const request = { model: o.model, voice: o.voice ?? '', text: words.join(' '), privacy: o.privacy };
-    const playback = await previewVoice(request, { play: o.play });
-    if (playback === 'stopped') {
-      out.cancel('Stopped');
-      process.exit(130);
+    const preview = await previewVoice(request, { play: o.play });
+    if (preview.playback === 'stopped') cancelled('Stopped');
+    if (jsonMode) {
+      const { file, cached, playback } = preview;
+      return printJson({ ok: true, file, model: request.model, voice: request.voice || null, cached, playback });
     }
     out.outro(pc.dim('Done'));
   });
@@ -200,6 +216,7 @@ program
   .argument('[prompt...]', 'style, instruments, tempo, mood, lyrics')
   .option('-m, --model <id>', 'music model', MUSIC_MODEL)
   .addOption(privacyOption())
+  .addOption(jsonOption())
   .action(async (words: string[], o, cmd: Command) => {
     out.intro(pc.inverse(' darkroom · music '));
     const run: MusicRun = { privacy: o.privacy, model: o.model, prompt: words.join(' ').trim() };
@@ -208,8 +225,7 @@ program
       const fixed = explicitOptions(run, sourceOf(cmd), { privacy: 'privacy', model: 'model' });
       await interactiveMode(clackPrompter, 'music', { music: fixed });
     }
-    setExitCode(await runMusicRun(run));
-    out.outro(pc.dim('Done'));
+    await finish('music', await runMusicRun(run), () => 'Done');
   });
 
 program
@@ -220,6 +236,7 @@ program
   .option('--search <text>', 'filter by id or name')
   .option('--details', 'all parameters per model: sizes, aspect ratios, references, formats, voices, …')
   .addOption(privacyOption('privacy mode the models are checked against: zdr | zdr-strict | off'))
+  .addOption(jsonOption())
   .action((kind, o) => showModels(kind, o));
 
 const favorites = program
@@ -231,6 +248,7 @@ const favorites = program
     '\nExamples:\n  darkroom favorites add microsoft/mai-image-2.6\n  darkroom favorites remove microsoft/mai-image-2.6\n' +
       '  darkroom favorites speech\nStored in favorites.json in the data folder, shared with the web UI.',
   )
+  .addOption(jsonOption())
   .action((kind?: ModelKind) => showFavorites(kind));
 const kindOption = () =>
   new Option('--kind <kind>', 'image | speech | music (default: found in the catalogs)').choices(MODEL_KINDS);
@@ -239,6 +257,7 @@ favorites
   .description('Add a model to the favorites')
   .argument('<model>', 'model id, e.g. microsoft/mai-image-2.6')
   .addOption(kindOption())
+  .addOption(jsonOption())
   .action((model: string, o: { kind?: ModelKind }) => addFavorite(model, o.kind));
 favorites
   .command('remove')
@@ -246,39 +265,59 @@ favorites
   .description('Remove a model from the favorites')
   .argument('<model>', 'model id')
   .addOption(kindOption())
+  .addOption(jsonOption())
   .action((model: string, o: { kind?: ModelKind }) => removeFavorite(model, o.kind));
 
 program
   .command('voices')
   .description('Own voices, or the voices of a speech model by language (with your own voices)')
   .argument('[model]', 'speech model, e.g. elevenlabs/eleven-v4')
+  .addOption(jsonOption())
   .action((model?: string) => showVoices(model));
 
 program
   .command('elements')
   .description('Reference sets in refs/')
+  .addOption(jsonOption())
   .action(() => showElements());
 
 program
   .command('costs')
   .description('Cost total per model from out/manifest.jsonl')
+  .addOption(jsonOption())
   .action(() => showCosts());
+
+program
+  .command('skill')
+  .description('Print the usage guide for AI agents (Markdown, matches this version)')
+  .addHelpText(
+    'after',
+    '\nTell your AI agent (Claude Code, Codex, Gemini CLI, Cursor, …): "run `darkroom skill` and use it".',
+  )
+  .action(() => void process.stdout.write(skillGuide(program)));
 
 program
   .command('start')
   .description(`Start the web UI on http://localhost:${PORT} (Ctrl+C stops it)`)
   .action(() => startWeb());
 
-try {
-  // Plain `darkroom` in a terminal opens the main menu; elsewhere commander prints the help as before
-  if (process.argv.length <= 2 && interactive) {
-    out.intro(pc.inverse(' darkroom '));
-    await interactiveMode(clackPrompter, 'menu');
+/** Help and --version end commander with exit code 0 (with --json they come here as an error). */
+const helpShown = (err: unknown) => err instanceof CommanderError && err.exitCode === EXIT.ok;
+
+if (import.meta.main) {
+  try {
+    // Plain `darkroom` in a terminal opens the main menu; elsewhere commander prints the help as before
+    if (process.argv.length <= 2 && interactive) {
+      out.intro(pc.inverse(' darkroom '));
+      await interactiveMode(clackPrompter, 'menu');
+    }
+    await program.parseAsync();
+  } catch (err) {
+    if (helpShown(err)) process.exit(EXIT.ok);
+    failSpinner();
+    if (jsonMode) printJson(failureDocument(err));
+    else out.error((err as Error).message);
+    // Exit right away: background work of the failed command (catalog requests, timers) must not keep it running
+    process.exit(EXIT.failed);
   }
-  await program.parseAsync();
-} catch (err) {
-  failSpinner();
-  out.error((err as Error).message);
-  // Exit right away: background work of the failed command (catalog requests, timers) must not keep it running
-  process.exit(1);
 }
