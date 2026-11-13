@@ -9,7 +9,7 @@ export type { PrivacyMode };
 /** Directory of this package's sources (workers are spawned from here). */
 export const CORE_SRC_DIR = path.dirname(fileURLToPath(import.meta.url));
 /** Repository root: the app itself (presets.json, built web UI). */
-const APP_DIR = path.resolve(CORE_SRC_DIR, '..', '..', '..');
+export const APP_DIR = path.resolve(CORE_SRC_DIR, '..', '..', '..');
 /** Version of this darkroom (root package.json); releases are tagged v<version>. */
 export const APP_VERSION: string = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'package.json'), 'utf8')).version;
 /** Running from a git checkout (updated with git pull) rather than an installed copy (darkroom update). */

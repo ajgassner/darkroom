@@ -2,7 +2,16 @@
 // version. Option names, defaults, choices, privacy modes, exit codes and the JSON examples come from the actual
 // definitions (commander commands, constants, output/json.ts), so the guide cannot drift from the CLI; skill.test.ts
 // checks that every command and option appears.
-import { APP_VERSION, DEFAULT_MODEL, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode, ROOT } from '@darkroom/core/config';
+import {
+  APP_DIR,
+  APP_VERSION,
+  DEFAULT_MODEL,
+  DEFAULT_PRIVACY,
+  FROM_SOURCE,
+  OUT_DIR,
+  type PrivacyMode,
+  ROOT,
+} from '@darkroom/core/config';
 import type { ManifestEntry } from '@darkroom/core/contract';
 import { MODEL_KINDS } from '@darkroom/core/models/favorites';
 import type { Argument, Command, Option } from 'commander';
@@ -127,12 +136,32 @@ const FRONT_MATTER = [
   '---',
 ];
 
+/**
+ * How to call darkroom here: the installed `darkroom` command, or the CLI of a source checkout (no command on the
+ * PATH; pnpm's --silent keeps its own header lines out of stdout, so --json output stays parseable).
+ */
+export function invocation(fromSource: boolean, appDir: string): string {
+  return fromSource ? `pnpm --silent --dir ${JSON.stringify(appDir)} cli` : 'darkroom';
+}
+
+const CMD = invocation(FROM_SOURCE, APP_DIR);
+
+/** Note for a source checkout: the guide says `darkroom`, which does not exist as a command here. */
+export function sourceNote(cmd: string): string[] {
+  if (cmd === 'darkroom') return [];
+  return [
+    `**This darkroom runs from a source checkout, without the installer: there is no \`darkroom\` command.** Wherever this guide says \`darkroom\`, run \`${cmd}\` instead (for example \`${cmd} gen --json …\`).`,
+    '',
+  ];
+}
+
 function intro(): string[] {
   return [
     `# darkroom ${APP_VERSION}: guide for AI agents`,
     '',
-    "darkroom is a local studio for AI images, speech, cloned voices and music. It calls models on OpenRouter with the user's own API key and keeps every result on this machine. This guide matches the installed version; run `darkroom skill` again after an update.",
+    `darkroom is a local studio for AI images, speech, cloned voices and music. It calls models on OpenRouter with the user's own API key and keeps every result on this machine. This guide matches the installed version; run \`${CMD} skill\` again after an update.`,
     '',
+    ...sourceNote(CMD),
     '## Rules',
     '',
     '- Always pass `--json` (gen, speak, music, preview, models, voices, elements, favorites, costs). darkroom then never asks a question and prints exactly one JSON document on stdout; progress goes to stderr. A missing prompt or text is an error, not a question.',
@@ -252,7 +281,7 @@ const OUTRO = [
   '```markdown',
   ...FRONT_MATTER.filter((l) => !/^metadata:|^ {2}version/.test(l)),
   '',
-  'Before using darkroom, run `darkroom skill` and follow the guide it prints (it matches the installed version).',
+  `Before using darkroom, run the shell command \`${CMD} skill\` and follow the guide it prints (it matches the installed version).`,
   '```',
   '',
 ];
