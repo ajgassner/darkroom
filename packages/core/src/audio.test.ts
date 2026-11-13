@@ -41,14 +41,20 @@ describe('audio model catalogs', () => {
   it('lists speech models with voices, cloning flag and ZDR status', async () => {
     fakeOpenRouter();
     const models = await listSpeechModels(true);
-    expect(models.map((m) => m.id)).toEqual(['test/clone', 'google/test-tts', 'test/tts', 'test/tts-open']);
+    expect(models.map((m) => m.id)).toEqual([
+      'test/clone',
+      'google/test-tts',
+      'test/tts',
+      'test/tts-safety',
+      'test/tts-open',
+    ]);
     expect(models.find((m) => m.id === 'test/clone')).toMatchObject({ cloning: true, zdr: [expect.any(Object)] });
     expect(models.find((m) => m.id === 'test/tts')).toMatchObject({ voices: ['alloy', 'echo'], cloning: false });
   });
 
   it('lists only music models (no chat audio models)', async () => {
     fakeOpenRouter();
-    expect((await listMusicModels(true)).map((m) => m.id)).toEqual(['test/lyria']);
+    expect((await listMusicModels(true)).map((m) => m.id)).toEqual(['test/lyria', 'test/lyria-zdr']);
   });
 });
 
@@ -109,13 +115,39 @@ describe('own voices', () => {
     expect(api.callsTo('/audio/transcriptions')[0].body).toMatchObject({
       language: 'de',
       input_audio: { format: 'wav' },
-      provider: { zdr: true },
+      provider: { only: ['whisper-provider'], allow_fallbacks: false },
     });
     expect((await getVoice('tr')).transcripts[file]).toBe('Hello world.');
-    expect((await readEntries()).at(-1)).toMatchObject({ tool: 'transcribe', demo: true, cost: 0.001 });
+    expect((await readEntries()).at(-1)).toMatchObject({
+      tool: 'transcribe',
+      demo: true,
+      cost: 0.001,
+      providerRestriction: ['whisper-provider'],
+    });
 
     fakeOpenRouter({ transcription: () => json({ error: { message: 'bad audio' } }, { status: 400 }) });
     await expect(transcribeSample('tr', file, 'api', 'auto', 'off')).rejects.toThrow('HTTP 400: bad audio');
+  });
+
+  it('sends no provider restriction for API transcription without privacy', async () => {
+    await saveVoice('tr-off', {});
+    const file = await addSample('tr-off', 'a.wav', wav(0.5));
+    const api = fakeOpenRouter();
+    await transcribeSample('tr-off', file, 'api', 'auto', 'off');
+    expect(api.callsTo('/audio/transcriptions')[0].body).not.toHaveProperty('provider');
+    expect((await readEntries()).at(-1)).toMatchObject({ tool: 'transcribe', providerRestriction: null });
+  });
+
+  it('blocks API transcription when the privacy mode allows no endpoint', async () => {
+    await saveVoice('tr-strict', {});
+    const file = await addSample('tr-strict', 'a.wav', wav(0.5));
+    const api = fakeOpenRouter();
+    // The transcription model only has a ZDR endpoint with safety retention
+    await expect(transcribeSample('tr-strict', file, 'api', 'de', 'zdr-strict')).rejects.toMatchObject({
+      code: 'privacy_blocked_strict',
+    });
+    expect(api.callsTo('/audio/transcriptions')).toHaveLength(0);
+    expect((await getVoice('tr-strict')).transcripts[file]).toBeUndefined();
   });
 });
 
@@ -141,7 +173,7 @@ describe('runSpeech', () => {
       voice: 'alloy',
       instructions: 'calm',
       speed: 1.1,
-      provider: { zdr: true },
+      provider: { only: ['tts-provider'], allow_fallbacks: false },
       response_format: 'mp3',
     });
     expect(entry).toMatchObject({
@@ -152,6 +184,7 @@ describe('runSpeech', () => {
       fullPrompt: '[calm] Hello',
       params: { instructions: 'calm', speed: 1.1, format: 'mp3' },
       generationId: 'gen-tts',
+      providerRestriction: ['tts-provider'],
     });
     expect(entry.file).toMatch(/_tts_test_tts\.mp3$/);
 
@@ -166,6 +199,46 @@ describe('runSpeech', () => {
     const [entry] = await runSpeech({ text: 'Hi', model: 'test/tts-open', voice: 'x' });
     expect(entry).toMatchObject({ ok: false, errorCode: 'privacy_blocked' });
     expect(api.callsTo('/audio/speech')).toHaveLength(0);
+  });
+
+  it('restricts speech to the ZDR endpoints the privacy mode allows', async () => {
+    const api = fakeOpenRouter();
+    const [relaxed] = await runSpeech({ text: 'Hi', model: 'test/tts-safety', voice: 'y', privacy: 'zdr' });
+    expect(relaxed).toMatchObject({ ok: true, providerRestriction: ['tts-safety-provider'] });
+    expect(api.callsTo('/audio/speech')[0].body).toMatchObject({
+      provider: { only: ['tts-safety-provider'], allow_fallbacks: false },
+    });
+
+    const [strict] = await runSpeech({ text: 'Hi', model: 'test/tts', voice: 'alloy', privacy: 'zdr-strict' });
+    expect(strict).toMatchObject({ ok: true, providerRestriction: ['tts-provider'] });
+    expect(api.callsTo('/audio/speech')[1].body).toMatchObject({
+      provider: { only: ['tts-provider'], allow_fallbacks: false },
+    });
+
+    // Only an endpoint with safety retention: blocked in strict mode, no call
+    const [blocked] = await runSpeech({ text: 'Hi', model: 'test/tts-safety', voice: 'y', privacy: 'zdr-strict' });
+    expect(blocked).toMatchObject({ ok: false, errorCode: 'privacy_blocked_strict' });
+    expect(api.callsTo('/audio/speech')).toHaveLength(2);
+
+    const [off] = await runSpeech({ text: 'Hi', model: 'test/tts-open', voice: 'x', privacy: 'off' });
+    expect(off).toMatchObject({ ok: true, providerRestriction: null });
+    expect(api.callsTo('/audio/speech')[2].body).not.toHaveProperty('provider');
+  });
+
+  it('restricts voice cloning like model voices in strict mode', async () => {
+    await saveVoice('strict-clone', {});
+    await addSample('strict-clone', 'a.wav', wav(1));
+    const api = fakeOpenRouter();
+    const [entry] = await runSpeech({
+      text: 'Hi',
+      model: 'test/clone',
+      voice: 'voice:strict-clone',
+      privacy: 'zdr-strict',
+    });
+    expect(entry).toMatchObject({ ok: true, providerRestriction: ['clone-provider'] });
+    expect(api.callsTo('/audio/speech')[0].body).toMatchObject({
+      provider: { only: ['clone-provider'], allow_fallbacks: false },
+    });
   });
 
   it('clones an own voice with one combined clip plus transcript', async () => {
@@ -237,6 +310,7 @@ describe('runMusic', () => {
     const api = fakeOpenRouter();
     const [entry] = await runMusic({ prompt: 'calm guitar', model: 'test/lyria' });
     expect(api.callsTo('/chat/completions')[0].body).toMatchObject({ modalities: ['audio', 'text'], stream: true });
+    expect(api.callsTo('/chat/completions')[0].body).not.toHaveProperty('provider');
     expect(entry).toMatchObject({
       ok: true,
       cost: 0.04,
@@ -245,9 +319,21 @@ describe('runMusic', () => {
       mediaType: 'audio/mpeg',
       fullPrompt: 'calm guitar\n\n--- Model text ---\nVerse 1',
       notices: [{ code: 'music_no_zdr' }],
+      providerRestriction: null,
     });
     const saved = await fs.readFile(path.join(OUT_DIR, entry.file as string), 'utf8');
     expect(saved).toBe('ID3-part1-part2');
+  });
+
+  it('restricts music to the ZDR endpoints when the model has one', async () => {
+    const api = fakeOpenRouter();
+    for (const privacy of ['zdr', 'zdr-strict'] as const) {
+      const [entry] = await runMusic({ prompt: 'calm guitar', model: 'test/lyria-zdr', privacy });
+      expect(entry).toMatchObject({ ok: true, notices: [], providerRestriction: ['lyria-provider'] });
+    }
+    for (const call of api.callsTo('/chat/completions')) {
+      expect(call.body).toMatchObject({ provider: { only: ['lyria-provider'], allow_fallbacks: false } });
+    }
   });
 
   it('reports stream errors, missing audio and HTTP errors', async () => {

@@ -9,7 +9,7 @@ import type { RunEvent, SpeechModel, VoiceInfo } from './contract.ts';
 import { AppError, addWarning, errorFields, type WarningList } from './errors.ts';
 import { slug, timestamp } from './files.ts';
 import type { ManifestEntry } from './manifest.ts';
-import { privacyAllows, privacyBlocked } from './privacy.ts';
+import { modelRestriction, privacyBlocked, providerField } from './privacy.ts';
 import { CallLog, callSignal, HttpStatusError, jsonOrText, postJson } from './upstream.ts';
 import { combinedSample, getVoice } from './voices.ts';
 import { audioType, pcmToWav } from './wav.ts';
@@ -185,8 +185,11 @@ export async function runSpeech(
     ...(o.demo ? { demo: true } : {}),
     ...notes,
   };
-  if (model && !privacyAllows(model.zdr, privacy))
-    return finish(audioEntry({ ...base, ...privacyBlocked(privacy) }), onEvent);
+  // Same rule as for images: only ZDR endpoints allowed by the mode, no fallback to other providers
+  const restriction = await modelRestriction(o.model, privacy);
+  if (restriction && !restriction.length) {
+    return finish(audioEntry({ ...base, providerRestriction: restriction, ...privacyBlocked(privacy) }), onEvent);
+  }
 
   let voice: VoicePart = { fields: o.voice ? { voice: o.voice } : {}, label: o.voice || '', refCount: 0 };
   if (o.voice?.startsWith('voice:')) {
@@ -208,7 +211,7 @@ export async function runSpeech(
     input: text,
     ...voice.fields,
     ...params,
-    ...(privacy !== 'off' ? { provider: { zdr: true } } : {}),
+    ...providerField(restriction),
   };
   const instructions = typeof params.instructions === 'string' ? `[${params.instructions}] ` : '';
   return speak(
@@ -220,7 +223,7 @@ export async function runSpeech(
       refCount: voice.refCount,
       params,
       fullPrompt: `${instructions}${text}`,
-      providerRestriction: privacy !== 'off' ? ['zdr'] : null,
+      providerRestriction: restriction,
     },
     onEvent,
     abort,

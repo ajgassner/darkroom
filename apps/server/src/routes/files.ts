@@ -32,15 +32,27 @@ const MIME: Record<string, string> = {
   '.flac': 'audio/flac',
 };
 
+/**
+ * Files below out/ that are never served: the manifest (and its temp file) and the debug records.
+ * Compared on the resolved path, lowercased and with "/" separators, so case-insensitive file systems (macOS,
+ * Windows), "x/../" detours, backslashes and Windows' ignored trailing dots/spaces cannot bypass the check.
+ */
+function isPrivate(file: string): boolean {
+  const rel = path
+    .relative(OUT_DIR, file)
+    .split(/[\\/]+/)
+    .map((part) => part.replace(/[. ]+$/, ''))
+    .join('/')
+    .toLowerCase();
+  return rel.startsWith('manifest.jsonl') || (rel.startsWith('debug/') && rel.endsWith('.json'));
+}
+
 export async function fileRoutes(app: FastifyInstance) {
   const query = z.object({ download: z.string().optional(), clean: z.string().optional() });
 
   app.get('/out/*', async (req, reply) => {
-    const rel = (req.params as { '*': string })['*'];
-    if (rel === 'manifest.jsonl' || (rel.startsWith('debug/') && rel.endsWith('.json'))) {
-      throw new HttpError(404, 'not_found', 'Not found');
-    }
-    const file = inside(OUT_DIR, rel);
+    const file = inside(OUT_DIR, (req.params as { '*': string })['*']);
+    if (isPrivate(file)) throw new HttpError(404, 'not_found', 'Not found');
     const q = query.parse(req.query);
     // Download (optionally without metadata): serve as attachment
     if (q.download !== undefined) {

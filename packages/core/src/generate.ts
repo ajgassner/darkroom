@@ -19,7 +19,7 @@ import {
   zdrEndpoints,
 } from './openrouter.ts';
 import { fitParams, maxN, maxRefs, type WantedParams } from './params.ts';
-import { allowedProviders, privacyBlocked } from './privacy.ts';
+import { allowedProviders, privacyBlocked, providerField } from './privacy.ts';
 import { composePrompt } from './prompt.ts';
 import { type ElementInfo, elementReferences, encodeImage, findMentions, listElements } from './refs.ts';
 
@@ -176,7 +176,7 @@ function imageRequest(plan: ModelPlan, n: number): ImageRequest {
     ...(plan.refs.length
       ? { input_references: plan.refs.map((url) => ({ type: 'image_url' as const, image_url: { url } })) }
       : {}),
-    ...(plan.restriction ? { provider: { only: plan.restriction, allow_fallbacks: false } } : {}),
+    ...providerField(plan.restriction),
   };
 }
 
