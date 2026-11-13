@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CostSummary, ImageModel, ImagePrice } from '../types';
-import { estimateImagePrice, estimateRun, unitPrice } from './pricing';
+import { estimateImagePrice, estimateRun, priceExtras, unitPrice } from './pricing';
 
 function model(id: string, price: ImagePrice | null, resolutions?: string[]): ImageModel {
   return {
@@ -62,7 +62,7 @@ describe('estimateRun', () => {
 
 describe('unitPrice', () => {
   it('formats list prices per unit', () => {
-    expect(unitPrice({ cost: 0.00003, unit: 'token', variants: {} })).toEqual({ unit: 'token', value: '$0.030' });
+    expect(unitPrice({ cost: 0.00003, unit: 'token', variants: {} })).toEqual({ unit: 'token', value: '$30.00' });
     expect(unitPrice({ cost: 0.04, unit: 'image', variants: {} })).toEqual({ unit: 'image', value: '$0.04' });
     expect(unitPrice({ cost: 0.0125, unit: 'megapixel', variants: {} })).toEqual({
       unit: 'megapixel',
@@ -70,5 +70,22 @@ describe('unitPrice', () => {
     });
     expect(unitPrice({ cost: 0.5, unit: 'second', variants: {} })).toEqual({ unit: 'other', value: '$0.50/second' });
     expect(unitPrice(null)).toBeNull();
+  });
+});
+
+describe('priceExtras', () => {
+  it('lists surcharge variants and the input image price as list prices', () => {
+    expect(
+      priceExtras({
+        cost: 0.02,
+        unit: 'image',
+        variants: { high_resolution: 0.035 },
+        inputImage: { cost: 0.008, unit: 'image' },
+      }),
+    ).toEqual([
+      { label: 'high resolution', value: '$0.035' },
+      { label: 'input image', value: '$0.008/image' },
+    ]);
+    expect(priceExtras(null)).toEqual([]);
   });
 });

@@ -8,7 +8,7 @@ import type { ModelKind } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 /** Model name with its release month (muted) and a "new" badge for models released in the last 30 days. */
-export function ModelTitle({ name, created }: { name: React.ReactNode; created?: number }) {
+function ModelTitle({ name, created }: { name: React.ReactNode; created?: number }) {
   const { t, i18n } = useTranslation();
   const month = releaseMonth(created, i18n.resolvedLanguage ?? 'en');
   return (
@@ -45,6 +45,41 @@ export function FavoriteStar({ kind, id, favorite }: { kind: ModelKind; id: stri
         <StarIcon className={cn('size-3.5', favorite && 'fill-current')} />
       </button>
     </Tooltip>
+  );
+}
+
+/**
+ * Content of a model entry, the same for image, speech and music: title (with release month and "new"), model id,
+ * a muted capability line, the list price (accent) and the tags on the right (ZDR, cloning, …).
+ */
+export function ModelCardBody({
+  control,
+  name,
+  created,
+  id,
+  capabilities,
+  price,
+  tags,
+}: {
+  control: React.ReactNode;
+  name: React.ReactNode;
+  created?: number;
+  id: string;
+  capabilities?: React.ReactNode;
+  price: React.ReactNode;
+  tags: React.ReactNode;
+}) {
+  return (
+    <>
+      {control}
+      <div className="min-w-0">
+        <ModelTitle name={name} created={created} />
+        <div className="mt-px text-[11px] leading-[1.35] text-muted [overflow-wrap:anywhere]">{id}</div>
+        {capabilities && <div className="text-[11px] leading-[1.35] text-muted">{capabilities}</div>}
+        <div className="mt-0.5 text-[11px] leading-[1.35] text-accent-2">{price}</div>
+      </div>
+      <div className="flex flex-col items-end gap-[3px]">{tags}</div>
+    </>
   );
 }
 

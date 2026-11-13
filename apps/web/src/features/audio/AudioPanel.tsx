@@ -21,7 +21,7 @@ import {
 import { allowedByPrivacy, shortList, shortName, sortModels } from '@/lib/models/models';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { SpeechModel } from '@/lib/types';
-import { FavoriteStar, ModelRow, ModelTitle } from '../app/ModelMarks';
+import { FavoriteStar, ModelCardBody, ModelRow } from '../app/ModelMarks';
 import { ZdrTag } from '../app/ZdrTag';
 import { Chip, PanelNotes } from '../shared';
 
@@ -188,29 +188,37 @@ function SpeechRow({ m, checked, onPick }: { m: SpeechModel; checked: boolean; o
       blocked={!allowed}
       favorite={<FavoriteStar kind="speech" id={m.id} favorite={m.favorite} />}
     >
-      <Tooltip content={allowed ? m.id : t('models.blocked', { id: m.id })}>
+      <Tooltip content={allowed ? undefined : t('models.blocked', { id: m.id })}>
         <button
           type="button"
           aria-pressed={checked}
           onClick={onPick}
           className="grid min-w-0 flex-1 cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 py-1.5 pl-2 text-left"
         >
-          <RadioDot checked={checked} />
-          <div className="min-w-0">
-            <ModelTitle name={shortName(m.name)} created={m.created} />
-            <div className="mt-px text-[11px] leading-[1.35] text-muted [overflow-wrap:anywhere]">
-              {speechPriceText(t, m)} · {voicesText} · {speechLangsText(t, m)}
-              {followsInstructions(m.id) && ` · ${t('audio.followsInstructions')}`}
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-[3px]">
-            <ZdrTag zdr={m.zdr} />
-            {m.cloning && (
-              <Tooltip content={t('audio.cloneHint')}>
-                <Tag tone="accent">{t('audio.clone')}</Tag>
-              </Tooltip>
-            )}
-          </div>
+          <ModelCardBody
+            control={<RadioDot checked={checked} />}
+            name={shortName(m.name)}
+            created={m.created}
+            id={m.id}
+            capabilities={[
+              voicesText,
+              speechLangsText(t, m),
+              followsInstructions(m.id) && t('audio.followsInstructions'),
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+            price={speechPriceText(t, m)}
+            tags={
+              <>
+                <ZdrTag zdr={m.zdr} />
+                {m.cloning && (
+                  <Tooltip content={t('audio.cloneHint')}>
+                    <Tag tone="accent">{t('audio.clone')}</Tag>
+                  </Tooltip>
+                )}
+              </>
+            }
+          />
         </button>
       </Tooltip>
     </ModelRow>
@@ -304,15 +312,14 @@ function MusicSection() {
                 onClick={() => set({ musicModel: m.id })}
                 className="grid min-w-0 flex-1 cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 py-1.5 pl-2 text-left"
               >
-                <RadioDot checked={m.id === musicModel} />
-                <div className="min-w-0">
-                  <ModelTitle name={shortName(m.name)} created={m.created} />
-                  <div className="mt-px text-[11px] text-muted [overflow-wrap:anywhere]">
-                    {m.id}
-                    {price ? ` · ${price}` : ''}
-                  </div>
-                </div>
-                <ZdrTag zdr={m.zdr} />
+                <ModelCardBody
+                  control={<RadioDot checked={m.id === musicModel} />}
+                  name={shortName(m.name)}
+                  created={m.created}
+                  id={m.id}
+                  price={price ?? t('audio.priceNa')}
+                  tags={<ZdrTag zdr={m.zdr} />}
+                />
               </button>
             </ModelRow>
           );

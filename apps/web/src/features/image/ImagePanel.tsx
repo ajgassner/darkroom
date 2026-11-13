@@ -28,12 +28,12 @@ import {
   shortList,
   sortModels,
 } from '@/lib/models/models';
-import { estimateImagePrice, historyAvg, type UnitPrice, unitPrice } from '@/lib/models/pricing';
+import { historyAvg, priceExtras, type UnitPrice, unitPrice } from '@/lib/models/pricing';
 import { useData, useSettings, useUi } from '@/lib/store';
 import { usd } from '@/lib/text/format';
 import { promptMentions } from '@/lib/text/mentions';
 import type { ImageModel } from '@/lib/types';
-import { FavoriteStar, ModelRow, ModelTitle } from '../app/ModelMarks';
+import { FavoriteStar, ModelCardBody, ModelRow } from '../app/ModelMarks';
 import { ZdrTag } from '../app/ZdrTag';
 import { useModelName } from '../hooks/useModelName';
 import { Chip, DropZone, ElementThumb, PanelNotes } from '../shared';
@@ -130,19 +130,17 @@ function unitPriceText(t: TFunction, unit: UnitPrice | null): string {
   return unit.unit === 'other' ? unit.value : t(UNIT_KEYS[unit.unit], { value: unit.value });
 }
 
+/** The API list price as OpenRouter publishes it (no estimate), plus the real average of the user's own images. */
 function PriceLine({ m }: { m: ImageModel }) {
   const { t } = useTranslation();
-  const size = useSettings((s) => s.size);
-  const quality = useSettings((s) => s.quality);
   const costs = useData((s) => s.status?.costs);
-  const est = estimateImagePrice(m, size, quality);
   const hist = historyAvg(costs, m.id);
-  const unitText = unitPriceText(t, unitPrice(m.price));
-  const parts = [est !== null ? t('models.estimate', { price: usd(est) }) : unitText];
+  const parts = [unitPriceText(t, unitPrice(m.price))];
   if (hist) parts.push(t('models.history', { price: usd(hist.avg), count: hist.n }));
+  const extras = priceExtras(m.price).map((x) => `${x.label}: ${x.value}`);
   return (
-    <Tooltip content={t('models.priceHint', { price: unitText })}>
-      <div className="mt-0.5 text-[11px] leading-[1.35] text-accent-2">{parts.join(' · ')}</div>
+    <Tooltip content={[t('models.priceHint'), ...extras].join(' · ')}>
+      <span>{parts.join(' · ')}</span>
     </Tooltip>
   );
 }
@@ -165,16 +163,12 @@ function CapabilityLine({ m }: { m: ImageModel }) {
   }
   parts.push({ key: 'refs', node: t('models.maxRefs', { count: caps.refs }) });
   if (caps.formats.length) parts.push({ key: 'formats', node: caps.formats.join('/') });
-  return (
-    <div className="mt-px text-[11px] leading-[1.35] text-muted">
-      {parts.map((p, i) => (
-        <span key={p.key} className="whitespace-nowrap">
-          {i > 0 && ' · '}
-          {p.node}
-        </span>
-      ))}
-    </div>
-  );
+  return parts.map((p, i) => (
+    <span key={p.key} className="whitespace-nowrap">
+      {i > 0 && ' · '}
+      {p.node}
+    </span>
+  ));
 }
 
 function ModelSection() {
@@ -222,19 +216,22 @@ function ModelSection() {
                   htmlFor={`model-${m.id}`}
                   className="grid min-w-0 flex-1 cursor-pointer grid-cols-[auto_1fr_auto] items-start gap-2 py-1.5 pl-2"
                 >
-                  <Checkbox
-                    id={`model-${m.id}`}
-                    className="mt-[3px]"
-                    checked={checked}
-                    onCheckedChange={(v) => toggle(m.id, v === true)}
+                  <ModelCardBody
+                    control={
+                      <Checkbox
+                        id={`model-${m.id}`}
+                        className="mt-[3px]"
+                        checked={checked}
+                        onCheckedChange={(v) => toggle(m.id, v === true)}
+                      />
+                    }
+                    name={name(m.id)}
+                    created={m.created}
+                    id={m.id}
+                    capabilities={<CapabilityLine m={m} />}
+                    price={<PriceLine m={m} />}
+                    tags={<ZdrTag zdr={m.zdr} />}
                   />
-                  <div className="min-w-0">
-                    <ModelTitle name={name(m.id)} created={m.created} />
-                    <div className="mt-px text-[11px] leading-[1.35] text-muted [overflow-wrap:anywhere]">{m.id}</div>
-                    <CapabilityLine m={m} />
-                    <PriceLine m={m} />
-                  </div>
-                  <ZdrTag zdr={m.zdr} />
                 </label>
               </Tooltip>
             </ModelRow>

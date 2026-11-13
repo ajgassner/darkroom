@@ -89,14 +89,13 @@ export const de: Bundle<typeof en> = {
     aspects_other: '{{count}} Verhältnisse',
     aspectsHint: 'Seitenverhältnisse: {{list}}',
     blocked: '{{id}}: im aktuellen Datenschutz-Modus nicht verfügbar',
-    estimate: '≈ {{price}}/Bild',
     history: 'Ø {{price}} bei dir ({{count}})',
     priceUnknown: 'Preis unbekannt',
     unitImage: '{{value}}/Bild',
     unitMegapixel: '{{value}}/Megapixel',
-    unitToken: '{{value}}/1k Bild-Token',
+    unitToken: '{{value}}/1 Mio. Bild-Tokens',
     priceHint:
-      'Listenpreis: {{price}}. Schätzung für die gewählte Größe/Qualität; „Ø bei dir“ = echte Kosten deiner bisherigen Bilder.',
+      'Listenpreis von OpenRouter (günstigster Anbieter); „Ø bei dir“ = echte Kosten deiner bisherigen Bilder.',
   },
   params: {
     aspect: 'Seitenverhältnis',

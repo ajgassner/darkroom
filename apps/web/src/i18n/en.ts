@@ -85,14 +85,12 @@ export const en = {
     aspects_other: '{{count}} ratios',
     aspectsHint: 'Aspect ratios: {{list}}',
     blocked: '{{id}}: not available in the current privacy mode',
-    estimate: '≈ {{price}}/image',
     history: 'Ø {{price}} for you ({{count}})',
     priceUnknown: 'Price unknown',
     unitImage: '{{value}}/image',
     unitMegapixel: '{{value}}/megapixel',
-    unitToken: '{{value}}/1k image tokens',
-    priceHint:
-      'List price: {{price}}. Estimate for the selected size/quality; “Ø for you” = real cost of your previous images.',
+    unitToken: '{{value}}/1M image tokens',
+    priceHint: 'List price from OpenRouter (cheapest provider); “Ø for you” = real cost of your previous images.',
   },
   params: {
     aspect: 'Aspect ratio',
