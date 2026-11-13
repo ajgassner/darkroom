@@ -186,6 +186,22 @@ jobs:
       # the failed build run in Windows PowerShell 5.1, which "darkroom update" uses. Also checks that an
       # update fails cleanly while darkroom runs, that the command finds its data folder without
       # DARKROOM_HOME, and that %VARIABLE% entries in the user PATH survive install and uninstall.
+      # Defender scans every file pnpm creates and every file rollback and uninstall delete (tens of thousands in
+      # node_modules), which makes these steps much slower than on Linux and macOS. The test folders are excluded
+      # from scanning; this only speeds up CI and changes nothing the installer does.
+      - name: Exclude the test folders from Defender scanning (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $status = Get-MpComputerStatus -ErrorAction SilentlyContinue
+          Write-Host "Defender real-time protection: $(if ($status) { $status.RealTimeProtectionEnabled } else { 'not available' })"
+          try {
+            Add-MpPreference -ExclusionPath $HOME, $env:RUNNER_TEMP
+            Write-Host "Excluded: $HOME, $env:RUNNER_TEMP"
+          } catch {
+            Write-Host "Could not add Defender exclusions: $($_.Exception.Message)"
+          }
+
       - name: Install, update, roll back, uninstall (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
