@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // darkroom CLI: generate images, speech and music from the terminal (same core as the web UI).
 import { spawn } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import * as p from '@clack/prompts';
 import {
@@ -263,9 +264,15 @@ program
     // The server is its own app: run it as a child process instead of importing it into the CLI
     const server = path.resolve(import.meta.dirname, '../../server/src/server.ts');
     const child = spawn(process.execPath, [server], { stdio: 'inherit' });
-    // Pass stop signals on and wait for the server to shut down (Ctrl+C in a terminal reaches both anyway)
-    for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => child.kill(signal));
-    child.on('exit', (code) => process.exit(code ?? 0));
+    // Wait for the server to shut down. Ctrl+C in a terminal reaches the server directly (same process group; on
+    // Windows the same console), so forwarding it too would count as a second Ctrl+C and skip the clean shutdown.
+    // Signals sent to this process alone (kill, process managers) are passed on.
+    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+      process.on(signal, () => {
+        if (signal === 'SIGTERM' || !process.stdin.isTTY) child.kill(signal);
+      });
+    }
+    child.on('exit', (code, signal) => process.exit(code ?? 128 + (signal ? os.constants.signals[signal] : 0)));
   });
 
 program

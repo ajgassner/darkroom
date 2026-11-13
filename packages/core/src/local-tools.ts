@@ -13,8 +13,11 @@ export interface LocalResult {
   params: Record<string, unknown>;
 }
 
-/** A local tool: source image (absolute path), effective options, file name prefix for the result. */
-export type LocalTool = (src: string, o: Record<string, string>, prefix: string) => Promise<LocalResult>;
+/**
+ * A local tool: source image (absolute path), effective options, file name prefix for the result, and the run's
+ * abort signal (only tools with a worker process can stop midway).
+ */
+type LocalTool = (src: string, o: Record<string, string>, prefix: string, signal?: AbortSignal) => Promise<LocalResult>;
 
 /** Aspect ratio "w:h" with positive whole numbers; anything else (it ends up in a file name) is rejected. */
 function parseAspect(r: string): { w: number; h: number } {
@@ -62,27 +65,29 @@ const resize: LocalTool = async (src, o, prefix) => {
   return { file, label: `Resize to ${width}×${height} (local)`, params: { width, height, kernel: 'lanczos3' } };
 };
 
-const removeBackground: LocalTool = async (src, o, prefix) => {
+const removeBackground: LocalTool = async (src, o, prefix, signal) => {
   const bg = o.background;
   if (bg !== 'transparent' && !/^#[0-9a-fA-F]{6}$/.test(bg)) {
     throw new AppError('invalid_background', 'Background color must be "transparent" or #rrggbb', { value: bg });
   }
   const file = `${prefix}_cutout.png`;
   const tmp = resolveOut(`.${file}.tmp.png`);
-  await runWorker('removebg-worker.ts', [src, tmp], {
-    timeout: 180_000,
-    notInstalled: () =>
-      new AppError(
-        'removebg_not_installed',
-        'Local background removal is not installed: pnpm --filter @darkroom/core add @imgly/background-removal-node',
-      ),
-    failed: (message) => new AppError('removebg_failed', `Background removal failed: ${message}`, { message }),
-  });
-  if (bg === 'transparent') {
-    await fs.rename(tmp, resolveOut(file));
-  } else {
-    await sharp(tmp).flatten({ background: bg }).png().toFile(resolveOut(file));
-    await fs.unlink(tmp);
+  try {
+    await runWorker('removebg-worker.ts', [src, tmp], {
+      timeout: 180_000,
+      signal,
+      notInstalled: () =>
+        new AppError(
+          'removebg_not_installed',
+          'Local background removal is not installed: pnpm --filter @darkroom/core add @imgly/background-removal-node',
+        ),
+      failed: (message) => new AppError('removebg_failed', `Background removal failed: ${message}`, { message }),
+    });
+    if (bg === 'transparent') await fs.rename(tmp, resolveOut(file));
+    else await sharp(tmp).flatten({ background: bg }).png().toFile(resolveOut(file));
+  } finally {
+    // Leftover of a failed, cancelled or flattened run
+    await fs.rm(tmp, { force: true });
   }
   const label = `Remove background${bg === 'transparent' ? ' (transparent)' : ` (background ${bg})`}`;
   return { file, label, params: { background: bg } };

@@ -417,6 +417,7 @@ export const de: Bundle<typeof en> = {
       'Kein ZDR-Endpoint ohne Safety Retention für dieses Modell. Datenschutz-Modus lockern oder anderes Modell wählen.',
     aborted: 'Abgebrochen',
     timeout: 'Zeitüberschreitung',
+    worker_timeout: 'Der lokale Prozess hat länger als {{seconds}} s gebraucht und wurde beendet',
     no_voice_sample: 'Stimme „{{label}}“ hat keine Hörprobe.',
     no_audio_data: 'Keine Audiodaten erhalten',
     network_error: 'Netzwerkfehler: {{message}}',

@@ -4,7 +4,7 @@ import { OUT_DIR } from '@darkroom/core/config';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
-import { errorBody, localOnly, statusOf } from './http.ts';
+import { abortActiveWork, errorBody, localOnly, statusOf } from './http.ts';
 import { elementRoutes } from './routes/elements.ts';
 import { fileRoutes } from './routes/files.ts';
 import { metaRoutes } from './routes/meta.ts';
@@ -18,11 +18,17 @@ export async function buildApp() {
     bodyLimit: 80 * 1024 * 1024,
     // Generations stream for minutes; no request timeout
     requestTimeout: 0,
+    // On close, drop connections that are still open after the running work was aborted (see preClose)
+    forceCloseConnections: true,
   });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
   app.addHook('onRequest', localOnly);
+
+  // Runs and transcriptions in progress: aborted on shutdown (Ctrl+C), so paid calls and workers stop
+  app.decorate<typeof app.activeWork>('activeWork', new Set());
+  app.addHook('preClose', () => abortActiveWork(app.activeWork));
 
   app.setErrorHandler((err, req, reply) => {
     // Schema validation errors: 400 with a readable message

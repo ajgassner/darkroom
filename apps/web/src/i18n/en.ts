@@ -411,6 +411,7 @@ export const en = {
       'No ZDR endpoint without safety retention for this model. Relax the privacy mode or pick another model.',
     aborted: 'Cancelled',
     timeout: 'Timed out',
+    worker_timeout: 'The local process took longer than {{seconds}} s and was stopped',
     no_voice_sample: 'Voice “{{label}}” has no sample.',
     no_audio_data: 'No audio data received',
     network_error: 'Network error: {{message}}',
