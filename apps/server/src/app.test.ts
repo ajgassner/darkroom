@@ -244,7 +244,6 @@ describe('API', () => {
     expect((await post('/api/delete', { ids: [entry.id] })).json()).toEqual({
       entries: 1,
       files: [entry.file],
-      uploads: [],
     });
     expect((await get('/api/history')).json()).toEqual([]);
     expect((await get(`/out/${entry.file}`)).statusCode).toBe(404);
@@ -287,7 +286,7 @@ describe('uploaded references', () => {
     return ndjson(res.body).find((e) => e.type === 'image').entry;
   }
 
-  it('keeps an upload while a run uses it and removes it with the last one', async () => {
+  it('never deletes uploads with their runs, and refuses to delete one a run still uses', async () => {
     const dataUrl = `data:image/png;base64,${(await testImage({ width: 64, height: 48 })).toString('base64')}`;
     const first = await generate({ dataUrl, name: 'me.png' });
     const [upload] = first.extraRefs;
@@ -302,10 +301,18 @@ describe('uploaded references', () => {
     expect(list.find((u: { file: string }) => u.file === upload)).toMatchObject({ runs: 2 });
     expect(list.find((u: { file: string }) => u.file === 'uploads/aaaaaaaaaaaaaaaa.jpg')).toMatchObject({ runs: 0 });
 
-    expect((await post('/api/delete', { runId: first.runId })).json()).toMatchObject({ entries: 1, uploads: [] });
-    expect(await exists(upload)).toBe(true);
+    const name = upload.slice('uploads/'.length);
+    const inUse = await del(`/api/uploads/${name}`);
+    expect(inUse.statusCode).toBe(409);
+    expect(inUse.json()).toMatchObject({ code: 'upload_in_use', params: { name, count: 2 } });
+
+    expect((await post('/api/delete', { runId: first.runId })).json()).toMatchObject({ entries: 1 });
     expect((await get('/api/uploads')).json().find((u: { file: string }) => u.file === upload).runs).toBe(1);
-    expect((await post('/api/delete', { runId: second.runId })).json()).toMatchObject({ uploads: [upload] });
+    expect((await post('/api/delete', { runId: second.runId })).json()).toMatchObject({ entries: 1 });
+    // Deleting the runs leaves the upload; now that no run uses it, it can be deleted by hand
+    expect(await exists(upload)).toBe(true);
+    expect((await get('/api/uploads')).json().find((u: { file: string }) => u.file === upload).runs).toBe(0);
+    expect((await del(`/api/uploads/${name}`)).json()).toEqual({ ok: true });
     expect(await exists(upload)).toBe(false);
     expect(await exists('uploads/aaaaaaaaaaaaaaaa.jpg')).toBe(true);
   });

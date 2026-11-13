@@ -123,7 +123,7 @@ export const de: Bundle<typeof en> = {
   },
   uploads: {
     title: 'Frühere Uploads',
-    hint: 'Bilder, die du als zusätzliche Referenzen hinzugefügt hast. Wähle eines aus, um es wieder zu verwenden. Ein Upload wird zusammen mit dem letzten Lauf gelöscht, der es verwendet hat.',
+    hint: 'Bilder, die du als zusätzliche Referenzen hinzugefügt hast. Wähle eines aus, um es wieder zu verwenden. Löschen kannst du einen Upload, sobald ihn kein Lauf mehr verwendet.',
     empty:
       'Noch keine Uploads. Bilder, die du unter „Zusätzliche Referenzen“ ablegst oder einfügst, erscheinen hier, sobald du damit generierst.',
     failed: 'Die Uploads konnten nicht geladen werden.',
@@ -135,9 +135,8 @@ export const de: Bundle<typeof en> = {
     picked: 'Hinzugefügt',
     delete: 'Upload löschen',
     confirm: 'Diesen Upload löschen?',
-    confirmUsed_one: 'Er wird in {{count}} Lauf verwendet; dessen Ergebnis bleibt, verliert aber diese Referenz.',
-    confirmUsed_other:
-      'Er wird in {{count}} Läufen verwendet; deren Ergebnisse bleiben, verlieren aber diese Referenz.',
+    deleteLocked_one: 'In {{count}} Lauf verwendet: zuerst diesen Lauf löschen',
+    deleteLocked_other: 'In {{count}} Läufen verwendet: zuerst diese Läufe löschen',
     done: 'Fertig',
   },
   notes: {
@@ -524,6 +523,7 @@ export const de: Bundle<typeof en> = {
     voice_exists: 'Eine Stimme „{{name}}“ gibt es schon. Wähle einen anderen Namen.',
     element_not_found: 'Element „@{{name}}“ gibt es nicht mehr',
     upload_not_found: 'Den Upload {{name}} gibt es nicht mehr',
+    upload_in_use: 'Dieser Upload wird noch in {{count}} Lauf/Läufen verwendet: zuerst diese löschen',
     invalid_upload: 'Ungültiger Upload-Name „{{name}}“',
     element_no_photos: 'Element „@{{name}}“ hat noch keine Fotos',
     voice_not_found: 'Stimme „{{name}}“ gibt es nicht mehr',

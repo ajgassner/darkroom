@@ -68,20 +68,15 @@ export async function existingUpload(name: string): Promise<string> {
   return file;
 }
 
-/** Remove one upload (the user deletes it; entries that used it keep their reference). */
-export async function deleteUpload(name: string): Promise<void> {
-  await fs.unlink(await existingUpload(name));
-}
-
-/** Remove uploads by name (only valid upload names, missing files are skipped); returns their extra-ref paths. */
-export async function removeUploads(names: string[]): Promise<string[]> {
-  const removed: string[] = [];
-  for (const name of names) {
-    if (!UPLOAD_NAME.test(name)) continue;
-    await fs.unlink(path.join(UPLOADS_DIR, name)).then(
-      () => removed.push(`${PREFIX}${name}`),
-      () => {},
-    );
+/**
+ * Remove one upload. Uploads are never removed automatically; the user deletes them, and only once no run uses them
+ * anymore (upload_in_use otherwise), so a run never loses a reference it was made with.
+ */
+export async function deleteUpload(name: string, entries: ManifestEntry[]): Promise<void> {
+  const file = await existingUpload(name);
+  const runs = runsPerUpload(entries).get(name) ?? 0;
+  if (runs) {
+    throw new AppError('upload_in_use', `Upload ${name} is still used in ${runs} run(s)`, { name, count: runs });
   }
-  return removed;
+  await fs.unlink(file);
 }

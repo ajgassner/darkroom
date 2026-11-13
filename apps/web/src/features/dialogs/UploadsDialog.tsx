@@ -7,7 +7,7 @@ import { deleteUpload, loadUploads } from '@/lib/actions';
 import { uploadThumbUrl } from '@/lib/api';
 import { useUi } from '@/lib/store';
 import type { UploadInfo } from '@/lib/types';
-import { deleteQuestion, hasOutRef, pickLabel, toggleOutRef, usageText } from '@/lib/ui/uploads';
+import { deleteLabel, hasOutRef, pickLabel, toggleOutRef, usageText } from '@/lib/ui/uploads';
 import { cn } from '@/lib/utils';
 
 /** Previous uploads (out/uploads/): pick them again as additional references, or delete them. */
@@ -166,11 +166,12 @@ function UploadTile({
       <button
         type="button"
         data-trash={u.file}
-        aria-label={t('uploads.delete')}
+        aria-label={deleteLabel(t, u)}
         aria-expanded={confirming}
-        title={t('uploads.delete')}
+        title={deleteLabel(t, u)}
+        disabled={u.runs > 0}
         onClick={onDelete}
-        className="absolute top-1 right-1 grid size-7 cursor-pointer place-items-center rounded-full border border-line bg-panel/90 outline-none hover:border-err focus-visible:ring-2 focus-visible:ring-accent/60"
+        className="absolute top-1 right-1 grid size-7 cursor-pointer place-items-center rounded-full border border-line bg-panel/90 outline-none hover:border-err focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line"
       >
         <Trash2Icon className="size-3.5" />
       </button>
@@ -203,7 +204,7 @@ function ConfirmBar({
         className="size-10 rounded-md border border-line object-cover"
       />
       <p id={id} className="m-0 min-w-[12rem] flex-1 text-[13px]">
-        {deleteQuestion(t, upload)}
+        {t('uploads.confirm')}
       </p>
       <div className="flex gap-2">
         <Button variant="danger" onClick={onDelete}>

@@ -60,8 +60,7 @@ export function pickLabel(t: TFunction, u: Pick<UploadInfo, 'runs'>, picked: boo
   return picked ? t('uploads.unpick', { usage }) : t('uploads.pick', { usage });
 }
 
-/** Question before deleting an upload; says what happens to the runs that still use it. */
-export function deleteQuestion(t: TFunction, u: Pick<UploadInfo, 'runs'>): string {
-  const q = t('uploads.confirm');
-  return u.runs ? `${q} ${t('uploads.confirmUsed', { count: u.runs })}` : q;
+/** Label of an upload's delete button: deleting is only possible once no run uses the upload anymore. */
+export function deleteLabel(t: TFunction, u: Pick<UploadInfo, 'runs'>): string {
+  return u.runs ? t('uploads.deleteLocked', { count: u.runs }) : t('uploads.delete');
 }

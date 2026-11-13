@@ -23,10 +23,13 @@ export function errorBody(err: unknown): ErrorBody {
   return { error };
 }
 
-/** HTTP status for an error: explicit HttpError status, 404 for "*_not_found" codes, 400 for other AppErrors. */
+/** HTTP status for an error: explicit HttpError status, 404 for "*_not_found", 409 for "*_in_use", else 400. */
 export function statusOf(err: unknown): number {
   if (err instanceof HttpError) return err.status;
-  if (err instanceof AppError && err.code) return err.code.endsWith('_not_found') ? 404 : 400;
+  if (err instanceof AppError && err.code) {
+    if (err.code.endsWith('_not_found')) return 404;
+    return err.code.endsWith('_in_use') ? 409 : 400;
+  }
   const s = (err as { statusCode?: number }).statusCode;
   return typeof s === 'number' && s >= 400 && s < 600 ? s : 500;
 }

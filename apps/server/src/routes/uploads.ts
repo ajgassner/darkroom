@@ -34,7 +34,7 @@ export async function uploadRoutes(fastify: FastifyInstance) {
   );
 
   app.delete('/api/uploads/:name', { schema: { params } }, async (req) => {
-    await deleteUpload(req.params.name);
+    await deleteUpload(req.params.name, await readEntries());
     return { ok: true };
   });
 }

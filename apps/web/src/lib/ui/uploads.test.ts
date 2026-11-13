@@ -2,7 +2,7 @@ import type { TFunction } from 'i18next';
 import { describe, expect, it } from 'vitest';
 import type { ExtraRef } from '../store';
 import {
-  deleteQuestion,
+  deleteLabel,
   hasOutRef,
   pickLabel,
   storedUploads,
@@ -66,7 +66,7 @@ describe('previous uploads as references', () => {
     expect(usageText(t, { runs: 2 })).toBe('uploads.usedIn:2');
     expect(pickLabel(t, { runs: 1 }, false)).toBe('uploads.pick:uploads.usedIn:1');
     expect(pickLabel(t, { runs: 0 }, true)).toBe('uploads.unpick:uploads.unused');
-    expect(deleteQuestion(t, { runs: 0 })).toBe('uploads.confirm');
-    expect(deleteQuestion(t, { runs: 3 })).toBe('uploads.confirm uploads.confirmUsed:3');
+    expect(deleteLabel(t, { runs: 0 })).toBe('uploads.delete');
+    expect(deleteLabel(t, { runs: 3 })).toBe('uploads.deleteLocked:3');
   });
 });
