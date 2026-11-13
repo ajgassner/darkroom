@@ -1,4 +1,4 @@
-// Static files: generated results below out/ (with range support for seeking) and the built web UI.
+// Static files: generated results below out/ (reply.sendFile from app.ts, with range support) and the built web UI.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { OUT_DIR, WEB_DIST_DIR } from '@darkroom/core/config';
@@ -33,10 +33,6 @@ const MIME: Record<string, string> = {
 };
 
 export async function fileRoutes(app: FastifyInstance) {
-  // Decorates reply.sendFile (range requests, ETag); no routes of its own. The root must exist.
-  await fs.mkdir(OUT_DIR, { recursive: true });
-  await app.register(fastifyStatic, { root: OUT_DIR, serve: false });
-
   const query = z.object({ download: z.string().optional(), clean: z.string().optional() });
 
   app.get('/out/*', async (req, reply) => {

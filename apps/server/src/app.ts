@@ -1,4 +1,7 @@
 // Fastify application: local-only security hook, error mapping, routes.
+import fs from 'node:fs/promises';
+import { OUT_DIR } from '@darkroom/core/config';
+import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import { errorBody, localOnly, statusOf } from './http.ts';
@@ -31,6 +34,11 @@ export async function buildApp() {
     return reply.code(status).header('Cache-Control', 'no-store').send(errorBody(err));
   });
   app.setNotFoundHandler((_req, reply) => reply.code(404).send({ error: 'Not found', code: 'not_found' }));
+
+  // reply.sendFile (range requests for seeking, ETag) for every route plugin, so registered here and not inside
+  // one of them: plugins are encapsulated. No routes of its own; the root must exist.
+  await fs.mkdir(OUT_DIR, { recursive: true });
+  await app.register(fastifyStatic, { root: OUT_DIR, serve: false });
 
   await app.register(metaRoutes);
   await app.register(elementRoutes);
