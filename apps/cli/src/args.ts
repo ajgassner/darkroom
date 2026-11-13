@@ -3,6 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ExtraRef } from '@darkroom/core/generate';
 
+/** Commander parser for repeatable options: `-m a -m b` gives ['a', 'b']. */
+export function collect(value: string, previous: string[] = []): string[] {
+  return [...previous, value];
+}
+
 /** Models from repeated and/or comma-separated -m values, without duplicates. */
 export function parseModels(values: string[]): string[] {
   const ids = values.flatMap((v) => v.split(',')).map((m) => m.trim());

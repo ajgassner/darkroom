@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 // darkroom CLI: generate images, speech and music from the terminal (same core as the web UI).
+import { spawn } from 'node:child_process';
+import path from 'node:path';
 import * as p from '@clack/prompts';
 import { DEFAULT_MODEL, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode, parsePrivacy } from '@darkroom/core/config';
 import type { ManifestEntry, RunEvent } from '@darkroom/core/contract';
@@ -13,7 +15,7 @@ import { runSpeech } from '@darkroom/core/speech';
 import { listVoices } from '@darkroom/core/voices';
 import { Command, InvalidArgumentError, Option } from 'commander';
 import pc from 'picocolors';
-import { hasMention, parseModels, resolveRefs } from './args.ts';
+import { collect, hasMention, parseModels, resolveRefs } from './args.ts';
 
 const usd = (v: number | null | undefined) => (v === null || v === undefined ? 'n/a' : `$${v.toFixed(4)}`);
 const interactive = process.stdout.isTTY && process.stdin.isTTY;
@@ -113,14 +115,15 @@ program
   .description('Generate images (several models run in parallel)')
   .argument('[prompt...]', 'prompt; use @name to include elements')
   .option('-e, --element <name>', 'element (reference set from refs/<name>/)')
-  .option('-m, --model <id...>', 'one or more models (space or comma separated)', [DEFAULT_MODEL])
+  // Options take one value each (repeat them for more): a variadic option would swallow the prompt after it
+  .option('-m, --model <ids>', `model; repeat or comma-separate for several (default: ${DEFAULT_MODEL})`, collect)
   .option('-a, --aspect <ratio>', 'aspect ratio, e.g. 1:1, 3:4, 4:5, 9:16, 16:9')
   .option('-s, --size <tier>', 'size: 512 | 1K | 2K | 4K')
   .option('-n, --count <n>', 'images per model (1–10)', intArg(1, 10), 1)
   .option('-f, --format <fmt>', 'file format: png | jpeg | webp (if supported)')
   .option('-q, --quality <q>', 'quality: low | medium | high (e.g. GPT Image)')
   .option('--seed <n>', 'seed (if supported)', intArg(0, 2 ** 31))
-  .option('-r, --ref <file...>', 'additional reference images (path or file from out/)')
+  .option('-r, --ref <file>', 'additional reference image (path or file from out/); repeat for several', collect)
   .option('--no-prefix', 'do not prepend the element instructions')
   .option('--max-side <px>', 'longest side of the references', intArg(256, 4096))
   .addOption(privacyOption())
@@ -130,7 +133,7 @@ program
       words.join(' ').trim() || (await ask('Prompt', 'Business portrait in a bright office, soft window light'));
     const element = o.element ?? (await chooseElement(prompt));
     const extraRefs = resolveRefs(o.ref, OUT_DIR);
-    const models = parseModels(o.model);
+    const models = parseModels(o.model ?? [DEFAULT_MODEL]);
     const run = progress(models.length * o.count);
     run.start(`Generating ${models.map((m) => `${o.count}× ${m}`).join(', ')}`);
     const entries = await runGeneration(
@@ -230,6 +233,18 @@ program
         ].join('\n'),
       );
     }
+  });
+
+program
+  .command('start')
+  .description('Start the web UI on http://localhost (Ctrl+C stops it)')
+  .action(() => {
+    // The server is its own app: run it as a child process instead of importing it into the CLI
+    const server = path.resolve(import.meta.dirname, '../../server/src/server.ts');
+    const child = spawn(process.execPath, [server], { stdio: 'inherit' });
+    // Pass stop signals on and wait for the server to shut down (Ctrl+C in a terminal reaches both anyway)
+    for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => child.kill(signal));
+    child.on('exit', (code) => process.exit(code ?? 0));
   });
 
 program

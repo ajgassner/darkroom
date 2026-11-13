@@ -2,9 +2,13 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { hasMention, parseModels, resolveRefs } from './args.ts';
+import { collect, hasMention, parseModels, resolveRefs } from './args.ts';
 
 describe('CLI arguments', () => {
+  it('collects repeated option values', () => {
+    expect(collect('b', collect('a'))).toEqual(['a', 'b']);
+  });
+
   it('parses repeated and comma-separated models', () => {
     expect(parseModels(['a/x,b/y', ' c/z ', 'a/x', ''])).toEqual(['a/x', 'b/y', 'c/z']);
   });

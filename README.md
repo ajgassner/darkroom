@@ -22,23 +22,50 @@ Upload a few photos of a person, a logo or a product once, then generate realist
 - **Web UI and CLI** with the same features. The UI is available in English and German.
 - **Full record**: every result lands in `out/` together with a manifest of prompt, model, parameters, provider, cost and duration, plus the exact request and response for debugging.
 
-## Quick start
+## Install
 
-You need an [OpenRouter API key](https://openrouter.ai/settings/keys) and Node.js 26 or newer with pnpm.
+You need an [OpenRouter API key](https://openrouter.ai/settings/keys). The installer brings its own Node.js, so nothing else has to be installed first.
+
+**macOS and Linux**, in a terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ajgassner/darkroom/main/install.sh | bash
+```
+
+**Windows**, in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/ajgassner/darkroom/main/install.ps1 | iex
+```
+
+The installer asks for your API key, puts darkroom into `~/.darkroom` and adds the `darkroom` command to your PATH. Your data (elements, voices, results and the key in `.env`) lives in `~/darkroom`. Open a new terminal, then:
+
+```bash
+darkroom start      # web UI on http://localhost:5177, Ctrl+C stops it
+darkroom --help     # all commands
+```
+
+To update, run the install line again; your data stays untouched. To uninstall, delete `~/.darkroom` and remove the darkroom line from your shell's startup file (Windows: from your user PATH). `~/darkroom` holds your data; delete it only if you don't need it anymore.
+
+### From source
+
+For development, or if you prefer to run darkroom from a git checkout with Node.js 26 and pnpm:
 
 ```bash
 git clone https://github.com/ajgassner/darkroom.git
 cd darkroom
-mise install                # Node 26, corepack (pnpm) and agent-browser; or install Node 26 yourself and run: corepack enable
+mise install                # Node 26 and corepack (pnpm); or install Node 26 yourself and run: corepack enable
 pnpm install
 cp .env.example .env        # add your OPENROUTER_API_KEY
 pnpm build                  # build the web UI
 pnpm start                  # open http://localhost:5177
 ```
 
-Node runs the TypeScript backend and CLI directly; only the web UI is built. The server only listens on `127.0.0.1`.
+In a checkout, `pnpm cli <command>` runs the same commands as `darkroom <command>`, and the data lives in the checkout itself. Node runs the TypeScript backend and CLI directly; only the web UI is built. The server only listens on `127.0.0.1`.
 
-Then create your first element: **Element → Manage**, enter a name such as `me` and drag in 3–6 photos. Good reference photos show only you, with the face clearly visible from the front and slightly from the side, in different lighting, without sunglasses or heavy filters.
+## First steps
+
+Start the web UI and create your first element: **Element → Manage**, enter a name such as `me` and drag in 3–6 photos. Good reference photos show only you, with the face clearly visible from the front and slightly from the side, in different lighting, without sunglasses or heavy filters.
 
 ## Elements and @mentions
 
@@ -92,25 +119,26 @@ Available in the detail view of every image:
 
 ```bash
 # default model, element "me", portrait 3:4 in 2K
-pnpm cli gen -e me -a 3:4 -s 2K "Business portrait in a bright office, suit, soft window light"
+darkroom gen -e me -a 3:4 -s 2K "Business portrait in a bright office, suit, soft window light"
 
 # @mentions, three models in parallel, 2 images each
-pnpm cli gen -n 2 -m google/gemini-3.1-flash-image,google/gemini-3-pro-image,bytedance-seed/seedream-4.5 \
+darkroom gen -n 2 -m google/gemini-3.1-flash-image,google/gemini-3-pro-image,bytedance-seed/seedream-4.5 \
   "Outdoor portrait of @me in an autumn park"
 
 # keep editing a result (a file from out/ as an additional reference)
-pnpm cli gen -e me -r 2026-11-12T18-30-00_google_gemini-3.1-flash-image_1.png "same scene, but with glasses"
+darkroom gen -e me -r 2026-11-12T18-30-00_google_gemini-3.1-flash-image_1.png "same scene, but with glasses"
 
-pnpm cli gen                       # interactive: asks for prompt and element
-pnpm cli speak -v voice:me "Hello, this is my cloned voice."
-pnpm cli music "calm acoustic guitar jingle, 120 bpm"
-pnpm cli models --search gemini    # models with reference support, parameters and ZDR status
-pnpm cli elements                  # reference sets
-pnpm cli voices                    # your voices
-pnpm cli costs                     # cost per model and in total
+darkroom start                     # web UI on http://localhost:5177
+darkroom gen                       # interactive: asks for prompt and element
+darkroom speak -v voice:me "Hello, this is my cloned voice."
+darkroom music "calm acoustic guitar jingle, 120 bpm"
+darkroom models --search gemini    # models with reference support, parameters and ZDR status
+darkroom elements                  # reference sets
+darkroom voices                    # your voices
+darkroom costs                     # cost per model and in total
 ```
 
-`pnpm cli --help` and `pnpm cli gen --help` list all options. Ctrl+C cancels a running generation, including the upstream calls.
+`darkroom --help` and `darkroom gen --help` list all options. Options such as `-m` and `-r` take one value each; repeat them or separate models with commas. Ctrl+C cancels a running generation, including the upstream calls.
 
 ## Privacy
 
@@ -126,21 +154,21 @@ For images, darkroom pins each request to the model's ZDR endpoints without fall
 
 ## Configuration
 
-All settings are optional except the API key. Put them in `.env` (see [`.env.example`](.env.example)):
+All settings are optional except the API key. Put them in `.env` in your data folder (see [`.env.example`](.env.example)):
 
-| Variable                            | Default                         | Purpose                                                      |
-| ----------------------------------- | ------------------------------- | ------------------------------------------------------------ |
-| `OPENROUTER_API_KEY`                |                                 | your OpenRouter key (required)                               |
-| `PORT`                              | `5177`                          | port of the local server                                     |
-| `PRIVACY`                           | `zdr`                           | `zdr`, `zdr-strict` or `off`                                 |
-| `DEFAULT_MODEL`                     | `google/gemini-3.1-flash-image` | model preselected in the UI and CLI                          |
-| `REF_MAX_SIDE`                      | `1024`                          | longest side of reference images in px                       |
-| `REQUEST_TIMEOUT_MS`                | `300000`                        | generations often take 20–90 s                               |
-| `TRANSCRIBE`                        | `local`                         | `local` (Whisper offline) or `api`                           |
-| `WHISPER_MODEL`                     | `onnx-community/whisper-small`  | local transcription model                                    |
-| `TRANSCRIBE_MODEL`                  | `openai/whisper-large-v3-turbo` | API transcription model                                      |
-| `DARKROOM_HOME`                     | repository root                 | folder holding `.env`, `refs/`, `voices/`, `out/`, `models/` |
-| `OUT_DIR`, `REFS_DIR`, `VOICES_DIR` | `out`, `refs`, `voices`         | individual data folders, relative to `DARKROOM_HOME`         |
+| Variable                            | Default                                                 | Purpose                                                      |
+| ----------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------ |
+| `OPENROUTER_API_KEY`                |                                                         | your OpenRouter key (required)                               |
+| `PORT`                              | `5177`                                                  | port of the local server                                     |
+| `PRIVACY`                           | `zdr`                                                   | `zdr`, `zdr-strict` or `off`                                 |
+| `DEFAULT_MODEL`                     | `google/gemini-3.1-flash-image`                         | model preselected in the UI and CLI                          |
+| `REF_MAX_SIDE`                      | `1024`                                                  | longest side of reference images in px                       |
+| `REQUEST_TIMEOUT_MS`                | `300000`                                                | generations often take 20–90 s                               |
+| `TRANSCRIBE`                        | `local`                                                 | `local` (Whisper offline) or `api`                           |
+| `WHISPER_MODEL`                     | `onnx-community/whisper-small`                          | local transcription model                                    |
+| `TRANSCRIBE_MODEL`                  | `openai/whisper-large-v3-turbo`                         | API transcription model                                      |
+| `DARKROOM_HOME`                     | `~/darkroom` (installed), repository root (from source) | folder holding `.env`, `refs/`, `voices/`, `out/`, `models/` |
+| `OUT_DIR`, `REFS_DIR`, `VOICES_DIR` | `out`, `refs`, `voices`                                 | individual data folders, relative to `DARKROOM_HOME`         |
 
 Your data lives in these folders, all ignored by git:
 

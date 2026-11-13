@@ -8,6 +8,8 @@ darkroom is a local, private studio for images, speech, cloned voices and music 
 
 Tools come from mise (`mise install`: Node 26, corepack/pnpm, agent-browser). `pnpm install` is also run by `orca.yaml` for new worktrees.
 
+End users install with `install.sh` / `install.ps1`: they download Node 26 and the source into `~/.darkroom`, run pnpm install + build, and add a `darkroom` wrapper (the CLI with `DARKROOM_HOME=~/darkroom`) to the PATH. Keep both scripts in sync, and keep `pnpm cli <cmd>` and `darkroom <cmd>` equivalent. Test the installer without touching the real setup: `SHELL=/bin/sh DARKROOM_DIR=<tmp>/app DARKROOM_HOME=<tmp>/data DARKROOM_SOURCE=file://<tarball> bash install.sh`.
+
 ```bash
 pnpm dev                     # server (watch, :5177) + Vite dev server (:5173, proxies /api and /out)
 pnpm build                   # build only the web UI into dist/web/ (node code runs without a build)

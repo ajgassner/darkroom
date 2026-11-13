@@ -15,8 +15,11 @@ const APP_DIR = path.resolve(CORE_SRC_DIR, '..', '..', '..');
  */
 export const ROOT = path.resolve(process.env.DARKROOM_HOME ?? APP_DIR);
 
+/** Holds OPENROUTER_API_KEY and optional settings (see .env.example). */
+export const ENV_FILE = path.join(ROOT, '.env');
+
 try {
-  process.loadEnvFile(path.join(ROOT, '.env'));
+  process.loadEnvFile(ENV_FILE);
 } catch {
   // no .env present: environment variables are enough
 }
@@ -57,7 +60,7 @@ export function apiKey(): string {
   if (!k) {
     throw new AppError(
       'api_key_missing',
-      'OPENROUTER_API_KEY is missing. Add it to .env or set it as an environment variable.',
+      `OPENROUTER_API_KEY is missing. Add it to ${ENV_FILE} or set it as an environment variable.`,
     );
   }
   return k;
