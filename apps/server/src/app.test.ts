@@ -144,6 +144,21 @@ describe('API', () => {
     expect((await get('/api/status')).json().costs).toMatchObject({ total: 0.04, images: 1 });
   });
 
+  it('keeps the debug record of a call while one of its results remains', async () => {
+    fakeOpenRouter();
+    const res = await post('/api/generate', { prompt: 'p', models: ['test/safety'], count: 2, privacy: 'off' });
+    const [a, b] = ndjson(res.body)
+      .filter((e) => e.type === 'image')
+      .map((e) => e.entry);
+    expect(a.debugId).toBe(b.debugId);
+    expect(a.file).not.toBe(b.file);
+    await post('/api/delete', { ids: [a.id] });
+    expect((await get(`/api/debug/${b.debugId}`)).statusCode).toBe(200);
+    expect((await get(`/out/${b.file}`)).statusCode).toBe(200);
+    await post('/api/delete', { ids: [b.id] });
+    expect((await get(`/api/debug/${b.debugId}`)).statusCode).toBe(404);
+  });
+
   it('reports run errors inside the stream', async () => {
     const events = ndjson((await post('/api/generate', { prompt: ' ', models: ['test/zdr'] })).body);
     expect(events).toEqual([{ type: 'fatal', error: 'Prompt is missing', code: 'prompt_missing' }]);
@@ -155,7 +170,10 @@ describe('files below out/', () => {
     await fs.mkdir(path.join(OUT_DIR, 'debug'), { recursive: true });
     await fs.writeFile(path.join(OUT_DIR, 'debug', 'x.json'), '{}');
     await fs.writeFile(path.join(OUT_DIR, 'manifest.jsonl'), '{}\n');
+    await fs.writeFile(path.join(OUT_DIR, 'manifest.jsonl.123-abc.tmp'), '{}\n');
     expect((await get('/out/manifest.jsonl')).statusCode).toBe(404);
+    expect((await get('/out/manifest.jsonl.123-abc.tmp')).statusCode).toBe(404);
+    await fs.rm(path.join(OUT_DIR, 'manifest.jsonl.123-abc.tmp'));
     expect((await get('/out/debug/x.json')).statusCode).toBe(404);
     expect((await get('/out/..%2F..%2Fetc%2Fpasswd')).statusCode).toBe(403);
   });

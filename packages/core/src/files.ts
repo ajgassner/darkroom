@@ -1,9 +1,12 @@
 // Naming of result and upload files.
 import path from 'node:path';
 
-/** Timestamp for file names, e.g. 2026-11-12T18-30-00. */
-export function timestamp(date = new Date()): string {
-  return date.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+/**
+ * Prefix of a run's result files: timestamp (e.g. 2026-11-12T18-30-00) plus the start of the run ID,
+ * so runs started in the same second never share a file name.
+ */
+export function runStamp(runId: string): string {
+  return `${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}_${runId.slice(0, 6)}`;
 }
 
 /** Model IDs and voice names as part of a file name: google/gemini-3 → google_gemini-3. */

@@ -6,7 +6,7 @@ import sharp, { type Metadata } from 'sharp';
 import { DEFAULT_MODEL, OUT_DIR, type PrivacyMode, resolveOut } from './config.ts';
 import type { RunEvent } from './contract.ts';
 import { AppError, errorFields } from './errors.ts';
-import { safeBaseName, timestamp } from './files.ts';
+import { runStamp, safeBaseName } from './files.ts';
 import { runGeneration } from './generate.ts';
 import { decodable } from './heic.ts';
 import { LOCAL_TOOL_FNS, type LocalResult } from './local-tools.ts';
@@ -124,7 +124,7 @@ async function runLocal(t: ToolOptions, onEvent: (e: RunEvent) => void): Promise
   const t0 = performance.now();
   let result: Partial<ManifestEntry>;
   try {
-    const r: LocalResult = await LOCAL_TOOL_FNS[t.tool](resolveOut(t.source), o, `${timestamp()}_${runId.slice(0, 6)}`);
+    const r: LocalResult = await LOCAL_TOOL_FNS[t.tool](resolveOut(t.source), o, runStamp(runId));
     result = {
       ok: true,
       file: r.file,
@@ -209,7 +209,7 @@ export async function importImage(dataUrl: string, filename: string): Promise<Ma
   const png = Boolean((await readable(buf)).hasAlpha);
   const runId = crypto.randomUUID();
   const name = filename || 'image';
-  const file = `${timestamp()}_${runId.slice(0, 6)}_upload_${safeBaseName(name, 'image')}.${png ? 'png' : 'jpg'}`;
+  const file = `${runStamp(runId)}_upload_${safeBaseName(name, 'image')}.${png ? 'png' : 'jpg'}`;
   // Keep transparency (PNG), otherwise high-quality JPEG; apply EXIF rotation, max. 6000 px
   const img = sharp(buf).rotate().resize({ width: 6000, height: 6000, fit: 'inside', withoutEnlargement: true });
   await fs.mkdir(OUT_DIR, { recursive: true });

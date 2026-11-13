@@ -6,7 +6,7 @@ import { audioEntry, finish } from './audio-run.ts';
 import { apiKey, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode, REQUEST_TIMEOUT_MS } from './config.ts';
 import type { RunEvent } from './contract.ts';
 import { AppError, addWarning, errorFields, type WarningList } from './errors.ts';
-import { slug, timestamp } from './files.ts';
+import { runStamp, slug } from './files.ts';
 import type { ManifestEntry } from './manifest.ts';
 import { modelRestriction, providerField } from './privacy.ts';
 import { CallLog, callSignal, ensureOk, HttpStatusError, jsonOrText, postJson } from './upstream.ts';
@@ -81,15 +81,15 @@ function addChunk(s: MusicStream, j: StreamChunk): void {
   addDelta(s, j.choices?.[0]?.delta ?? {});
 }
 
-async function saveMusic(s: MusicStream, model: string) {
+async function saveMusic(s: MusicStream, model: string, runId: string) {
   if (!s.audio) {
     throw new AppError('no_audio_data', `No audio data received${s.text ? `: ${s.text.slice(0, 200)}` : ''}`);
   }
   const buf = Buffer.from(s.audio, 'base64');
   const { ext, mediaType } = audioType(buf);
-  const file = `${timestamp()}_music_${slug(model)}.${ext}`;
+  const file = `${runStamp(runId)}_music_${slug(model)}.${ext}`;
   await fs.mkdir(OUT_DIR, { recursive: true });
-  await fs.writeFile(path.join(OUT_DIR, file), buf);
+  await fs.writeFile(path.join(OUT_DIR, file), buf, { flag: 'wx' });
   return { file, mediaType, kb: (buf.length / 1024).toFixed(0) };
 }
 
@@ -147,7 +147,7 @@ export async function runMusic(
     log.received(res);
     await ensureOk(res);
     if (res.body) for await (const chunk of sseEvents(res.body)) addChunk(stream, chunk);
-    const { file, mediaType, kb } = await saveMusic(stream, o.model);
+    const { file, mediaType, kb } = await saveMusic(stream, o.model, runId);
     const debugId = await log.save({
       last_chunk: stream.last,
       audio: `<${kb} KB, saved as ${file}>`,
@@ -171,6 +171,13 @@ export async function runMusic(
     const fields = errorFields(err, abort);
     const response = err instanceof HttpStatusError ? jsonOrText(err.text) : stream.last;
     const debugId = await log.save(response, fields.error);
-    return finish(audioEntry({ ...base, ...fields, debugId, durationMs: log.elapsed() }), onEvent);
+    // A stream that broke off (or saving that failed) can still have been charged
+    const billing = {
+      generationId: stream.generationId,
+      provider: stream.provider,
+      cost: stream.cost,
+      callCost: stream.cost,
+    };
+    return finish(audioEntry({ ...base, ...fields, ...billing, debugId, durationMs: log.elapsed() }), onEvent);
   }
 }

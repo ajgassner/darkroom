@@ -36,6 +36,7 @@ async function generationCost(generationId: string): Promise<{ cost: number; pro
 
 /** Speech costs are only available a few seconds after the call: look them up in the background. */
 export function lookupCostLater(entryId: string, generationId: string): void {
+  // Background task: a failed lookup or manifest write must never become an unhandled rejection (crashes the server)
   void (async () => {
     for (let i = 0; i < 10; i++) {
       await new Promise((r) => setTimeout(r, 2500));
@@ -45,5 +46,5 @@ export function lookupCostLater(entryId: string, generationId: string): void {
         return;
       }
     }
-  })();
+  })().catch(() => {});
 }
