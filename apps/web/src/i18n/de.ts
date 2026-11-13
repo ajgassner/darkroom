@@ -89,14 +89,12 @@ export const de: Bundle<typeof en> = {
     aspects_other: '{{count}} Verhältnisse',
     aspectsHint: 'Seitenverhältnisse: {{list}}',
     blocked: '{{id}}: im aktuellen Datenschutz-Modus nicht verfügbar',
-    estimate: '≈ {{price}}/Bild',
-    history: 'Ø {{price}} bei dir ({{count}})',
+    history_one: 'Ø {{price}}/Bild bei dir ({{count}} Bild)',
+    history_other: 'Ø {{price}}/Bild bei dir ({{count}} Bilder)',
     priceUnknown: 'Preis unbekannt',
     unitImage: '{{value}}/Bild',
     unitMegapixel: '{{value}}/Megapixel',
-    unitToken: '{{value}}/1k Bild-Token',
-    priceHint:
-      'Listenpreis: {{price}}. Schätzung für die gewählte Größe/Qualität; „Ø bei dir“ = echte Kosten deiner bisherigen Bilder.',
+    unitToken: '{{value}}/1 Mio. Bild-Tokens',
   },
   params: {
     aspect: 'Seitenverhältnis',

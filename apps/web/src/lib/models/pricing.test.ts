@@ -62,7 +62,7 @@ describe('estimateRun', () => {
 
 describe('unitPrice', () => {
   it('formats list prices per unit', () => {
-    expect(unitPrice({ cost: 0.00003, unit: 'token', variants: {} })).toEqual({ unit: 'token', value: '$0.030' });
+    expect(unitPrice({ cost: 0.00003, unit: 'token', variants: {} })).toEqual({ unit: 'token', value: '$30.00' });
     expect(unitPrice({ cost: 0.04, unit: 'image', variants: {} })).toEqual({ unit: 'image', value: '$0.04' });
     expect(unitPrice({ cost: 0.0125, unit: 'megapixel', variants: {} })).toEqual({
       unit: 'megapixel',

@@ -75,6 +75,6 @@ export function unitPrice(p: ImagePrice | null): UnitPrice | null {
   if (!p) return null;
   if (p.unit === 'image') return { unit: 'image', value: money(p.cost, 2, 6) };
   if (p.unit === 'megapixel') return { unit: 'megapixel', value: money(p.cost, 2, 6) };
-  if (p.unit === 'token') return { unit: 'token', value: money(p.cost * 1000, 3) };
+  if (p.unit === 'token') return { unit: 'token', value: money(p.cost * 1_000_000, 2) };
   return { unit: 'other', value: `${money(p.cost, 2, 6)}/${p.unit}` };
 }
