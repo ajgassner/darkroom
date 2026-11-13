@@ -39,8 +39,20 @@ export function shellQuote(arg: string): string {
   return /^[\w@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", `'\\''`)}'`;
 }
 
-export function commandLine(argv: string[]): string {
-  return argv.map(shellQuote).join(' ');
+/**
+ * Windows quoting for cmd.exe: plain words stay as they are, everything else goes into double quotes with `\"` for
+ * a quote and doubled backslashes before a quote (the Windows argument rules). Caveats: cmd.exe still expands
+ * %NAME% inside double quotes (there is no escape for it on the command line), and PowerShell reads quotes and $
+ * in a double-quoted text differently, so a text with %, $ or quotes may need editing before it is reused.
+ */
+export function windowsQuote(arg: string): string {
+  if (/^[\w@%+=:,./\\-]+$/.test(arg)) return arg;
+  return `"${arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1')}"`;
+}
+
+/** The command line for this system's shell. */
+export function commandLine(argv: string[], platform = process.platform): string {
+  return argv.map(platform === 'win32' ? windowsQuote : shellQuote).join(' ');
 }
 
 /** `flag value` when the value is set. */

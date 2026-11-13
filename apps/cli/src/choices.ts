@@ -47,11 +47,11 @@ export const RECOMMENDED_MARK = '★';
 
 const details = (...parts: (string | null | false | undefined)[]) => parts.filter(Boolean).join(' · ');
 
-/** Marks and release of a model for a hint: "♥ favorite · recommended · Oct 2026 · new". */
+/** Marks and release of a model for a hint: "♥ favorite · ★ recommended · Oct 2026 · new". */
 function release(m: { created?: number } & ModelMarks): string {
   return details(
     m.favorite && `${FAVORITE_MARK} favorite`,
-    m.recommended && 'recommended',
+    m.recommended && `${RECOMMENDED_MARK} recommended`,
     releaseMonth(m.created),
     isNewModel(m.created) && 'new',
   );
@@ -139,8 +139,22 @@ export function voiceChoices(model: SpeechModel, ownVoices: VoiceInfo[]): Choice
   return model.voices.length ? voices : [{ value: '', label: 'model default' }, ...voices];
 }
 
+/**
+ * How a music run goes in a privacy mode where the model has no matching ZDR endpoint (null when it has one):
+ * core sends the prompt anyway (with a notice) instead of blocking it, see musicPrivacy in core's music.ts.
+ */
+export function musicPrivacyNote(zdr: ZdrEndpoint[], privacy: PrivacyMode): string | null {
+  if (privacyAllows(zdr, privacy)) return null;
+  return zdr.length ? 'runs with safety retention' : 'runs without ZDR';
+}
+
+/** All music models (a music run is never blocked by the privacy mode, see musicPrivacyNote), in list order. */
 export function musicModelChoices(models: MusicModelInfo[], privacy: PrivacyMode): Choice<string>[] {
-  return modelChoices(models, privacy, (m) => details(m.name, release(m), zdrStatus(m.zdr)));
+  return models.map((m) => ({
+    value: m.id,
+    label: m.id,
+    hint: details(m.name, release(m), zdrStatus(m.zdr), musicPrivacyNote(m.zdr, privacy)),
+  }));
 }
 
 /** Providers whose speech models follow free-text delivery instructions. */

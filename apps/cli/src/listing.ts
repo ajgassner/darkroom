@@ -1,12 +1,20 @@
 // Text blocks for `darkroom models`, `darkroom favorites` and `darkroom voices <model>` (one block per model, kind
 // or voice group). The model lists come ranked from the loaders (favorites, recommended, newest) and keep that order.
-import { imagePriceLabel, isNewModel, privacyAllows, releaseMonth, speechPriceLabel } from '@darkroom/core/catalog';
+import {
+  imagePriceLabel,
+  isNewModel,
+  privacyAllows,
+  releaseMonth,
+  speechPriceLabel,
+  zdrStatus,
+} from '@darkroom/core/catalog';
 import type { PrivacyMode } from '@darkroom/core/config';
 import type {
   Favorites,
   ModelKind,
   ModelMarks,
   MusicModelInfo,
+  ParamSpec,
   SpeechModel,
   SpeechModelInfo,
   VoiceInfo,
@@ -15,28 +23,40 @@ import type {
 import { maxRefs } from '@darkroom/core/params';
 import { voiceGroups } from '@darkroom/core/voice-lang';
 import pc from 'picocolors';
-import { type CatalogImageModel, FAVORITE_MARK, RECOMMENDED_MARK } from './choices.ts';
+import {
+  type CatalogImageModel,
+  FAVORITE_MARK,
+  musicPrivacyNote,
+  RECOMMENDED_MARK,
+  takesInstructions,
+} from './choices.ts';
 
 export interface ListOptions {
   privacy: PrivacyMode;
   search?: string;
   /** Images: include models without reference images. */
   all?: boolean;
+  /** All parameters and capabilities per model (otherwise two lines per model). */
+  details?: boolean;
 }
 
 function matches(m: { id: string; name: string }, search: string | undefined): boolean {
   return !search || `${m.id} ${m.name}`.toLowerCase().includes(search.toLowerCase());
 }
 
-/** ZDR endpoints and whether the privacy mode lets the model run. */
-function zdrLine(zdr: ZdrEndpoint[], privacy: PrivacyMode): string {
-  const endpoints = zdr.length
-    ? pc.green(zdr.map((e) => `${e.tag}${e.safetyRetention ? ' (safety retention)' : ''}`).join(', '))
-    : pc.dim('no ZDR');
-  const usable = privacyAllows(zdr, privacy)
-    ? pc.green(`usable with --privacy ${privacy}`)
-    : pc.red(`blocked with --privacy ${privacy}`);
-  return `${pc.dim('ZDR')} ${endpoints}  ${usable}`;
+/** ZDR status and whether the privacy mode lets the model run; `music` runs anyway (see musicPrivacyNote). */
+function zdrSummary(zdr: ZdrEndpoint[], privacy: PrivacyMode, music = false): string {
+  const status = zdrStatus(zdr);
+  const note = music ? musicPrivacyNote(zdr, privacy) : null;
+  let usable = pc.green(`usable with --privacy ${privacy}`);
+  if (note) usable = pc.yellow(`${note} with --privacy ${privacy}`);
+  else if (!privacyAllows(zdr, privacy)) usable = pc.red(`blocked with --privacy ${privacy}`);
+  return `${pc.dim('ZDR')} ${status === 'no ZDR' ? pc.dim(status) : pc.green(status)}  ${usable}`;
+}
+
+/** The ZDR endpoints (details). */
+function zdrEndpointsText(zdr: ZdrEndpoint[]): string {
+  return zdr.length ? zdr.map((e) => `${e.tag}${e.safetyRetention ? ' (safety retention)' : ''}`).join(', ') : 'none';
 }
 
 /** Model id with its marks, release month and "new" (released in the last 30 days). */
@@ -54,48 +74,124 @@ function title(m: { id: string; created?: number } & ModelMarks): string {
 }
 
 /** What the marks in the model listings mean. */
-export const LEGEND = `${FAVORITE_MARK} your favorites (first; darkroom favorites add|remove <model>)  ${RECOMMENDED_MARK} recommended  new: released in the last 30 days. Then newest first.`;
+export const LEGEND = `${FAVORITE_MARK} your favorites (first; darkroom favorites add|remove <model>)  ${RECOMMENDED_MARK} recommended  new: released in the last 30 days. Then newest first. --details lists all parameters.`;
 
-function paramValues(m: CatalogImageModel, key: string): string {
-  const s = m.supported_parameters[key];
-  if (s?.type === 'enum') return s.values.join(' ');
-  if (s?.type === 'range') return `${s.min}–${s.max}`;
-  return s ? 'yes' : '–';
+/** A detail line: label column, then the value. */
+const row = (label: string, value: string) => `${pc.dim(label.padEnd(14))}${value}`;
+
+/** First sentence of a description, at most 120 characters. */
+function about(description: string): string[] {
+  const first = description.trim().split(/(?<=[.!?])\s/)[0] ?? '';
+  if (!first) return [];
+  return [row('about', first.length > 120 ? `${first.slice(0, 119)}…` : first)];
+}
+
+function paramValues(spec: ParamSpec | undefined, none: string): string {
+  if (spec?.type === 'enum') return spec.values.join(' ');
+  if (spec?.type === 'range') return `${spec.min}–${spec.max}`;
+  return spec ? 'yes' : none;
+}
+
+/** Parameters shown in their own detail line; the others are listed under "other". */
+const IMAGE_PARAMS: Record<string, string> = {
+  resolution: 'sizes',
+  aspect_ratio: 'aspect',
+  output_format: 'formats',
+  quality: 'quality',
+};
+
+function imageDetails(m: CatalogImageModel): string[] {
+  const sp = m.supported_parameters;
+  const n = sp.n?.type === 'range' ? `${Math.max(1, sp.n.min)}–${sp.n.max} per request` : '1 per request';
+  const other = Object.keys(sp)
+    .filter((k) => !(k in IMAGE_PARAMS) && k !== 'input_references' && k !== 'n')
+    .map((k) => (sp[k].type === 'boolean' ? k : `${k} ${paramValues(sp[k], '')}`));
+  return [
+    ...Object.entries(IMAGE_PARAMS).map(([key, label]) => row(label, paramValues(sp[key], 'model default'))),
+    row('references', `up to ${maxRefs(m) ?? 0}`),
+    row('images', n),
+    ...(other.length ? [row('other', other.join(', '))] : []),
+    row('ZDR', zdrEndpointsText(m.zdr)),
+    ...about(m.description ?? ''),
+  ];
 }
 
 export function imageModelBlocks(models: CatalogImageModel[], o: ListOptions): string[] {
   const rows = models.filter((m) => (o.all || (maxRefs(m) ?? 0) > 0) && matches(m, o.search));
-  return rows.map((m) => {
-    const v = (key: string) => paramValues(m, key);
-    return [
+  return rows.map((m) =>
+    [
       title(m),
-      `${pc.dim('price')} ${imagePriceLabel(m.price) ?? 'n/a'}  ${pc.dim('refs')} ${v('input_references')}  ${pc.dim('n')} ${v('n')}`,
-      `${pc.dim('size')} ${v('resolution')}  ${pc.dim('format')} ${v('output_format')}  ${pc.dim('quality')} ${v('quality')}`,
-      `${pc.dim('aspect')} ${v('aspect_ratio')}`,
-      zdrLine(m.zdr, o.privacy),
-    ].join('\n');
-  });
+      [
+        `${pc.dim('price')} ${imagePriceLabel(m.price) ?? 'n/a'}`,
+        `${pc.dim('refs')} ${maxRefs(m) ? `up to ${maxRefs(m)}` : 'none'}`,
+        zdrSummary(m.zdr, o.privacy),
+      ].join('  '),
+      ...(o.details ? imageDetails(m) : []),
+    ].join('\n'),
+  );
 }
 
-/** Audio model blocks: title and name, the given detail lines, the ZDR line. */
-function audioBlocks<M extends MusicModelInfo>(models: M[], o: ListOptions, details: (m: M) => string[]): string[] {
+/** Audio model blocks: title and name, the summary, the details when asked for. */
+function audioBlocks<M extends MusicModelInfo>(
+  models: M[],
+  o: ListOptions,
+  summary: (m: M) => string,
+  details: (m: M) => string[],
+): string[] {
   return models
     .filter((m) => matches(m, o.search))
-    .map((m) => [`${title(m)}  ${pc.dim(m.name)}`, ...details(m), zdrLine(m.zdr, o.privacy)].join('\n'));
+    .map((m) =>
+      [
+        `${title(m)}  ${pc.dim(m.name)}`,
+        summary(m),
+        ...(o.details ? [...details(m), row('ZDR', zdrEndpointsText(m.zdr)), ...about(m.description)] : []),
+      ].join('\n'),
+    );
+}
+
+/** Voices per language, e.g. "German 2, English 1". */
+function languages(m: SpeechModel): string {
+  return voiceGroups(m, [])
+    .map((g) => `${g.label} ${g.voices.length}`)
+    .join(', ');
 }
 
 export function speechModelBlocks(models: SpeechModelInfo[], o: ListOptions): string[] {
-  return audioBlocks(models, o, (m) => [
-    [
-      `${pc.dim('price')} ${speechPriceLabel(m) ?? 'n/a'}`,
-      `${pc.dim('voices')} ${m.voices.length || 'model default'}`,
-      `${pc.dim('cloning')} ${m.cloning ? pc.green('yes (voice:<name>)') : 'no'}`,
-    ].join('  '),
-  ]);
+  return audioBlocks(
+    models,
+    o,
+    (m) =>
+      [
+        `${pc.dim('price')} ${speechPriceLabel(m) ?? 'n/a'}`,
+        `${pc.dim('voices')} ${m.voices.length || 'model default'}`,
+        `${pc.dim('cloning')} ${m.cloning ? pc.green('yes (voice:<name>)') : 'no'}`,
+        zdrSummary(m.zdr, o.privacy),
+      ].join('  '),
+    (m) => [
+      row('voices', m.voices.length ? `${m.voices.length}: ${languages(m)}` : 'model default only'),
+      row('cloning', m.cloning ? `yes${m.multiRef ? ', several reference clips' : ''}` : 'no'),
+      row('instructions', takesInstructions(m.id) ? 'yes (-i)' : 'no'),
+      row('speed', '0.25–4× (--speed; sent to the provider, not every model follows it)'),
+    ],
+  );
+}
+
+/** A 30 s clip or a full song, when the id or description tells. */
+function musicLength(m: MusicModelInfo): string | null {
+  if (/clip/i.test(m.id)) return 'clip (about 30 s)';
+  return /song|\bpro\b/i.test(`${m.id} ${m.description}`) ? 'full song' : null;
 }
 
 export function musicModelBlocks(models: MusicModelInfo[], o: ListOptions): string[] {
-  return audioBlocks(models, o, () => []);
+  return audioBlocks(
+    models,
+    o,
+    (m) => zdrSummary(m.zdr, o.privacy, true),
+    (m) => {
+      const length = musicLength(m);
+      return length ? [row('length', length)] : [];
+    },
+  );
 }
 
 /** The favorites of each kind (or of one kind). */

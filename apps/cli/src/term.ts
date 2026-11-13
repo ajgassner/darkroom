@@ -8,13 +8,14 @@ import pc from 'picocolors';
 import { displayPath } from './args.ts';
 import { type Choice, plural, usd } from './choices.ts';
 import { BACK, type Back, type Prompter } from './flow.ts';
+import { out, terminal } from './out.ts';
 
 /** Prompts are only shown when both ends are a terminal; scripts and agents never get one. */
 export const interactive = Boolean(process.stdout.isTTY && process.stdin.isTTY);
 
 /** Leave with exit code 130, as after Ctrl+C in a shell. */
 export function cancelled(): never {
-  p.cancel('Cancelled');
+  out.cancel('Cancelled');
   process.exit(130);
 }
 
@@ -36,17 +37,49 @@ function answer<T>(v: unknown): T | Back {
 /** Label with its details, for lists that show hints only on the focused entry. */
 const withHint = (c: Choice<string>) => ({ value: c.value, label: c.hint ? `${c.label}  ${pc.dim(c.hint)}` : c.label });
 
+const SEARCH_PLACEHOLDER = 'type to search';
+
+/** The part of the prompt the search filter sees: clack calls the filter as a method of the prompt. */
+interface MultiSearch {
+  selectedValues: string[];
+}
+
+/**
+ * Filter of the multi-select search (same matching as clack's: label, hint or value contain the text). Once the
+ * user types, the preselected (remembered) entries are dropped unless they were changed already: they may be
+ * scrolled out of the filtered list, and Enter would confirm them instead of the match the user was looking for.
+ * clack also calls the filter with its placeholder to decide about Tab completion; that is no typing.
+ */
+export function searchFilter(preselected: string[]) {
+  let typed = false;
+  return function filter(
+    this: MultiSearch | undefined,
+    search: string,
+    o: { value: unknown; label?: string; hint?: string },
+  ) {
+    if (search && search !== SEARCH_PLACEHOLDER && !typed) {
+      typed = true;
+      const unchanged =
+        this?.selectedValues.length === preselected.length && preselected.every((v) => this.selectedValues.includes(v));
+      if (this && unchanged) this.selectedValues = [];
+    }
+    const text = search.toLowerCase();
+    return [o.label ?? '', o.hint ?? '', String(o.value)].some((v) => v.toLowerCase().includes(text));
+  };
+}
+
 export const clackPrompter: Prompter = {
   async select<T>(o: { message: string; options: Choice<T>[]; initialValue?: T }) {
     return answer<T>(await p.select({ ...o, options: o.options as p.Option<T>[] }));
   },
   async search(o) {
     const options = o.options.map(withHint);
-    return answer<string>(await p.autocomplete({ ...o, options, placeholder: 'type to search', maxItems: 12 }));
+    return answer<string>(await p.autocomplete({ ...o, options, placeholder: SEARCH_PLACEHOLDER, maxItems: 12 }));
   },
   async searchMany(o) {
     const options = o.options.map(withHint);
-    const many = { ...o, options, placeholder: 'type to search', required: true, maxItems: 12 };
+    const filter = searchFilter(o.initialValues ?? []);
+    const many = { ...o, options, filter, placeholder: SEARCH_PLACEHOLDER, required: true, maxItems: 12 };
     return answer<string[]>(await p.autocompleteMultiselect(many));
   },
   async text({ optional, ...o }) {
@@ -75,8 +108,10 @@ export function failSpinner() {
 /**
  * clack's spinner switches a terminal to raw mode, where Ctrl+C is a key press that quits with exit code 0 at once.
  * Back in normal mode Ctrl+C is a SIGINT again, which aborts the running work cleanly (see onInterrupt).
+ * Without a terminal there is no animation (clack would still write cursor codes): only the final line.
  */
 function spinner() {
+  if (!terminal) return { start: () => {}, message: () => {}, stop: (label: string) => out.status(label) };
   const spin = p.spinner({ cancelMessage: 'Cancelled' });
   return {
     start(label: string) {
@@ -135,11 +170,9 @@ function report(entries: ManifestEntry[]) {
   for (const e of entries) {
     if (e.ok && e.file) {
       const file = displayPath(path.join(OUT_DIR, e.file), process.cwd());
-      p.log.success(
-        `${pc.bold(file)}  ${pc.dim(`${usd(e.cost)} · ${(e.durationMs / 1000).toFixed(1)} s · ${e.model}`)}`,
-      );
-    } else p.log.error(`${e.model}: ${e.error}`);
-    for (const w of e.warnings) p.log.warn(pc.yellow(w));
+      out.success(`${pc.bold(file)}  ${pc.dim(`${usd(e.cost)} · ${(e.durationMs / 1000).toFixed(1)} s · ${e.model}`)}`);
+    } else out.error(`${e.model}: ${e.error}`);
+    for (const w of e.warnings) out.warn(pc.yellow(w));
   }
 }
 

@@ -171,6 +171,21 @@ describe('image questions', () => {
     expect(second.calls.map((c) => c.message)).not.toContain('Element (or use @name in the prompt)');
   });
 
+  it('drops a remembered aspect ratio and size when the chosen models offer none', async () => {
+    const models = async () => [
+      image('d/bare', { supported_parameters: { input_references: { type: 'range', min: 0, max: 2 } } }),
+    ];
+    const initial = { models: ['d/bare'], aspect: '3:4', size: '2K' };
+    const { ui, calls } = scripted([KEEP, KEEP, KEEP, 'p', true]);
+    const run = await askImage(ui, imageAsk({ models, defaultModel: 'd/bare', initial }));
+    expect(calls.map((c) => c.message)).not.toContain('Size');
+    expect(run).toMatchObject({ aspect: undefined, size: undefined });
+    // Given on the command line: kept (core reports that the model ignores it)
+    const fixed = scripted([KEEP, KEEP, KEEP, 'p', true]);
+    const kept = await askImage(fixed.ui, imageAsk({ models, defaultModel: 'd/bare', initial, fixed: { size: '4K' } }));
+    expect(kept).toMatchObject({ aspect: undefined, size: '4K' });
+  });
+
   it('sends the user back to the privacy mode when it allows no model', async () => {
     const { ui, calls, infos } = scripted(['zdr-strict', 'off', ['c/open'], KEEP, KEEP, KEEP, 'p', true]);
     const models = async () => [
@@ -280,6 +295,53 @@ describe('speech questions', () => {
     expect(run).toMatchObject({ model: 'x/plain', voice: undefined, speed: undefined });
   });
 
+  it('drops instructions from an earlier run when the model takes none', async () => {
+    const { ui, calls } = scripted([KEEP, KEEP, KEEP, KEEP, KEEP, true]);
+    const run = await askSpeech(ui, speechAsk({ initial: { model: 'x/clone', text: 'Hi', instructions: 'calm' } }));
+    expect(calls.map((c) => c.message)).not.toContain('Delivery instructions (optional)');
+    expect(run).toMatchObject({ model: 'x/clone', instructions: undefined });
+  });
+
+  it('plays voice previews after choosing a voice until the user keeps one', async () => {
+    const preview = vi.fn(async () => {});
+    const answers = [
+      KEEP,
+      KEEP,
+      'en-US-Ben',
+      'listen',
+      'other',
+      'de-DE-Anna',
+      BACK,
+      'Kore',
+      'listen',
+      'listen',
+      'keep',
+    ];
+    const { ui, calls } = scripted([...answers, 'Hi', '', 1, true]);
+    const run = await askSpeech(ui, speechAsk({ preview }));
+    expect(calls.slice(2, 11).map((c) => c.message)).toEqual([
+      'Voice',
+      'Voice en-US-Ben',
+      'Voice en-US-Ben',
+      'Voice',
+      'Voice de-DE-Anna',
+      'Voice',
+      'Voice Kore',
+      'Voice Kore',
+      'Voice Kore',
+    ]);
+    expect(calls[3].options).toEqual(['keep', 'listen', 'other']);
+    // Back at the voice list, the last voice is preselected
+    expect(calls[5].initial).toBe('en-US-Ben');
+    expect(calls[7].initial).toBe('de-DE-Anna');
+    expect(preview.mock.calls).toEqual([
+      [{ model: 'google/tts', voice: 'en-US-Ben', privacy: 'zdr' }],
+      [{ model: 'google/tts', voice: 'Kore', privacy: 'zdr' }],
+      [{ model: 'google/tts', voice: 'Kore', privacy: 'zdr' }],
+    ]);
+    expect(run).toMatchObject({ voice: 'Kore', text: 'Hi' });
+  });
+
   it('goes back when the privacy mode allows no speech model', async () => {
     const { ui, infos } = scripted([BACK]);
     const run = await askSpeech(
@@ -298,14 +360,18 @@ describe('music questions', () => {
     expect(calls.map((c) => c.kind)).toEqual(['select', 'select', 'text', 'confirm']);
   });
 
-  it('takes the only model without asking and explains a blocked privacy mode', async () => {
+  it('takes the only model without asking, offers music models without ZDR in a ZDR mode', async () => {
     const one = async () => [{ id: 'g/lyria', name: 'Lyria', description: '', zdr, ...marks }];
     const a = scripted([KEEP, 'song', true]);
     expect(await askMusic(a.ui, musicAsk({ models: one }))).toMatchObject({ model: 'g/lyria' });
 
-    const b = scripted(['zdr', 'off', KEEP, 'song', true]);
-    expect(await askMusic(b.ui, musicAsk())).toMatchObject({ privacy: 'off' });
-    expect(b.infos[0]).toContain('Choose "off"');
+    const b = scripted(['zdr', 'g/lyria-pro', 'song', true]);
+    expect(await askMusic(b.ui, musicAsk())).toMatchObject({ privacy: 'zdr', model: 'g/lyria-pro' });
+    expect(b.calls[1].options).toEqual(['g/lyria', 'g/lyria-pro']);
+
+    const none = scripted([KEEP, BACK]);
+    expect(await askMusic(none.ui, musicAsk({ models: async () => [] }))).toBe(BACK);
+    expect(none.infos[0]).toBe('No music models found.');
   });
 });
 
