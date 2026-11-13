@@ -11,9 +11,18 @@ import {
   intArg,
   parseModels,
   resolveRefs,
+  sizeArg,
 } from './args.ts';
 
 describe('CLI arguments', () => {
+  it('takes image sizes in any case and rejects unknown ones', () => {
+    expect(sizeArg('4k')).toBe('4K');
+    expect(sizeArg(' 1.5k ')).toBe('1.5K');
+    expect(sizeArg('512')).toBe('512');
+    expect(() => sizeArg('8K')).toThrow('must be one of 512, 768, 1K, 1.5K, 2K, 4K');
+    expect(() => sizeArg('')).toThrow('must be one of');
+  });
+
   it('collects repeated option values', () => {
     expect(collect('b', collect('a'))).toEqual(['a', 'b']);
   });

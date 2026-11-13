@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // darkroom CLI: generate images, speech and music from the terminal (same core as the web UI).
 // Without the required input in a terminal it asks interactively (see studio.ts); scripts never get a prompt.
-import * as p from '@clack/prompts';
+import './no-color.ts';
 import {
   APP_VERSION,
   DEFAULT_MODEL,
@@ -15,12 +15,14 @@ import type { ManifestEntry, ModelKind } from '@darkroom/core/contract';
 import { MODEL_KINDS } from '@darkroom/core/favorites';
 import { Argument, Command, InvalidArgumentError, Option } from 'commander';
 import pc from 'picocolors';
-import { collect, explicitOptions, floatArg, intArg, parseModels, resolveRefs } from './args.ts';
+import { collect, explicitOptions, floatArg, intArg, parseModels, resolveRefs, sizeArg } from './args.ts';
 import type { ImageRun, MusicRun, SpeechRun } from './command-line.ts';
+import { out } from './out.ts';
 import {
   addFavorite,
   interactiveMode,
   MUSIC_MODEL,
+  previewVoice,
   removeFavorite,
   runImage,
   runMusicRun,
@@ -69,7 +71,7 @@ const program = new Command()
 // or remove the app the CLI runs from). They reach the CLI only with other arguments (like --help) or in a git
 // checkout.
 const checkoutHint = (what: string, installed: string, checkout: string) => () =>
-  p.log.info(`To ${what} an installed darkroom, run: ${installed}\nIn a git checkout: ${checkout}`);
+  out.info(`To ${what} an installed darkroom, run: ${installed}\nIn a git checkout: ${checkout}`);
 program
   .command('update')
   .description('Update to the latest release (keeps your data)')
@@ -99,7 +101,7 @@ program
   // Options take one value each (repeat them for more): a variadic option would swallow the prompt after it
   .option('-m, --model <ids>', `model; repeat or comma-separate for several (default: ${DEFAULT_MODEL})`, collect)
   .option('-a, --aspect <ratio>', 'aspect ratio, e.g. 1:1, 3:4, 4:5, 9:16, 16:9')
-  .option('-s, --size <tier>', 'size: 512 | 1K | 2K | 4K')
+  .option('-s, --size <tier>', 'size: 512 | 768 | 1K | 1.5K | 2K | 4K (models support some of them)', sizeArg)
   .option('-n, --count <n>', 'images per model (1–10)', intArg(1, 10), 1)
   .option('-f, --format <fmt>', 'file format: png | jpeg | webp (if supported)')
   .option('-q, --quality <q>', 'quality: low | medium | high (e.g. GPT Image)')
@@ -109,7 +111,7 @@ program
   .option('--max-side <px>', 'longest side of the references', intArg(256, 4096))
   .addOption(privacyOption())
   .action(async (words: string[], o, cmd: Command) => {
-    p.intro(pc.inverse(' darkroom · images '));
+    out.intro(pc.inverse(' darkroom · images '));
     const run: ImageRun = {
       privacy: o.privacy,
       models: parseModels(o.model ?? [DEFAULT_MODEL]),
@@ -135,7 +137,7 @@ program
       await interactiveMode(clackPrompter, 'image', { image: fixed });
     }
     setExitCode(await runImage(run));
-    p.outro(pc.dim(await totalLine()));
+    out.outro(pc.dim(await totalLine()));
   });
 
 program
@@ -148,7 +150,7 @@ program
   .option('--speed <x>', 'speed from 0.25 to 4, e.g. 0.9 or 1.1', floatArg(0.25, 4))
   .addOption(privacyOption())
   .action(async (words: string[], o, cmd: Command) => {
-    p.intro(pc.inverse(' darkroom · speech '));
+    out.intro(pc.inverse(' darkroom · speech '));
     const run: SpeechRun = {
       privacy: o.privacy,
       model: o.model,
@@ -165,7 +167,31 @@ program
       await interactiveMode(clackPrompter, 'speech', { speech: fixed });
     }
     setExitCode(await runSpeechRun(run));
-    p.outro(pc.dim('Done'));
+    out.outro(pc.dim('Done'));
+  });
+
+program
+  .command('preview')
+  .description('Listen to a voice: a sample sentence in its language (previews of model voices are cached)')
+  .argument('[text...]', 'own text instead of the sample sentence (always generated)')
+  .option('-m, --model <id>', 'speech model', SPEECH_MODEL)
+  .option('-v, --voice <voice>', 'model voice, or voice:<name> for an own voice (default: the model default voice)')
+  .option('--no-play', 'do not play it, only print the path of the audio file')
+  .addOption(privacyOption())
+  .addHelpText(
+    'after',
+    '\nPlays with afplay (macOS), paplay, aplay or ffplay (Linux) or PowerShell (Windows); without a player it\n' +
+      'prints the path. Ctrl+C stops the playback. List the voices of a model: darkroom voices <model>',
+  )
+  .action(async (words: string[], o) => {
+    out.intro(pc.inverse(' darkroom · voice preview '));
+    const request = { model: o.model, voice: o.voice ?? '', text: words.join(' '), privacy: o.privacy };
+    const playback = await previewVoice(request, { play: o.play });
+    if (playback === 'stopped') {
+      out.cancel('Stopped');
+      process.exit(130);
+    }
+    out.outro(pc.dim('Done'));
   });
 
 program
@@ -175,7 +201,7 @@ program
   .option('-m, --model <id>', 'music model', MUSIC_MODEL)
   .addOption(privacyOption())
   .action(async (words: string[], o, cmd: Command) => {
-    p.intro(pc.inverse(' darkroom · music '));
+    out.intro(pc.inverse(' darkroom · music '));
     const run: MusicRun = { privacy: o.privacy, model: o.model, prompt: words.join(' ').trim() };
     if (!run.prompt) {
       if (!interactive) missing('Describe the music');
@@ -183,7 +209,7 @@ program
       await interactiveMode(clackPrompter, 'music', { music: fixed });
     }
     setExitCode(await runMusicRun(run));
-    p.outro(pc.dim('Done'));
+    out.outro(pc.dim('Done'));
   });
 
 program
@@ -192,6 +218,7 @@ program
   .addArgument(new Argument('[kind]', 'which models').choices(MODEL_KINDS).default('image'))
   .option('--all', 'image models: include models without reference images')
   .option('--search <text>', 'filter by id or name')
+  .option('--details', 'all parameters per model: sizes, aspect ratios, references, formats, voices, …')
   .addOption(privacyOption('privacy mode the models are checked against: zdr | zdr-strict | off'))
   .action((kind, o) => showModels(kind, o));
 
@@ -245,13 +272,13 @@ program
 try {
   // Plain `darkroom` in a terminal opens the main menu; elsewhere commander prints the help as before
   if (process.argv.length <= 2 && interactive) {
-    p.intro(pc.inverse(' darkroom '));
+    out.intro(pc.inverse(' darkroom '));
     await interactiveMode(clackPrompter, 'menu');
   }
   await program.parseAsync();
 } catch (err) {
   failSpinner();
-  p.log.error((err as Error).message);
+  out.error((err as Error).message);
   // Exit right away: background work of the failed command (catalog requests, timers) must not keep it running
   process.exit(1);
 }

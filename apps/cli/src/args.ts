@@ -65,6 +65,16 @@ export function floatArg(min: number, max: number) {
   };
 }
 
+/** Image sizes, smallest first (the values of `-s`). */
+const SIZES = ['512', '768', '1K', '1.5K', '2K', '4K'];
+
+/** Commander parser for `-s`: a size in any case (4k → 4K); unknown values are an error. */
+export function sizeArg(v: string): string {
+  const size = SIZES.find((s) => s.toLowerCase() === v.trim().toLowerCase());
+  if (!size) throw new InvalidArgumentError(`must be one of ${SIZES.join(', ')}`);
+  return size;
+}
+
 /** The options the user gave on the command line (not their defaults), so the interactive mode does not ask them. */
 export function explicitOptions<T extends object>(
   values: T,

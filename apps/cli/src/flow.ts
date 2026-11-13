@@ -22,6 +22,7 @@ import {
   voiceChoices,
 } from './choices.ts';
 import type { ImageRun, MusicRun, SpeechRun } from './command-line.ts';
+import type { PreviewRequest } from './preview.ts';
 
 /** Escape at a prompt: go back one question. */
 export const BACK: unique symbol = Symbol('back');
@@ -129,6 +130,8 @@ export async function askImage(ui: Prompter, a: ImageAsk): Promise<ImageRun | Ba
   const paramStep =
     (key: 'aspect' | 'size', message: string, choices: (m: CatalogImageModel[]) => Choice<string>[]) => async () => {
       const options = choices(chosen());
+      // Nothing to choose for these models: a remembered value would only be ignored with a warning
+      if (!given(a.fixed, key) && !options.length) d[key] = undefined;
       return step(
         given(a.fixed, key) || !options.length,
         () => ui.select({ message, options, initialValue: initialValue(options, d[key]) }),
@@ -185,6 +188,30 @@ export interface SpeechAsk extends Ask<SpeechRun> {
   models: () => Promise<SpeechModelInfo[]>;
   ownVoices: VoiceInfo[];
   estimate: (run: SpeechRun, model: SpeechModelInfo | undefined) => string;
+  /** Generate and play a voice preview ("Listen to a preview" after choosing a voice). */
+  preview?: (r: PreviewRequest) => Promise<void>;
+}
+
+type VoiceNext = 'keep' | 'listen' | 'other';
+
+/** After choosing a voice: keep it, listen to a preview (as often as wanted) or choose another one. */
+async function keepVoice(ui: Prompter, d: SpeechRun, preview: (r: PreviewRequest) => Promise<void>): Promise<boolean> {
+  let listened = false;
+  for (;;) {
+    const next = await ui.select<VoiceNext>({
+      message: `Voice ${d.voice || 'model default'}`,
+      options: [
+        { value: 'keep', label: 'Use this voice' },
+        { value: 'listen', label: listened ? 'Listen again' : 'Listen to a preview', hint: 'previews are cached' },
+        { value: 'other', label: 'Choose another voice' },
+      ],
+      initialValue: 'keep',
+    });
+    if (next === 'keep') return true;
+    if (next !== 'listen') return false;
+    await preview({ model: d.model, voice: d.voice ?? '', privacy: d.privacy });
+    listened = true;
+  }
 }
 
 export async function askSpeech(ui: Prompter, a: SpeechAsk): Promise<SpeechRun | Back> {
@@ -210,11 +237,14 @@ export async function askSpeech(ui: Prompter, a: SpeechAsk): Promise<SpeechRun |
     const options = m ? voiceChoices(m, a.ownVoices) : [];
     // Nothing to choose: keep the only voice (or the model default)
     if (!given(a.fixed, 'voice') && options.length < 2) d.voice = options[0]?.value || undefined;
-    return step(
-      given(a.fixed, 'voice') || options.length < 2,
-      () => pick(ui, 'Voice', options, d.voice),
-      (v) => (d.voice = v || undefined),
-    );
+    if (given(a.fixed, 'voice') || options.length < 2) return SKIP;
+    // Back from the preview question returns to the voice list
+    for (;;) {
+      const v = await pick(ui, 'Voice', options, d.voice);
+      if (v === BACK) return BACK;
+      d.voice = v || undefined;
+      if (!a.preview || (await keepVoice(ui, d, a.preview))) return DONE;
+    }
   };
   const ok = await runSteps([
     privacyStep(ui, a.fixed, d),
@@ -226,8 +256,10 @@ export async function askSpeech(ui: Prompter, a: SpeechAsk): Promise<SpeechRun |
         () => ui.text({ message: 'Text', placeholder: 'Hello! This is a short test.', initialValue: d.text }),
         (v) => (d.text = v),
       ),
-    () =>
-      step(
+    () => {
+      // Instructions from an earlier run would be ignored by a model that takes none
+      if (!given(a.fixed, 'instructions') && !takesInstructions(d.model)) d.instructions = undefined;
+      return step(
         given(a.fixed, 'instructions') || !takesInstructions(d.model),
         () =>
           ui.text({
@@ -237,7 +269,8 @@ export async function askSpeech(ui: Prompter, a: SpeechAsk): Promise<SpeechRun |
             optional: true,
           }),
         (v) => (d.instructions = v || undefined),
-      ),
+      );
+    },
     () =>
       step(
         given(a.fixed, 'speed'),
@@ -268,7 +301,7 @@ export async function askMusic(ui: Prompter, a: MusicAsk): Promise<MusicRun | Ba
     if (given(a.fixed, 'model')) return SKIP;
     const options = musicModelChoices(models, d.privacy);
     if (!options.length) {
-      ui.info(`No music model is allowed in privacy mode "${d.privacy}". Choose "off" to use one without ZDR.`);
+      ui.info('No music models found.');
       return BACK;
     }
     if (options.length === 1) d.model = options[0].value;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { commandLine, genArgs, musicArgs, shellQuote, speakArgs } from './command-line.ts';
+import { commandLine, genArgs, musicArgs, shellQuote, speakArgs, windowsQuote } from './command-line.ts';
 
 describe('command line of an interactive run', () => {
   it('quotes for POSIX shells', () => {
@@ -8,6 +8,20 @@ describe('command line of an interactive run', () => {
     expect(shellQuote('a cat')).toBe("'a cat'");
     expect(shellQuote("it's $HOME")).toBe("'it'\\''s $HOME'");
     expect(shellQuote('')).toBe("''");
+  });
+
+  it('quotes for Windows with double quotes', () => {
+    expect(windowsQuote('C:\\out\\a.png')).toBe('C:\\out\\a.png');
+    expect(windowsQuote('a cat')).toBe('"a cat"');
+    expect(windowsQuote('say "hi"')).toBe('"say \\"hi\\""');
+    expect(windowsQuote("it's $HOME")).toBe(`"it's $HOME"`);
+    // Backslashes before a quote and at the end are doubled, so they stay backslashes
+    expect(windowsQuote('a\\"b')).toBe('"a\\\\\\"b"');
+    expect(windowsQuote('dir with space\\')).toBe('"dir with space\\\\"');
+    expect(windowsQuote('')).toBe('""');
+    const argv = speakArgs({ privacy: 'zdr', model: 'x/tts', text: "It's me" });
+    expect(commandLine(argv, 'win32')).toBe(`darkroom speak -m x/tts --privacy zdr "It's me"`);
+    expect(commandLine(argv, 'linux')).toBe("darkroom speak -m x/tts --privacy zdr 'It'\\''s me'");
   });
 
   it('renders darkroom gen with every choice', () => {

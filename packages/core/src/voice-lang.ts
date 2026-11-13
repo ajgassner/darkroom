@@ -125,3 +125,27 @@ export function voiceGroups(model: SpeechModel, ownVoices: Pick<VoiceInfo, 'name
   }
   return [...groups.values()].sort((a, b) => groupRank(a.code) - groupRank(b.code) || a.label.localeCompare(b.label));
 }
+
+/** Preview sentences by language (the same as in the web UI). */
+const PREVIEW_SENTENCES: Record<string, string> = {
+  de: 'Hallo! So klingt diese Stimme. Ich lese dir gerne deine Texte vor, klar, natürlich und mit Gefühl.',
+  en: "Hi there! This is how this voice sounds. I'd be happy to read your texts aloud, clearly and naturally.",
+  fr: 'Bonjour ! Voici comment sonne cette voix. Je lis volontiers vos textes à voix haute.',
+  es: '¡Hola! Así suena esta voz. Con gusto leo tus textos en voz alta.',
+  it: 'Ciao! Ecco come suona questa voce. Leggo volentieri i tuoi testi ad alta voce.',
+  pt: 'Olá! É assim que esta voz soa. Leio com prazer os seus textos em voz alta.',
+  nl: 'Hallo! Zo klinkt deze stem. Ik lees je teksten graag voor.',
+};
+
+/**
+ * Sentence for a voice preview in the voice's language. Own voices (voice:<name>) and voices without a known
+ * language use `userLang` (the user's language); English when there is no sentence for the language.
+ */
+export function previewSentence(
+  model: Pick<SpeechModel, 'id' | 'description'> | undefined,
+  voice: string,
+  userLang: string,
+): string {
+  const code = voice.startsWith('voice:') ? 'multi' : voiceLanguage(model, voice).code;
+  return PREVIEW_SENTENCES[code === 'multi' ? userLang : code] ?? PREVIEW_SENTENCES.en;
+}

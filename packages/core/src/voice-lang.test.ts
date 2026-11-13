@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SpeechModel } from './contract.ts';
-import { languageName, voiceGroups, voiceLanguage } from './voice-lang.ts';
+import { languageName, previewSentence, voiceGroups, voiceLanguage } from './voice-lang.ts';
 
 const model = (id: string, voices: string[], extra: Partial<SpeechModel> = {}): SpeechModel => ({
   id,
@@ -59,5 +59,16 @@ describe('voice languages', () => {
       { code: 'fr', label: 'French', voices: [{ value: 'fr-FR-Lea', label: 'fr-FR-Lea (FR)' }] },
     ]);
     expect(voiceGroups({ ...m, cloning: false, voices: [] }, own)).toEqual([]);
+  });
+
+  it('picks the preview sentence in the voice language, own and multilingual voices in the user language', () => {
+    const m = model('x/tts', ['de-DE-Anna', 'Kore', 'ja-JP-Aoi']);
+    expect(previewSentence(m, 'de-DE-Anna', 'en')).toMatch(/^Hallo! So klingt/);
+    expect(previewSentence(m, 'Kore', 'fr')).toMatch(/^Bonjour/);
+    expect(previewSentence(m, 'voice:me_de', 'nl')).toMatch(/^Hallo! Zo klinkt/);
+    expect(previewSentence(m, 'ja-JP-Aoi', 'de')).toMatch(/^Hi there/);
+    expect(previewSentence(m, 'Kore', 'xx')).toMatch(/^Hi there/);
+    expect(previewSentence({ id: 'x/en', description: 'English-only speech' }, '', 'de')).toMatch(/^Hi there/);
+    expect(previewSentence(undefined, '', 'de')).toMatch(/^Hallo!/);
   });
 });

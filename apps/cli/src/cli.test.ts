@@ -9,15 +9,31 @@ const CLI = path.join(import.meta.dirname, 'cli.ts');
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'darkroom-cli-run-'));
 afterAll(() => fs.rm(home, { recursive: true, force: true }));
 
+interface Run {
+  code: number | null;
+  /** stdout and stderr together, without color and cursor codes. */
+  output: string;
+  stdout: string;
+  stderr: string;
+}
+
 /** Run the CLI as its own process (stdin stays open, as in a terminal) with an empty data folder. */
-function cli(args: string[], env: Record<string, string> = {}): Promise<{ code: number | null; output: string }> {
+function cli(args: string[], env: Record<string, string> = {}): Promise<Run> {
   const { OPENROUTER_API_KEY: _key, ...rest } = process.env;
   const child = spawn(process.execPath, [CLI, ...args], {
     env: { ...rest, DARKROOM_HOME: home, OPENROUTER_BASE: 'http://127.0.0.1:9/api/v1', ...env },
   });
   let output = '';
-  child.stdout.on('data', (d) => (output += d));
-  child.stderr.on('data', (d) => (output += d));
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (d) => {
+    output += d;
+    stdout += d;
+  });
+  child.stderr.on('data', (d) => {
+    output += d;
+    stderr += d;
+  });
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
@@ -26,7 +42,7 @@ function cli(args: string[], env: Record<string, string> = {}): Promise<{ code: 
     child.on('exit', (code) => {
       clearTimeout(timer);
       // Colors and cursor codes depend on the environment (CI turns colors on): compare plain text
-      resolve({ code, output: stripVTControlCharacters(output) });
+      resolve({ code, output: stripVTControlCharacters(output), stdout, stderr });
     });
   });
 }
@@ -36,6 +52,22 @@ describe('CLI process', () => {
     const res = await cli(['speak', 'hello']);
     expect(res.code).toBe(1);
     expect(res.output).toContain('OPENROUTER_API_KEY is missing');
+  });
+
+  it('writes plain lines when piped: no color or cursor codes, errors on stderr', async () => {
+    const res = await cli(['speak', 'hello'], { CI: 'true' });
+    // One line, the message only (CI=true would turn picocolors on without the NO_COLOR of a pipe)
+    expect(res.stderr.split('\n')).toEqual([expect.stringMatching(/^OPENROUTER_API_KEY is missing\. /), '']);
+    expect(res.stderr).not.toContain('\u001b');
+    expect(res.stdout).toBe('');
+    const help = await cli(['preview', '--help'], { CI: 'true' });
+    expect(help.stdout).toContain('--no-play');
+  });
+
+  it('takes image sizes in any case and rejects unknown ones', async () => {
+    const res = await cli(['gen', '-s', '8k', 'a cat']);
+    expect(res.code).toBe(1);
+    expect(res.stderr).toContain("option '-s, --size <tier>' argument '8k' is invalid. must be one of 512");
   });
 
   it('exits with an error when OpenRouter cannot be reached', async () => {

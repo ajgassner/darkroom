@@ -125,7 +125,7 @@ Available in the detail view of every image:
 
 ## CLI
 
-Run `darkroom` without a command in a terminal for an interactive menu: image, speech, music, model lists, elements and voices, costs and the web UI. It asks for the privacy mode, models (type to search; favorites, then recommended, then newest first, with release month, price and ZDR status), element, aspect ratio and size (only values the chosen models support), the number of images and the prompt, shows a summary with the estimated cost and runs after you confirm. Afterwards it prints the same run as a command line (to reuse it or give it to an agent) and offers to open the result, run again, change settings, add the models to your favorites or go back to the menu. Escape goes back one question, Ctrl+C quits. Your last choices (not prompts or texts) are remembered in `.cli-state.json` in your data folder.
+Run `darkroom` without a command in a terminal for an interactive menu: image, speech, music, model lists, elements and voices, costs and the web UI. It asks for the privacy mode, models (type to search, Tab selects, Enter confirms; typing a search drops the remembered selection; favorites, then recommended, then newest first, with release month, price and ZDR status), element, aspect ratio and size (only values the chosen models support), the number of images and the prompt (for speech: model, voice, with "Listen to a preview" after choosing one, text, instructions and speed), shows a summary with the estimated cost and runs after you confirm. Afterwards it prints the same run as a command line (to reuse it or give it to an agent) and offers to open the result, run again, change settings, add the models to your favorites or go back to the menu. Escape goes back one question, Ctrl+C quits. Your last choices (not prompts or texts) are remembered in `.cli-state.json` in your data folder.
 
 `darkroom gen`, `darkroom speak` and `darkroom music` without a prompt or text start the same questions; options given on the command line are not asked again. Outside a terminal (scripts, AI agents) the CLI never asks: a missing prompt is an error.
 
@@ -148,9 +148,12 @@ darkroom gen                       # interactive image run; also: darkroom speak
 darkroom gen -m google/gemini-3-pro-image   # asks only for what is missing
 darkroom start                     # web UI on http://localhost:5177 (or PORT)
 darkroom speak --speed 1.1 "Hello! This is a short test."
+darkroom preview -m elevenlabs/eleven-v4 -v <voice>  # listen to a voice from darkroom voices <model>
+darkroom preview -m fish-audio/s2.1-pro -v voice:me "Is this me?"   # own text; --no-play only prints the file path
 darkroom music "calm acoustic guitar jingle, 120 bpm"
-darkroom models                    # image models: references, parameters, price, ZDR status
-darkroom models speech             # speech models: price, voices, voice cloning, ZDR status
+darkroom models                    # image models: price, references, ZDR status
+darkroom models --details          # plus sizes, aspect ratios, formats, images per request, other parameters
+darkroom models speech --details   # speech models: price, voices by language, cloning, instructions, ZDR status
 darkroom models music --privacy off --search lyria
 darkroom favorites                 # your favorite models; also: darkroom favorites image
 darkroom favorites add microsoft/mai-image-2.6   # kind found in the catalogs (or --kind image|speech|music)
@@ -161,7 +164,7 @@ darkroom elements                  # reference sets
 darkroom costs                     # cost per model and in total
 ```
 
-`darkroom --help` and `darkroom gen --help` list all options. Options such as `-m` and `-r` take one value each; repeat them or separate models with commas. `darkroom models` checks the models against your privacy mode (`--privacy` to check another one) and marks favorites (♥), recommended models (★), the release month and models released in the last 30 days (new). Result paths are printed so you can open them or pass them to `-r`. Ctrl+C cancels a running generation, including the upstream calls; a second Ctrl+C quits right away. A cancelled prompt or run exits with code 130.
+`darkroom --help` and `darkroom gen --help` list all options. Options such as `-m` and `-r` take one value each; repeat them or separate models with commas. `darkroom models` checks the models against your privacy mode (`--privacy` to check another one) and marks favorites (♥), recommended models (★), the release month and models released in the last 30 days (new). Music models are never blocked: without a matching ZDR endpoint the prompt is sent without ZDR (with a notice), which the listing shows. `darkroom preview` plays a voice with `afplay` (macOS), `paplay`, `aplay` or `ffplay` (Linux) or PowerShell (Windows) and prints the file path (without a player only the path); previews of model voices are cached (marked "cached, free"), own voices and own texts are always generated, and Ctrl+C stops the playback. Result paths are printed so you can open them or pass them to `-r`. Ctrl+C cancels a running generation, including the upstream calls; a second Ctrl+C quits right away. A cancelled prompt or run exits with code 130. Outside a terminal the output is plain lines without colors or frames: results (path, cost, duration, model) one per line on stdout, progress, totals, warnings and errors on stderr (`FORCE_COLOR=1` keeps the colors).
 
 ## Privacy
 
