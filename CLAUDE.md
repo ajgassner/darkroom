@@ -12,7 +12,7 @@ End users install with `install.sh` / `install.ps1`: they download Node 26 and t
 
 ```bash
 pnpm dev                     # server (watch, :5177) + Vite dev server (:5173, proxies /api and /out)
-pnpm build                   # build only the web UI into dist/web/ (node code runs without a build)
+pnpm build                   # build only the web UI into dist/web/ (node code runs without a build; the server rebuilds it at start when it is older than apps/web, except under pnpm dev)
 pnpm start                   # server on http://localhost:5177
 pnpm cli <cmd>               # CLI, e.g. pnpm cli gen --help
 pnpm check                   # typecheck + lint + test + analyze, the full gate

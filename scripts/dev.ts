@@ -3,8 +3,10 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 
 const children: ChildProcess[] = [
+  // Vite serves the UI in development: the server does not rebuild dist/web on every restart
   spawn(process.execPath, ['--watch', 'apps/server/src/server.ts'], {
     stdio: 'inherit',
+    env: { ...process.env, DARKROOM_WEB_BUILD: 'off' },
   }),
   spawn('pnpm', ['--filter', '@darkroom/web', 'dev'], { stdio: 'inherit' }),
 ];
