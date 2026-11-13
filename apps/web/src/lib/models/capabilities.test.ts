@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 import { describe, expect, it } from 'vitest';
+import type { ImageModel } from '../types';
 import {
   chipState,
   fallbackOf,
@@ -8,7 +9,6 @@ import {
   type ValueSupport,
   valueSupport,
 } from './capabilities';
-import type { ImageModel } from './types';
 
 function imageModel(id: string, params: Record<string, string[]> = {}, maxRefs = 4): ImageModel {
   const enums = Object.fromEntries(Object.entries(params).map(([k, values]) => [k, { type: 'enum' as const, values }]));

@@ -8,6 +8,8 @@
   // and may only use core's types (the shared API contract), never its runtime code.
   // Inside core, the domain folders build on the shared base (contract, config, errors and the test helpers).
   // image and elements import each other: refs.ts uses image/heic.ts, generation and prompts use the elements.
+  // Inside web, features build on lib, components and i18n; lib never imports UI code. The flows that talk to the
+  // server (api, actions, runs) sit on top of the pure helpers and state, which never call them.
   "boundaries": {
     "zones": [
       {
@@ -23,7 +25,12 @@
       { "name": "core-system", "patterns": ["packages/core/src/system/**"] },
       { "name": "server", "patterns": ["apps/server/**"] },
       { "name": "cli", "patterns": ["apps/cli/**"] },
-      { "name": "web", "patterns": ["apps/web/**"] },
+      { "name": "web", "patterns": ["apps/web/vite.config.ts", "apps/web/src/{App,main}.tsx"] },
+      { "name": "web-features", "patterns": ["apps/web/src/features/**"] },
+      { "name": "web-components", "patterns": ["apps/web/src/components/**"] },
+      { "name": "web-flows", "patterns": ["apps/web/src/lib/{api,api.test,actions,runs}.ts"] },
+      { "name": "web-lib", "patterns": ["apps/web/src/lib/**"] },
+      { "name": "web-i18n", "patterns": ["apps/web/src/i18n/**"] },
       { "name": "scripts", "patterns": ["scripts/**"] }
     ],
     "rules": [
@@ -61,7 +68,20 @@
           "core-system"
         ]
       },
-      { "from": "web", "allow": [], "allowTypeOnly": ["core"] },
+      {
+        "from": "web",
+        "allow": ["web-features", "web-components", "web-flows", "web-lib", "web-i18n"],
+        "allowTypeOnly": ["core"]
+      },
+      {
+        "from": "web-features",
+        "allow": ["web-components", "web-flows", "web-lib", "web-i18n"],
+        "allowTypeOnly": ["core"]
+      },
+      { "from": "web-components", "allow": ["web-lib"], "allowTypeOnly": ["core"] },
+      { "from": "web-flows", "allow": ["web-lib", "web-i18n"], "allowTypeOnly": ["core"] },
+      { "from": "web-lib", "allow": ["web-i18n"], "allowTypeOnly": ["core"] },
+      { "from": "web-i18n", "allow": ["web-lib"], "allowTypeOnly": ["core"] },
       { "from": "scripts", "allow": [] }
     ]
   },

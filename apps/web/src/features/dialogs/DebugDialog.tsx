@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { errorMessage } from '@/lib/actions';
 import { api, outUrl } from '@/lib/api';
-import { num } from '@/lib/format';
-import { debugRows } from '@/lib/labels';
 import { useUi } from '@/lib/store';
+import { num } from '@/lib/text/format';
+import { debugRows } from '@/lib/text/labels';
 import type { DebugRecord, ManifestEntry } from '@/lib/types';
-import { AudioPlayer } from './shared';
+import { AudioPlayer } from '../shared';
 
 function JsonBlock({ title, value }: { title: string; value: unknown }) {
   const { t } = useTranslation();

@@ -1,13 +1,14 @@
 import { toast } from 'sonner';
 import i18n from '@/i18n';
 import { api, errorToastId, readAsDataUrl } from './api';
-import { num } from './format';
-import { transcribeBlockedText } from './labels';
-import { elementOnLoad, existingElement } from './mentions';
-import { withFavorite } from './models';
-import { selectionAfterDelete } from './names';
-import { audioSettingsFrom, extraRefsFrom, imageSettingsFrom } from './reuse';
+import { transcribeOptions, voiceAfterDelete } from './audio/voices';
+import { MAX_SAMPLE_SEC, toWav } from './audio/wav';
+import { withFavorite } from './models/models';
 import { type DEFAULT_SETTINGS, useData, useSettings, useUi } from './store';
+import { num } from './text/format';
+import { transcribeBlockedText } from './text/labels';
+import { elementOnLoad, existingElement } from './text/mentions';
+import { selectionAfterDelete } from './text/names';
 import type {
   ElementInfo,
   Favorites,
@@ -22,8 +23,7 @@ import type {
   UpdateResponse,
   VoiceInfo,
 } from './types';
-import { transcribeOptions, voiceAfterDelete } from './voices';
-import { MAX_SAMPLE_SEC, toWav } from './wav';
+import { audioSettingsFrom, extraRefsFrom, imageSettingsFrom } from './ui/reuse';
 
 const t = i18n.t.bind(i18n);
 

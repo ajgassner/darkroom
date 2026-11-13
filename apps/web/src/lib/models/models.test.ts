@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ImageModel, ZdrEndpoint } from '../types';
 import {
   allowedByPrivacy,
   isNewModel,
@@ -14,7 +15,6 @@ import {
   withFavorite,
   zdrState,
 } from './models';
-import type { ImageModel, ZdrEndpoint } from './types';
 
 const strict: ZdrEndpoint = { tag: 'a', provider: 'A', safetyRetention: false };
 const safety: ZdrEndpoint = { tag: 'b', provider: 'B', safetyRetention: true };

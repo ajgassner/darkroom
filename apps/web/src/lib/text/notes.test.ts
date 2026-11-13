@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { ElementInfo, ImageModel, MusicModel, SpeechModel, VoiceInfo, ZdrEndpoint } from '../types';
 import { type AudioNotesInput, audioNotes, blockingNotes, type ImageNotesInput, imageNotes } from './notes';
-import type { ElementInfo, ImageModel, MusicModel, SpeechModel, VoiceInfo, ZdrEndpoint } from './types';
 
 const zdr: ZdrEndpoint[] = [{ tag: 'a', provider: 'A', safetyRetention: false }];
 

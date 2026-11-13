@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ElementInfo } from '../types';
 import {
   activeElements,
   elementOnLoad,
@@ -7,7 +8,6 @@ import {
   mentionQuery,
   promptMentions,
 } from './mentions';
-import type { ElementInfo } from './types';
 
 const el = (name: string): ElementInfo => ({ name, label: name, type: 'person', instructions: '', photos: [] });
 const max = el('max');

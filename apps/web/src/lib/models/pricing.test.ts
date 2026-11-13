@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { CostSummary, ImageModel, ImagePrice } from '../types';
 import { estimateImagePrice, estimateRun, unitPrice } from './pricing';
-import type { CostSummary, ImageModel, ImagePrice } from './types';
 
 function model(id: string, price: ImagePrice | null, resolutions?: string[]): ImageModel {
   return {

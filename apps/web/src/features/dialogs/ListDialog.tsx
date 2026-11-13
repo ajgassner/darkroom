@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/misc';
 import { toastError } from '@/lib/actions';
-import { newItem } from '@/lib/names';
+import { newItem } from '@/lib/text/names';
 import { cn } from '@/lib/utils';
 
 export interface ListItem {

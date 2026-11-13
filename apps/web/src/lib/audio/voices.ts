@@ -1,5 +1,5 @@
-import { money } from './format';
-import type { SpeechModel, VoiceInfo } from './types';
+import { money } from '../text/format';
+import type { SpeechModel, VoiceInfo } from '../types';
 
 /** ISO 639-1 codes we can name; display names come from Intl.DisplayNames in the UI language. */
 const KNOWN_CODES = new Set([

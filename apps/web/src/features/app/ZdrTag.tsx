@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Tag, Tooltip } from '@/components/ui/misc';
-import { zdrState } from '@/lib/models';
+import { zdrState } from '@/lib/models/models';
 import type { ZdrEndpoint } from '@/lib/types';
 
 /** ZDR status pill: strict ZDR (green), ZDR with safety retention (amber), none (gray). */

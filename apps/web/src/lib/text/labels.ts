@@ -1,10 +1,10 @@
 // Display texts built from results and settings. Pure: the caller passes the translate function.
 import type { TFunction } from 'i18next';
+import { allowedByPrivacy, shortName } from '../models/models';
+import { estimateRun } from '../models/pricing';
+import type { Settings } from '../store';
+import type { CostSummary, DebugRecord, ImageModel, ManifestEntry, PrivacyMode, VoiceInfo } from '../types';
 import { num, usd } from './format';
-import { allowedByPrivacy, shortName } from './models';
-import { estimateRun } from './pricing';
-import type { Settings } from './store';
-import type { CostSummary, DebugRecord, ImageModel, ManifestEntry, PrivacyMode, VoiceInfo } from './types';
 
 /** "@anna, @logo" */
 function mentionList(names: string[]): string {

@@ -4,13 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Textarea, Tooltip } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
 import { importImages } from '@/lib/actions';
-import { composerSummary } from '@/lib/labels';
-import { mentionKeyAction, mentionQuery } from '@/lib/mentions';
-import { allowedByPrivacy } from '@/lib/models';
+import { allowedByPrivacy } from '@/lib/models/models';
 import { generate } from '@/lib/runs';
-import { PROMPT_ID } from '@/lib/scroll';
 import { useData, useSettings, useUi } from '@/lib/store';
+import { composerSummary } from '@/lib/text/labels';
+import { mentionKeyAction, mentionQuery } from '@/lib/text/mentions';
 import type { ElementInfo } from '@/lib/types';
+import { PROMPT_ID } from '@/lib/ui/scroll';
 import { cn } from '@/lib/utils';
 import { ElementThumb } from './shared';
 
