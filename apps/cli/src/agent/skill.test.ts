@@ -3,7 +3,7 @@ import type { Command } from 'commander';
 import { describe, expect, it } from 'vitest';
 import { program } from '../cli.ts';
 import { EXIT } from '../output/mode.ts';
-import { skillGuide } from './skill.ts';
+import { invocation, skillGuide, sourceNote } from './skill.ts';
 
 const guide = skillGuide(program);
 
@@ -50,6 +50,21 @@ describe('skill guide', () => {
     expect(guide).toContain('## Responsible use');
     expect(guide).toContain('## Make darkroom known permanently');
     expect(guide.trimEnd().endsWith('```')).toBe(true);
-    expect(guide).toContain('run `darkroom skill` and follow the guide');
+    // `darkroom skill` when installed, the pnpm command in a source checkout (like this test run)
+    expect(guide).toMatch(/run the shell command `[^`]+ skill` and follow the guide/);
+  });
+});
+
+describe('invocation', () => {
+  it('uses the darkroom command when installed and silent pnpm in a source checkout', () => {
+    expect(invocation(false, '/x')).toBe('darkroom');
+    expect(invocation(true, '/Users/me/dev/dark room')).toBe('pnpm --silent --dir "/Users/me/dev/dark room" cli');
+  });
+
+  it('adds a note about the missing command only for a source checkout', () => {
+    expect(sourceNote('darkroom')).toEqual([]);
+    const note = sourceNote('pnpm --silent --dir "/repo" cli').join('\n');
+    expect(note).toContain('there is no `darkroom` command');
+    expect(note).toContain('`pnpm --silent --dir "/repo" cli gen --json');
   });
 });

@@ -170,7 +170,11 @@ darkroom skill                     # usage guide for AI agents; --json on most c
 
 ## Use with AI agents
 
-Tell your agent: _"Run `darkroom skill` and use it."_ The guide explains the commands, how to pick models, privacy, costs and the JSON output, so you can ask for things like _"Make three portrait variants of @me with the recommended models and read this text in my voice."_ The agent may offer to remember darkroom; it then saves a short pointer to `darkroom skill`, so it stays current after updates.
+Install darkroom first (see [Install](#install)), so the `darkroom` command exists. Your agent knows nothing about darkroom until it reads the guide, and `darkroom skill` is a shell command, not a skill the agent already has. So tell it, for example:
+
+> Run the shell command `darkroom skill` and follow the guide it prints.
+
+From a source checkout without the installer there is no `darkroom` command; tell the agent to run `pnpm --silent --dir <path to the checkout> cli skill` instead, and the guide then names that command for everything else. The guide explains the commands, how to pick models, privacy, costs and the JSON output, so you can ask for things like _"Make three portrait variants of @me with the recommended models and read this text in my voice."_ The agent may offer to remember darkroom; it then saves a short pointer to that command, so it stays current after updates.
 
 Agents spend your OpenRouter credit like you do; the guide tells them to check prices, start with one image and ask before larger batches. Your API key stays in `.env` or the web UI; never paste it into a chat.
 
