@@ -11,6 +11,23 @@ export type { DebugRecord };
 
 export const DEBUG_DIR = path.join(OUT_DIR, 'debug');
 const REFS_DIR = path.join(DEBUG_DIR, 'refs');
+/** Name of a debug record ID; anything else is never read or removed. */
+const RECORD_ID = /^[0-9a-f-]{36}$/;
+const RECORD_FILE = /^[0-9a-f-]{36}\.json$/;
+/** Name of a sent file inside out/debug/refs/ (content-addressed); other files there are never removed. */
+const SENT_FILE = /^[0-9a-f]{16}\.(jpg|png|webp|wav|mp3|bin)$/;
+const SENT_PREFIX = 'debug/refs/';
+
+/**
+ * Writing records and removing sent files run one after another, so a sent file is never removed between being
+ * stored and its record being written.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+function serial<T>(fn: () => Promise<T>): Promise<T> {
+  const run = queue.then(fn, fn);
+  queue = run.catch(() => {});
+  return run;
+}
 
 const EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -100,6 +117,10 @@ export function pickHeaders(h: Headers | null): Record<string, string> {
 export async function writeDebug(
   rec: Omit<DebugRecord, 'id' | 'ts' | 'sentFiles' | 'request' | 'response'> & { request: unknown; response: unknown },
 ): Promise<string> {
+  return serial(() => storeDebug(rec));
+}
+
+async function storeDebug(rec: Parameters<typeof writeDebug>[0]): Promise<string> {
   const id = crypto.randomUUID();
   const sentFiles: DebugRecord['sentFiles'] = [];
   const full: DebugRecord = {
@@ -116,10 +137,62 @@ export async function writeDebug(
 }
 
 export async function readDebug(id: string): Promise<DebugRecord> {
-  if (!/^[0-9a-f-]{36}$/.test(id)) throw new AppError('invalid_debug_id', 'Invalid debug ID');
+  if (!RECORD_ID.test(id)) throw new AppError('invalid_debug_id', 'Invalid debug ID');
   return JSON.parse(await fs.readFile(path.join(DEBUG_DIR, `${id}.json`), 'utf8'));
 }
 
-export async function deleteDebug(id: string | undefined): Promise<void> {
-  if (id && /^[0-9a-f-]{36}$/.test(id)) await fs.unlink(path.join(DEBUG_DIR, `${id}.json`)).catch(() => {});
+/** Names of the sent files (inside out/debug/refs/) a record lists. */
+function sentNames(rec: Partial<Pick<DebugRecord, 'sentFiles'>> | null): string[] {
+  return (rec?.sentFiles ?? []).flatMap(({ file }) => {
+    const name = typeof file === 'string' && file.startsWith(SENT_PREFIX) ? file.slice(SENT_PREFIX.length) : '';
+    return SENT_FILE.test(name) ? [name] : [];
+  });
+}
+
+/** Remove one record; returns the sent files it listed. */
+async function removeRecord(id: string): Promise<string[]> {
+  const sent = sentNames(await readDebug(id).catch(() => null));
+  await fs.unlink(path.join(DEBUG_DIR, `${id}.json`)).catch(() => {});
+  return sent;
+}
+
+/**
+ * Remove the sent files no remaining record lists: only `candidates` when given, otherwise every sent file. Records
+ * are searched as text: a file a record mentions in any way is kept.
+ */
+async function pruneSentFiles(candidates?: Iterable<string>): Promise<string[]> {
+  const listed = candidates ?? (await fs.readdir(REFS_DIR).catch(() => [] as string[]));
+  const unused = new Set([...listed].filter((n) => SENT_FILE.test(n)));
+  const records = (await fs.readdir(DEBUG_DIR).catch(() => [] as string[])).filter((n) => RECORD_FILE.test(n));
+  for (const name of records) {
+    if (!unused.size) break;
+    const text = await fs.readFile(path.join(DEBUG_DIR, name), 'utf8').catch(() => '');
+    for (const file of unused) if (text.includes(`${SENT_PREFIX}${file}`)) unused.delete(file);
+  }
+  const removed: string[] = [];
+  for (const file of unused) {
+    await fs.unlink(path.join(REFS_DIR, file)).then(
+      () => removed.push(file),
+      () => {},
+    );
+  }
+  return removed;
+}
+
+/** Delete debug records, and the sent reference files that no remaining record uses. */
+export async function deleteDebug(ids: string[]): Promise<void> {
+  const valid = ids.filter((id) => RECORD_ID.test(id));
+  if (!valid.length) return;
+  await serial(async () => {
+    const sent = (await Promise.all(valid.map(removeRecord))).flat();
+    if (sent.length) await pruneSentFiles(sent);
+  });
+}
+
+/**
+ * Remove sent reference files that no record uses anymore (left behind by versions that deleted only the records).
+ * Returns the removed file names.
+ */
+export function pruneDebugRefs(): Promise<string[]> {
+  return serial(() => pruneSentFiles());
 }

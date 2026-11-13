@@ -1,16 +1,17 @@
-import { Trash2Icon } from 'lucide-react';
+import { ImageOffIcon, Trash2Icon } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/misc';
-import { deleteEntries, entryError, reuseSettings } from '@/lib/actions';
-import { canBeTransparent, downloadUrl, outUrl } from '@/lib/api';
+import { addReference, deleteEntries, entryError, reuseSettings } from '@/lib/actions';
+import { canBeTransparent, downloadUrl, outUrl, refThumbUrl } from '@/lib/api';
 import { entryTitle } from '@/lib/models/tools';
 import { type LiveRun, useData, useSettings, useUi } from '@/lib/store';
 import { num, usd } from '@/lib/text/format';
 import { deleteTexts, runMetaParts, voiceLabel } from '@/lib/text/labels';
 import type { ManifestEntry } from '@/lib/types';
-import { focusComposer } from '@/lib/ui/scroll';
+import { focusComposer, runCardId } from '@/lib/ui/scroll';
+import { refLabel, runRefThumbs } from '@/lib/ui/uploads';
 import { cn } from '@/lib/utils';
 import { useModelName } from '../hooks/useModelName';
 import { AudioPlayer } from '../shared';
@@ -72,10 +73,13 @@ function CardHead({
   first,
   entries,
   actions,
+  refs,
 }: {
   first: Partial<ManifestEntry>;
   entries: ManifestEntry[];
   actions: React.ReactNode;
+  /** Thumbnails of the run's additional references, under the meta line */
+  refs?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   // Failed calls can be charged too (their entries then carry the cost)
@@ -86,6 +90,7 @@ function CardHead({
       <div className="min-w-0">
         <div className="line-clamp-2 text-[13px] break-words">{entryTitle(t, first)}</div>
         <RunMeta first={first} entries={entries} />
+        {refs}
       </div>
       <div className="flex shrink-0 items-center gap-2 md:items-start">
         <span className="text-muted tabular-nums">{usd(cost)}</span>
@@ -100,10 +105,16 @@ function RunCard({ entries }: { entries: ManifestEntry[] }) {
   const first = entries[0];
   const okCount = entries.filter((e) => e.ok).length;
   return (
-    <div>
+    // Shown from elsewhere (e.g. "Previous uploads"): focused and highlighted briefly (lib/ui/scroll.ts)
+    <div
+      id={runCardId(first.runId)}
+      tabIndex={-1}
+      className="-m-2 rounded-xl p-2 outline-none transition-shadow duration-500 data-highlight:ring-2 data-highlight:ring-accent"
+    >
       <CardHead
         first={first}
         entries={entries}
+        refs={first.tool ? null : <RefThumbs refs={first.extraRefs} />}
         actions={
           <>
             {!first.tool && (
@@ -127,6 +138,57 @@ function RunCard({ entries }: { entries: ManifestEntry[] }) {
         ))}
       </Grid>
     </div>
+  );
+}
+
+/** The run's additional references as small thumbnails; a click adds one to the current references again. */
+function RefThumbs({ refs }: { refs: string[] | undefined }) {
+  const { t } = useTranslation();
+  const { shown, more } = runRefThumbs(refs);
+  if (!shown.length) return null;
+  return (
+    <ul aria-label={t('gallery.refs')} className="m-0 mt-1.5 flex list-none flex-wrap items-center gap-1.5 p-0">
+      {shown.map((file, i) => (
+        <li key={file}>
+          <RefThumb file={file} label={refLabel(t, file, i + 1)} />
+        </li>
+      ))}
+      {more > 0 && (
+        <li className="text-xs text-muted" aria-label={t('gallery.refsMore', { count: more })}>
+          +{more}
+        </li>
+      )}
+    </ul>
+  );
+}
+
+function RefThumb({ file, label }: { file: string; label: string }) {
+  const { t } = useTranslation();
+  // A result used as reference may have been deleted since
+  const [gone, setGone] = useState(false);
+  const text = gone ? t('gallery.refGone', { ref: label }) : t('gallery.refUse', { ref: label });
+  return (
+    <button
+      type="button"
+      title={text}
+      aria-label={text}
+      disabled={gone}
+      onClick={() => addReference(file, t('toast.refsAdded', { count: 1 }))}
+      className="grid size-9 cursor-pointer place-items-center overflow-hidden rounded-md border border-line bg-panel-2 p-0 text-muted outline-none hover:border-accent focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-not-allowed disabled:hover:border-line"
+    >
+      {gone ? (
+        <ImageOffIcon className="size-3.5" />
+      ) : (
+        <img
+          src={refThumbUrl(file)}
+          alt={label}
+          loading="lazy"
+          decoding="async"
+          onError={() => setGone(true)}
+          className="size-full object-cover"
+        />
+      )}
+    </button>
   );
 }
 

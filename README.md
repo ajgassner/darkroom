@@ -116,7 +116,7 @@ Available in the detail view of every image:
 | Clean up background | removes distracting objects and people                                                                | like a generation |
 | Remove background   | local with `@imgly/background-removal-node`, transparent or with a color                              | free              |
 
-**Keep editing** uses any result as an additional reference for the next prompt. Images you drop or paste under **Additional references** are kept in `out/uploads/`: pick them again under **Previous uploads**. Uploads are never deleted automatically; you can delete one there once no run uses it anymore. **Remove metadata on download** strips EXIF, XMP, IPTC and C2PA data (and ID3 tags from MP3) losslessly. Invisible pixel watermarks such as Google's SynthID cannot be removed.
+**Keep editing** uses any result as an additional reference for the next prompt. Images you drop or paste under **Additional references** are kept in `out/uploads/`: pick them again under **Previous uploads**. Uploads are never deleted automatically; you can delete one there once no run uses it anymore: "used in N runs" lists those runs, to show one in the gallery or delete it. Each run in the gallery shows its additional references as thumbnails; a click adds one to the current references again. **Remove metadata on download** strips EXIF, XMP, IPTC and C2PA data (and ID3 tags from MP3) losslessly. Invisible pixel watermarks such as Google's SynthID cannot be removed.
 
 ## Audio
 

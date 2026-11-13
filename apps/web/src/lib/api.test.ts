@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { api, canBeTransparent, errorToastId, streamEvents } from './api';
+import { api, canBeTransparent, errorToastId, refThumbUrl, streamEvents } from './api';
 import type { RunEvent } from './types';
 
 function stream(chunks: string[]): ReadableStream<Uint8Array<ArrayBuffer>> {
@@ -62,6 +62,14 @@ describe('canBeTransparent', () => {
     expect(canBeTransparent('a.webp')).toBe(true);
     expect(canBeTransparent('a.jpg')).toBe(false);
     expect(canBeTransparent('a.png.jpeg')).toBe(false);
+  });
+});
+
+describe('refThumbUrl', () => {
+  it('uses the thumbnail route for uploads and the file itself for results', () => {
+    expect(refThumbUrl('uploads/0123456789abcdef.jpg')).toBe('/api/uploads/0123456789abcdef.jpg/thumb?size=96');
+    expect(refThumbUrl('uploads/0123456789abcdef.jpg', 200)).toBe('/api/uploads/0123456789abcdef.jpg/thumb?size=200');
+    expect(refThumbUrl('2026-01-01/a b.png')).toBe('/out/2026-01-01/a%20b.png');
   });
 });
 

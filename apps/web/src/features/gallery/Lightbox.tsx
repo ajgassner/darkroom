@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, SectionTitle, Tag } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
-import { deleteEntries, entryNotices, reuseSettings } from '@/lib/actions';
+import { addReference, deleteEntries, entryNotices, reuseSettings } from '@/lib/actions';
 import { canBeTransparent, downloadUrl, outUrl } from '@/lib/api';
 import { ASPECTS, isNewModel, preferredModel, releaseMonth, toolModels, zdrState } from '@/lib/models/models';
 import { entryTitle, relightOptions } from '@/lib/models/tools';
@@ -13,7 +12,6 @@ import { runTool } from '@/lib/runs';
 import { useData, useSettings, useUi } from '@/lib/store';
 import { entryInfoRows } from '@/lib/text/labels';
 import type { ImageModel, ManifestEntry } from '@/lib/types';
-import { withOutRef } from '@/lib/ui/uploads';
 import { cn } from '@/lib/utils';
 import { useModelName } from '../hooks/useModelName';
 
@@ -40,12 +38,8 @@ export function Lightbox() {
               <Button
                 variant="primary"
                 onClick={() => {
-                  useUi.setState((s) => ({
-                    lightbox: null,
-                    extraRefs: withOutRef(s.extraRefs, file),
-                  }));
-                  set({ mode: 'image' });
-                  toast.success(t('toast.refAdded'));
+                  close();
+                  addReference(file, t('toast.refAdded'));
                 }}
               >
                 {t('lightbox.useAsRef')}

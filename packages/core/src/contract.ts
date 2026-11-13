@@ -187,6 +187,18 @@ export interface UploadInfo {
   runs: number;
 }
 
+/** GET /api/uploads/:name/runs: a run (with entries that are not deleted) that used an upload, newest first. */
+export interface UploadRun {
+  runId: string;
+  prompt: string;
+  /** When the run started (its first entry, ISO time). */
+  ts: string;
+  /** First result of the run (path relative to out/), for a preview; null when no call succeeded. */
+  file: string | null;
+  /** Models of the run, in order of first use. */
+  models: string[];
+}
+
 export interface CostSummary {
   total: number;
   images: number;
