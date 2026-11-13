@@ -119,6 +119,12 @@
       Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\cmd.exe') -ArgumentList "/d /c rmdir /s /q `"$dir`"" -NoNewWindow -Wait
     }
   }
+  function Expand-Zip($zip, $dest) {
+    # Expand-Archive in Windows PowerShell 5.1 (the one `darkroom update` uses) takes about a minute for the
+    # Node.js zip; .NET's ZipFile takes seconds and exists in 5.1 and 7
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($zip, $dest)
+  }
   function Rename-Dir($path, $name) {
     try {
       Rename-Item -LiteralPath $path $name
@@ -190,27 +196,38 @@
     Remove-Tree $staging
     New-Item -ItemType Directory -Force $staging | Out-Null
 
-    # Node.js: latest release of the major version, verified against the official checksums
-    Say "Downloading Node.js $NodeMajor (win-$arch)"
+    # Node.js: latest release of the major version, verified against the official checksums. An installed copy
+    # of exactly that version is kept (updates then only replace the app).
     $nodeBase = "https://nodejs.org/dist/latest-v$NodeMajor.x"
     $sums = (Invoke-WebRequest "$nodeBase/SHASUMS256.txt" -UseBasicParsing).Content
-    $match = [regex]::Match($sums, "([0-9a-f]{64})\s+(node-v[0-9.]+-win-$arch\.zip)")
+    $match = [regex]::Match($sums, "([0-9a-f]{64})\s+(node-(v[0-9.]+)-win-$arch\.zip)")
     if (-not $match.Success) { throw "No Node.js $NodeMajor build for win-$arch" }
-    $nodeZip = Join-Path $tmp $match.Groups[2].Value
-    Invoke-WebRequest "$nodeBase/$($match.Groups[2].Value)" -OutFile $nodeZip -UseBasicParsing
-    if ((Get-FileHash $nodeZip -Algorithm SHA256).Hash -ne $match.Groups[1].Value.ToUpper()) {
-      throw "Checksum mismatch for $($match.Groups[2].Value)"
+    $nodeVersion = $match.Groups[3].Value
+    $installedNode = Join-Path $InstallDir 'node\node.exe'
+    $currentNode = if (Test-Path -LiteralPath $installedNode) { (& $installedNode --version 2>$null) } else { '' }
+    $nodeComplete = Test-Path -LiteralPath (Join-Path $InstallDir "node\$Complete")
+    $parts = 'node', 'app'
+    if ($currentNode -eq $nodeVersion -and ($nodeComplete -or $trusted)) {
+      Say "Node.js $nodeVersion is up to date"
+      $parts = @('app')
+    } else {
+      Say "Downloading Node.js $nodeVersion (win-$arch)"
+      $nodeZip = Join-Path $tmp $match.Groups[2].Value
+      Invoke-WebRequest "$nodeBase/$($match.Groups[2].Value)" -OutFile $nodeZip -UseBasicParsing
+      if ((Get-FileHash $nodeZip -Algorithm SHA256).Hash -ne $match.Groups[1].Value.ToUpper()) {
+        throw "Checksum mismatch for $($match.Groups[2].Value)"
+      }
+      $nodeZipDir = Join-Path $staging 'node-zip'
+      Expand-Zip $nodeZip $nodeZipDir
+      Move-Item -LiteralPath (Join-Path $nodeZipDir ($match.Groups[2].Value -replace '\.zip$', '')) (Join-Path $staging 'node')
     }
-    $nodeZipDir = Join-Path $staging 'node-zip'
-    Expand-Archive $nodeZip -DestinationPath $nodeZipDir
-    Move-Item -LiteralPath (Join-Path $nodeZipDir ($match.Groups[2].Value -replace '\.zip$', '')) (Join-Path $staging 'node')
 
     # darkroom itself (your data lives in DataDir, so replacing the app keeps it)
     Say "Downloading darkroom ($(if ($env:DARKROOM_SOURCE) { $Source } else { $Ref }))"
     $srcZip = Join-Path $tmp 'darkroom.zip'
     if (Test-Path $Source) { Copy-Item $Source $srcZip } else { Invoke-WebRequest $Source -OutFile $srcZip -UseBasicParsing }
     $srcDir = Join-Path $staging 'src'
-    Expand-Archive $srcZip -DestinationPath $srcDir
+    Expand-Zip $srcZip $srcDir
     $srcRoot = Get-ChildItem -LiteralPath $srcDir -Directory | Select-Object -First 1
     if (-not $srcRoot -or -not (Test-Path -LiteralPath (Join-Path $srcRoot.FullName 'package.json'))) {
       throw 'The darkroom download is incomplete'
@@ -220,7 +237,7 @@
     # Everything is downloaded: swap in the new version, keeping the previous one until it is built.
     # darkroom may have been started during the download; a rename that fails (locked files) also stops here.
     Assert-NotRunning
-    foreach ($part in 'node', 'app') {
+    foreach ($part in $parts) {
       $dir = Join-Path $InstallDir $part
       if (Test-Path -LiteralPath $dir) {
         if ($trusted) { New-Item -ItemType File -Force (Join-Path $dir $Complete) | Out-Null }
