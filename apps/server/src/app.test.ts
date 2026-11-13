@@ -213,11 +213,24 @@ describe('files below out/', () => {
     for (const url of ['/out/evil.svg', '/out/evil.svg?download=1']) {
       const res = await get(url);
       expect(res.statusCode).toBe(200);
-      expect(res.headers['content-security-policy']).toBe(
-        "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox",
-      );
+      const csp = String(res.headers['content-security-policy']);
+      // default-src 'none' without script-src (or a looser default) blocks the script
+      expect(csp).toMatch(/^default-src 'none';/);
+      expect(csp).not.toMatch(/script-src|unsafe-eval|default-src [^;]*'self'/);
+      expect(csp).toMatch(/; sandbox$/);
       expect(res.headers['x-content-type-options']).toBe('nosniff');
     }
+  });
+
+  it('serves audio results without sandbox, so they play when opened in a tab', async () => {
+    await fs.writeFile(path.join(OUT_DIR, 'song.mp3'), Buffer.from([0xff, 0xfb, 0x90, 0x64, 1, 2, 3, 4]));
+    const res = await get('/out/song.mp3');
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^audio\/mpeg/);
+    expect(res.headers['content-security-policy']).toBe(
+      "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'",
+    );
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
 
   it('downloads without metadata on request', async () => {

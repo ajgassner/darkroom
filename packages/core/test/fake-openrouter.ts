@@ -34,6 +34,7 @@ const ZDR = [
   { model_id: 'test/clone', tag: 'clone-provider', provider_name: 'CloneCo', safety_retention: false },
   { model_id: 'test/tts-safety', tag: 'tts-safety-provider', provider_name: 'SafeVoice', safety_retention: true },
   { model_id: 'test/lyria-zdr', tag: 'lyria-provider', provider_name: 'Google', safety_retention: false },
+  { model_id: 'test/lyria-safety', tag: 'lyria-safety-provider', provider_name: 'SafeMusic', safety_retention: true },
   // Default transcription model (TRANSCRIBE_MODEL): only an endpoint with safety retention
   {
     model_id: 'openai/whisper-large-v3-turbo',
@@ -54,6 +55,7 @@ const SPEECH_MODELS = [
 const MUSIC_MODELS = [
   { id: 'test/lyria', name: 'Test Lyria', description: 'Music generation' },
   { id: 'test/lyria-zdr', name: 'Test Lyria with ZDR', description: 'Music generation' },
+  { id: 'test/lyria-safety', name: 'Test Lyria with safety retention', description: 'Music generation' },
   { id: 'openai/gpt-audio', name: 'GPT Audio', description: 'music and chat' },
 ];
 

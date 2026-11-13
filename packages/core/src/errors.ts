@@ -26,6 +26,14 @@ export function addWarning(w: WarningList, code: string, message: string, params
   w.notices.push(params ? { code, params } : { code });
 }
 
+/**
+ * A model id that is not in the catalog (usually a typo). Checked before the privacy rules, whose advice ("set privacy
+ * to off") would only send the typo upstream.
+ */
+export function unknownModel(model: string): AppError {
+  return new AppError('unknown_model', `Unknown model "${model}" (see \`darkroom models\`)`, { model });
+}
+
 export const TIMEOUT_MESSAGE = 'Timed out (increase REQUEST_TIMEOUT_MS)';
 
 /** Error fields for a manifest entry: English text, plus code/params for errors we generate. */
