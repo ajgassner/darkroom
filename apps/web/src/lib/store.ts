@@ -58,7 +58,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speed: 1,
   musicModel: '',
   transcribeEngine: '',
-  transcribeLang: 'de',
+  transcribeLang: 'auto',
 };
 
 const SETTINGS_KEY = 'darkroom.settings';

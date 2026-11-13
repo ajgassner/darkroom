@@ -2,6 +2,7 @@ import { toast } from 'sonner';
 import i18n from '@/i18n';
 import { entryError, errorMessage, refreshHistory } from './actions';
 import { streamEvents } from './api';
+import { existingElement } from './mentions';
 import { allowedByPrivacy } from './models';
 import { usd } from './pricing';
 import { type LiveFirst, type LiveRun, type Settings, updateLiveRun, useData, useSettings, useUi } from './store';
@@ -47,8 +48,6 @@ async function startRun(url: string, body: unknown, plan: LiveRun['plan'], first
             entries.push(ev.entry);
             updateLiveRun(key, (r) => ({ entries: [...r.entries, ev.entry] }));
             break;
-          case 'fatal':
-            throw new Error(ev.error);
           case 'done':
             announceDone(ev, first.kind, entries);
         }
@@ -84,7 +83,7 @@ function announceDone(ev: DoneEvent, kind: LiveFirst['kind'], entries: ManifestE
 
 function generateImage() {
   const s = useSettings.getState();
-  const { models: all } = useData.getState();
+  const { models: all, elements } = useData.getState();
   const { prompt: rawPrompt, extraRefs } = useUi.getState();
   const prompt = rawPrompt.trim();
   if (!prompt) return toast.error(t('toast.promptMissing'));
@@ -93,12 +92,13 @@ function generateImage() {
     return m && allowedByPrivacy(m.zdr, s.privacy);
   });
   if (!models.length) return toast.error(t('toast.noModelAvailable'));
+  const element = existingElement(s.element, elements);
   void startRun(
     '/api/generate',
     {
       prompt,
       models,
-      element: s.element || null,
+      element: element || null,
       usePrefix: s.usePrefix,
       count: s.count,
       aspectRatio: s.aspect,
@@ -111,7 +111,7 @@ function generateImage() {
       ),
     },
     models.map((model) => ({ model, count: s.count })),
-    { kind: 'image', prompt, element: s.element, params: { aspect_ratio: s.aspect, resolution: s.size } },
+    { kind: 'image', prompt, element, params: { aspect_ratio: s.aspect, resolution: s.size } },
   );
 }
 

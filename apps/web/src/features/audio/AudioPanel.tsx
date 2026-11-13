@@ -56,17 +56,7 @@ function SpeechSections() {
   const showAll = useUi((u) => u.showAllSpeech);
   const sorted = useMemo(() => sortByRecommendation(speechModels, RECOMMENDED_SPEECH), [speechModels]);
   const model = speechModels.find((m) => m.id === s.speechModel);
-
-  // Keep the selection valid once models are loaded
-  useEffect(() => {
-    if (!speechModels.length) return;
-    if (!model) {
-      s.set({ speechModel: sorted[0]?.id ?? '' });
-      return;
-    }
-    const next = fallbackVoice(model, s.voice, voices);
-    if (next !== null) s.set({ voice: next });
-  }, [speechModels, model, sorted, voices, s]);
+  useValidSpeechSelection(model, sorted);
 
   const list = showAll ? sorted : sorted.filter((m) => RECOMMENDED_SPEECH.includes(m.id) || m.id === s.speechModel);
   const lang = i18n.resolvedLanguage ?? 'en';
@@ -154,6 +144,22 @@ function SpeechSections() {
       </section>
     </>
   );
+}
+
+/** Keep model and voice valid once the models are loaded (only subscribes to what it reads, so set() cannot loop). */
+function useValidSpeechSelection(model: SpeechModel | undefined, sorted: SpeechModel[]) {
+  const voice = useSettings((s) => s.voice);
+  const set = useSettings((s) => s.set);
+  const voices = useData((d) => d.voices);
+  useEffect(() => {
+    if (!sorted.length) return;
+    if (!model) {
+      set({ speechModel: sorted[0].id });
+      return;
+    }
+    const next = fallbackVoice(model, voice, voices);
+    if (next !== null) set({ voice: next });
+  }, [model, sorted, voice, voices, set]);
 }
 
 function speechPriceText(t: TFunction, m: SpeechModel): string {

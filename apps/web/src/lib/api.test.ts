@@ -29,4 +29,18 @@ describe('streamEvents', () => {
       'Prompt is missing',
     );
   });
+
+  it('throws a fatal event with its code and params', async () => {
+    const fatal =
+      '{"type":"fatal","error":"Element not found: anna","code":"element_not_found","params":{"name":"anna"}}';
+    vi.stubGlobal('fetch', async () => new Response(stream([`{"type":"start","runId":"r","plan":[]}\n${fatal}\n`])));
+    const events: RunEvent[] = [];
+    const run = streamEvents('/api/generate', {}, (e) => events.push(e), new AbortController().signal);
+    await expect(run).rejects.toMatchObject({
+      message: 'Element not found: anna',
+      code: 'element_not_found',
+      params: { name: 'anna' },
+    });
+    expect(events.map((e) => e.type)).toEqual(['start']);
+  });
 });

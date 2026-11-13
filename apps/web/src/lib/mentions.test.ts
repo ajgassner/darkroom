@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { activeElements, mentionKeyAction, mentionQuery, promptMentions } from './mentions';
+import {
+  activeElements,
+  elementOnLoad,
+  existingElement,
+  mentionKeyAction,
+  mentionQuery,
+  promptMentions,
+} from './mentions';
 import type { ElementInfo } from './types';
 
 const el = (name: string): ElementInfo => ({ name, label: name, type: 'person', instructions: '', photos: [] });
@@ -17,6 +24,22 @@ describe('promptMentions', () => {
   it('puts the dropdown element first, without duplicates', () => {
     expect(activeElements('@max and @ag-logo', [max, logo], 'ag-logo')).toEqual([logo, max]);
     expect(activeElements('no mentions', [max], '')).toEqual([]);
+  });
+});
+
+describe('selected element', () => {
+  it('keeps only an element that still exists', () => {
+    expect(existingElement('max', [max, logo])).toBe('max');
+    expect(existingElement('gone', [max, logo])).toBe('');
+    expect(existingElement('', [max])).toBe('');
+  });
+
+  it('selects the only element after loading when nothing valid is selected', () => {
+    expect(elementOnLoad('ag-logo', [max, logo])).toBe('ag-logo');
+    expect(elementOnLoad('gone', [max])).toBe('max');
+    expect(elementOnLoad('', [max])).toBe('max');
+    expect(elementOnLoad('gone', [max, logo])).toBe('');
+    expect(elementOnLoad('gone', [])).toBe('');
   });
 });
 

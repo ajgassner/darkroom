@@ -159,7 +159,8 @@ export function speechPrice(m: SpeechModel): SpeechPrice | null {
 }
 
 /**
- * Voice to switch to when the selected one is not available for the model, or null to keep it.
+ * Voice to switch to when the selected one is not available for the model, or null to keep it
+ * (also when the fallback is the current voice, so callers that store the result do not loop).
  * Prefers the model's voices by language rank, then the first own voice (if the model can clone).
  */
 export function fallbackVoice(model: SpeechModel, voice: string, ownVoices: VoiceInfo[]): string | null {
@@ -168,7 +169,18 @@ export function fallbackVoice(model: SpeechModel, voice: string, ownVoices: Voic
   const byLang = [...model.voices].sort(
     (a, b) => langRank(voiceLang(model, a).code) - langRank(voiceLang(model, b).code),
   );
-  return byLang[0] ?? (model.cloning && ownVoices[0] ? `voice:${ownVoices[0].name}` : '');
+  const next = byLang[0] ?? (model.cloning && ownVoices[0] ? `voice:${ownVoices[0].name}` : '');
+  return next === voice ? null : next;
+}
+
+type TranscribeEngine = 'local' | 'api';
+
+/** Engine and language for transcribing samples: the user's choice, else the server's default engine and auto-detect. */
+export function transcribeOptions(
+  choice: { transcribeEngine: '' | TranscribeEngine; transcribeLang: string },
+  serverEngine: TranscribeEngine | undefined,
+): { engine: TranscribeEngine; language: string } {
+  return { engine: choice.transcribeEngine || serverEngine || 'local', language: choice.transcribeLang || 'auto' };
 }
 
 export interface VoiceGroup {

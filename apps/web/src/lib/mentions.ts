@@ -15,6 +15,16 @@ export function promptMentions(text: string, elements: ElementInfo[]): { known: 
   return { known, unknown };
 }
 
+/** The selected element if it still exists, otherwise '' (a stale name from the settings would fail every run). */
+export function existingElement(selected: string, elements: ElementInfo[]): string {
+  return selected && elements.some((e) => e.name === selected) ? selected : '';
+}
+
+/** Element to select after loading: the existing selection, otherwise the only element there is. */
+export function elementOnLoad(selected: string, elements: ElementInfo[]): string {
+  return existingElement(selected, elements) || (elements.length === 1 ? elements[0].name : '');
+}
+
 /** All elements that will be sent: dropdown element + mentions (same rule as the server). */
 export function activeElements(text: string, elements: ElementInfo[], selected: string): ElementInfo[] {
   const list: ElementInfo[] = [];
