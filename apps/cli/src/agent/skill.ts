@@ -1,14 +1,15 @@
 // `darkroom skill`: the usage guide for AI agents (Markdown with Agent Skills front matter), matched to this
 // version. Option names, defaults, choices, privacy modes, exit codes and the JSON examples come from the actual
-// definitions (commander commands, constants, json.ts), so the guide cannot drift from the CLI; skill.test.ts
+// definitions (commander commands, constants, output/json.ts), so the guide cannot drift from the CLI; skill.test.ts
 // checks that every command and option appears.
 import { APP_VERSION, DEFAULT_MODEL, DEFAULT_PRIVACY, OUT_DIR, type PrivacyMode, ROOT } from '@darkroom/core/config';
 import type { ManifestEntry } from '@darkroom/core/contract';
 import { MODEL_KINDS } from '@darkroom/core/models/favorites';
 import type { Argument, Command, Option } from 'commander';
-import { failureDocument, runDocument } from './json.ts';
-import { EXIT } from './mode.ts';
-import { MUSIC_MODEL, SPEECH_MODEL } from './studio.ts';
+import { MUSIC_MODEL } from '../commands/music.ts';
+import { SPEECH_MODEL } from '../commands/speech.ts';
+import { failureDocument, runDocument } from '../output/json.ts';
+import { EXIT } from '../output/mode.ts';
 
 const PRIVACY: Record<PrivacyMode, string> = {
   zdr: 'only Zero Data Retention endpoints; allows "safety retention" of flagged prompts (no training)',
@@ -63,7 +64,7 @@ function commandText(cmd: Command): string[] {
   return [...lines, ...cmd.commands.flatMap(commandText)];
 }
 
-// ---------------------------------------------------------------- JSON examples (made by json.ts itself)
+// ---------------------------------------------------------------- JSON examples (made by output/json.ts itself)
 
 function example(e: Partial<ManifestEntry>): ManifestEntry {
   return {

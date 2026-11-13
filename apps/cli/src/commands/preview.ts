@@ -1,10 +1,17 @@
-// Voice previews (`darkroom preview` and "Listen to a preview" in the interactive speech run): what to say and
-// how to report it. Generating and playing happen in studio.ts.
-
+// Voice previews (`darkroom preview` and "Listen to a preview" in the interactive speech run): what to say, how to
+// report it, and generating and playing it.
+import path from 'node:path';
+import { speechDemo } from '@darkroom/core/audio/speech';
 import { previewSentence } from '@darkroom/core/audio/voice-lang';
-import type { PrivacyMode } from '@darkroom/core/config';
+import { OUT_DIR, type PrivacyMode } from '@darkroom/core/config';
 import type { SpeechModel } from '@darkroom/core/contract';
 import { unknownModel } from '@darkroom/core/errors';
+import pc from 'picocolors';
+import { displayPath } from '../args.ts';
+import { out } from '../output/out.ts';
+import { loading } from '../output/term.ts';
+import { type Playback, playFile } from '../platform/play.ts';
+import { loadSpeechModels } from './shared.ts';
 
 export interface PreviewRequest {
   model: string;
@@ -48,4 +55,31 @@ export function previewCall(
 /** What the preview line says after the path: "cached, free" or "new", the voice and the model. */
 export function previewDetails(r: PreviewRequest, cached: boolean): string {
   return [cached ? 'cached, free' : 'new', r.voice || 'model default voice', r.model].join(' · ');
+}
+
+/** A voice preview: the audio file (absolute), whether it came from the cache, and how playing it went. */
+export interface Preview {
+  file: string;
+  cached: boolean;
+  playback: Playback | 'off';
+}
+
+/**
+ * Voice preview: generated (or taken from the cache), its path printed and played unless `play` is false.
+ * `models` saves loading the speech catalog again (interactive mode).
+ */
+export async function previewVoice(r: PreviewRequest, o: { play: boolean; models?: SpeechModel[] }): Promise<Preview> {
+  const models = o.models ?? (await loadSpeechModels());
+  const call = previewCall(r, models, userLanguage(process.env, Intl.DateTimeFormat().resolvedOptions().locale));
+  const demo = await loading(
+    `Preview of ${r.voice || 'the model default voice'}`,
+    (d) => (d.cached ? 'Preview from the cache' : 'Preview generated'),
+    () => speechDemo(call),
+  );
+  const file = path.join(OUT_DIR, demo.file);
+  out.success(`${pc.bold(displayPath(file, process.cwd()))}  ${pc.dim(previewDetails(r, demo.cached))}`);
+  if (!o.play) return { file, cached: demo.cached, playback: 'off' };
+  const playback = await playFile(file, () => out.hint(pc.dim('Playing (Ctrl+C stops)')));
+  if (playback === 'none') out.hint('No audio player found (afplay, paplay, aplay or ffplay): open the file above.');
+  return { file, cached: demo.cached, playback };
 }

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // darkroom CLI: generate images, speech and music from the terminal (same core as the web UI).
-// Without the required input in a terminal it asks interactively (see studio.ts); scripts never get a prompt.
-// --json prints one JSON document instead (json.ts), and `darkroom skill` prints the guide for AI agents (skill.ts).
-import './no-color.ts';
+// The commands are implemented in commands/. Without the required input in a terminal it asks interactively
+// (commands/menu.ts, questions in interactive/); scripts never get a prompt. --json prints one JSON document instead
+// (output/json.ts), and `darkroom skill` prints the guide for AI agents (agent/skill.ts).
+import './output/no-color.ts';
 import {
   APP_VERSION,
   DEFAULT_MODEL,
@@ -18,31 +19,21 @@ import { MODEL_KINDS } from '@darkroom/core/models/favorites';
 import { costSummary, readEntries } from '@darkroom/core/storage/manifest';
 import { Argument, Command, CommanderError, InvalidArgumentError, Option } from 'commander';
 import pc from 'picocolors';
+import { skillGuide } from './agent/skill.ts';
 import { collect, explicitOptions, floatArg, intArg, parseModels, resolveRefs, sizeArg } from './args.ts';
-import type { ImageRun, MusicRun, SpeechRun } from './command-line.ts';
-import { failureDocument, printJson, type RunKind, runDocument } from './json.ts';
-import { EXIT, jsonMode } from './mode.ts';
-import { out } from './out.ts';
-import { skillGuide } from './skill.ts';
-import {
-  addFavorite,
-  interactiveMode,
-  MUSIC_MODEL,
-  previewVoice,
-  removeFavorite,
-  runImage,
-  runMusicRun,
-  runSpeechRun,
-  SPEECH_MODEL,
-  showCosts,
-  showElements,
-  showFavorites,
-  showModels,
-  showVoices,
-  startWeb,
-  totalLine,
-} from './studio.ts';
-import { cancelled, clackPrompter, failSpinner, interactive } from './term.ts';
+import { addFavorite, removeFavorite, showFavorites } from './commands/favorites.ts';
+import { runImage, totalLine } from './commands/image.ts';
+import { interactiveMode } from './commands/menu.ts';
+import { MUSIC_MODEL, runMusicRun } from './commands/music.ts';
+import { previewVoice } from './commands/preview.ts';
+import { showCosts, showElements, showModels, showVoices } from './commands/show.ts';
+import { runSpeechRun, SPEECH_MODEL } from './commands/speech.ts';
+import { startWeb } from './commands/web.ts';
+import type { ImageRun, MusicRun, SpeechRun } from './interactive/command-line.ts';
+import { failureDocument, printJson, type RunKind, runDocument } from './output/json.ts';
+import { EXIT, jsonMode } from './output/mode.ts';
+import { out } from './output/out.ts';
+import { cancelled, clackPrompter, failSpinner, interactive } from './output/term.ts';
 
 function privacyOption(description = 'zdr | zdr-strict | off') {
   return new Option('--privacy <mode>', description).default(DEFAULT_PRIVACY).argParser((v): PrivacyMode => {

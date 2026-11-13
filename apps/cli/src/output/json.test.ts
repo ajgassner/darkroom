@@ -3,7 +3,7 @@ import type { ManifestEntry, MusicModelInfo, SpeechModelInfo } from '@darkroom/c
 import { AppError } from '@darkroom/core/errors';
 import { CommanderError } from 'commander';
 import { describe, expect, it } from 'vitest';
-import type { CatalogImageModel } from './choices.ts';
+import type { CatalogImageModel } from '../interactive/choices.ts';
 import {
   costsDocument,
   elementsDocument,
