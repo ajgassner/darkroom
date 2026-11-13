@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import { ENV_FILE, OUT_DIR } from '@darkroom/core/config';
+import { ENV_FILE, OUT_DIR, REFS_DIR, VOICES_DIR } from '@darkroom/core/config';
 import { fakeOpenRouter, testImage } from '@darkroom/core/test/fake-openrouter';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -16,6 +16,10 @@ const HOST = { host: '127.0.0.1:5177' };
 
 function get(url: string, headers: Record<string, string> = {}) {
   return app.inject({ method: 'GET', url, headers: { ...HOST, ...headers } });
+}
+
+function del(url: string) {
+  return app.inject({ method: 'DELETE', url, headers: HOST });
 }
 
 function post(url: string, body: unknown, method: 'POST' | 'PUT' = 'POST') {
@@ -116,6 +120,35 @@ describe('API', () => {
     const ranged = await get(`/api/voices/me/samples/${file}`, { range: 'bytes=0-3' });
     expect(ranged.statusCode).toBe(206);
     expect(ranged.headers['content-range']).toBe(`bytes 0-3/${wav.length}`);
+  });
+
+  it('deletes elements with their folder', async () => {
+    await post('/api/elements', { name: 'gone', label: 'Gone' });
+    const dataUrl = `data:image/png;base64,${(await testImage()).toString('base64')}`;
+    await post('/api/elements/gone/photos', { dataUrl, filename: 'a.png' });
+    expect((await del('/api/elements/gone')).json()).toEqual({ ok: true });
+    await expect(fs.access(path.join(REFS_DIR, 'gone'))).rejects.toThrow();
+    expect((await get('/api/elements')).json().map((e: { name: string }) => e.name)).not.toContain('gone');
+    const missing = await del('/api/elements/gone');
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toMatchObject({ code: 'element_not_found', params: { name: 'gone' } });
+    expect((await del('/api/elements/.hidden')).json()).toMatchObject({ code: 'bad_request' });
+    expect((await del('/api/elements/%2E%2E%2Fout')).statusCode).toBe(400);
+    // Folders outside refs/ stay untouched
+    await fs.access(OUT_DIR);
+  });
+
+  it('deletes own voices with their folder', async () => {
+    await post('/api/voices', { name: 'bye', label: 'Bye' });
+    const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(40)]);
+    await post('/api/voices/bye/samples', { dataUrl: `data:audio/wav;base64,${wav.toString('base64')}` });
+    expect((await del('/api/voices/bye')).json()).toEqual({ ok: true });
+    await expect(fs.access(path.join(VOICES_DIR, 'bye'))).rejects.toThrow();
+    expect((await get('/api/voices')).json().map((v: { name: string }) => v.name)).not.toContain('bye');
+    const missing = await del('/api/voices/bye');
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toMatchObject({ code: 'voice_not_found' });
+    expect((await del('/api/voices/.x')).statusCode).toBe(400);
   });
 
   it('streams a generation as NDJSON, serves the result and deletes it', async () => {

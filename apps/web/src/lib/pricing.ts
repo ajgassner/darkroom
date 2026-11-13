@@ -1,3 +1,4 @@
+import { money } from './format';
 import { enumVals } from './models';
 import type { CostSummary, ImageModel, ImagePrice } from './types';
 
@@ -72,18 +73,8 @@ export type UnitPrice = { unit: 'image' | 'megapixel' | 'token' | 'other'; value
 
 export function unitPrice(p: ImagePrice | null): UnitPrice | null {
   if (!p) return null;
-  if (p.unit === 'image') return { unit: 'image', value: `$${p.cost}` };
-  if (p.unit === 'megapixel') return { unit: 'megapixel', value: `$${p.cost}` };
-  if (p.unit === 'token') return { unit: 'token', value: `$${(p.cost * 1000).toFixed(3)}` };
-  return { unit: 'other', value: `$${p.cost}/${p.unit}` };
-}
-
-export function usd(v: number | null | undefined): string {
-  if (v === null || v === undefined) return 'n/a';
-  return `$${v.toFixed(v < 0.1 ? 4 : 3)}`;
-}
-
-export function fmtTime(sec: number): string {
-  if (!Number.isFinite(sec) || sec < 0) return '0:00';
-  return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+  if (p.unit === 'image') return { unit: 'image', value: money(p.cost, 2, 6) };
+  if (p.unit === 'megapixel') return { unit: 'megapixel', value: money(p.cost, 2, 6) };
+  if (p.unit === 'token') return { unit: 'token', value: money(p.cost * 1000, 3) };
+  return { unit: 'other', value: `${money(p.cost, 2, 6)}/${p.unit}` };
 }

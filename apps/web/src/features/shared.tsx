@@ -3,8 +3,8 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SectionTitle, Tooltip } from '@/components/ui/misc';
 import { elementPhotoUrl } from '@/lib/api';
+import { fmtTime } from '@/lib/format';
 import type { Note, NoteKey } from '@/lib/notes';
-import { fmtTime } from '@/lib/pricing';
 import type { ElementInfo } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -88,6 +88,7 @@ export function AudioPlayer({ src, className }: { src: string; className?: strin
         max={1000}
         value={Math.round(pct * 10)}
         aria-label={t('player.position')}
+        aria-valuetext={t('player.valueText', { position: fmtTime(shown), duration: fmtTime(dur) })}
         className="seek"
         style={{ '--pct': `${pct}%` } as React.CSSProperties}
         onClick={(e) => e.stopPropagation()}

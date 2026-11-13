@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { VOICES_DIR } from './config.ts';
-import { deleteSample, getVoice, saveVoice } from './voices.ts';
+import { deleteSample, deleteVoice, getVoice, saveVoice } from './voices.ts';
 
 const WAV = Buffer.from('RIFF....WAVE');
 
@@ -50,5 +50,16 @@ describe('voice.json', () => {
     await saveVoice('del', { label: 'Del', transcripts: { 'a.wav': 'one', 'b.wav': 'two' } });
     await deleteSample('del', 'a.wav');
     expect(await getVoice('del')).toMatchObject({ label: 'Del', samples: ['b.wav'], transcripts: { 'b.wav': 'two' } });
+  });
+});
+
+describe('deleting voices', () => {
+  it('removes voices/<name>/ with its samples and voice.json', async () => {
+    await voiceWithSamples('old', ['a.wav']);
+    await saveVoice('old', { label: 'Old', transcripts: { 'a.wav': 'hi' } });
+    await deleteVoice('old');
+    await expect(fs.access(path.join(VOICES_DIR, 'old'))).rejects.toThrow();
+    await expect(deleteVoice('old')).rejects.toMatchObject({ code: 'voice_not_found', params: { name: 'old' } });
+    await expect(deleteVoice('../x')).rejects.toMatchObject({ code: 'invalid_name' });
   });
 });

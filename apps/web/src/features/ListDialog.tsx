@@ -1,10 +1,11 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/misc';
 import { errorMessage } from '@/lib/actions';
+import { newItem } from '@/lib/names';
 import { cn } from '@/lib/utils';
 
 export interface ListItem {
@@ -23,6 +24,7 @@ export function ListDialog({
   onSelect,
   newPlaceholder,
   createLabel,
+  folder,
   onCreate,
   children,
 }: {
@@ -34,22 +36,12 @@ export function ListDialog({
   onSelect: (key: string) => void;
   newPlaceholder: string;
   createLabel: string;
-  onCreate: (name: string) => Promise<void>;
+  /** Data folder the items live in (refs, voices): new items get a subfolder named after the display name */
+  folder: string;
+  onCreate: (name: string, label: string) => Promise<void>;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
-  const [newName, setNewName] = useState('');
-  const create = async () => {
-    const name = newName.trim();
-    if (!name) return;
-    try {
-      await onCreate(name);
-      setNewName('');
-    } catch (err) {
-      toast.error(errorMessage(err));
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent closeLabel={t('common.close')} className="h-[86vh] w-[min(980px,96vw)]">
@@ -60,6 +52,7 @@ export function ListDialog({
               <button
                 key={it.key}
                 type="button"
+                aria-current={active === it.key || undefined}
                 onClick={() => onSelect(it.key)}
                 className={cn(
                   'flex w-full cursor-pointer justify-between rounded-lg px-2.5 py-2 text-left hover:bg-panel-2',
@@ -70,26 +63,80 @@ export function ListDialog({
                 <span className="text-muted">{it.count}</span>
               </button>
             ))}
-            <form
-              className="mt-3.5 flex gap-1.5"
-              onSubmit={(ev) => {
-                ev.preventDefault();
-                void create();
-              }}
-            >
-              <Input
-                value={newName}
-                onChange={(ev) => setNewName(ev.target.value)}
-                placeholder={newPlaceholder}
-                pattern="[A-Za-z0-9_\-][A-Za-z0-9_.\-]{0,63}"
-                required
-              />
-              <Button type="submit">{createLabel}</Button>
-            </form>
+            <CreateForm
+              existing={items.map((it) => it.key)}
+              folder={folder}
+              placeholder={newPlaceholder}
+              createLabel={createLabel}
+              onCreate={onCreate}
+            />
           </div>
           <div className="flex flex-col gap-3.5 overflow-y-auto px-5 pt-12 pb-5">{children}</div>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Name field for a new item: shows the folder the typed display name becomes, or why it can't be used. */
+function CreateForm({
+  existing,
+  folder,
+  placeholder,
+  createLabel,
+  onCreate,
+}: {
+  existing: string[];
+  folder: string;
+  placeholder: string;
+  createLabel: string;
+  onCreate: (name: string, label: string) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const hintId = useId();
+  const [value, setValue] = useState('');
+  const item = newItem(value, existing);
+  const { hint } = item;
+  const create = async () => {
+    if (!item.ok) return;
+    try {
+      await onCreate(item.name, item.label);
+      setValue('');
+    } catch (err) {
+      toast.error(errorMessage(err));
+    }
+  };
+
+  return (
+    <>
+      <form
+        className="mt-3.5 flex gap-1.5"
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          void create();
+        }}
+      >
+        <Input
+          value={value}
+          onChange={(ev) => setValue(ev.target.value)}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          aria-invalid={hint?.invalid}
+          aria-describedby={hint ? hintId : undefined}
+        />
+        <Button type="submit" disabled={!item.ok}>
+          {createLabel}
+        </Button>
+      </form>
+      {hint && (
+        <p
+          id={hintId}
+          aria-live="polite"
+          className={cn('mt-1.5 text-xs [overflow-wrap:anywhere]', hint.invalid ? 'text-err' : 'text-muted')}
+        >
+          {t(hint.key, { path: `${folder}/${item.name}/` })}
+        </p>
+      )}
+    </>
   );
 }

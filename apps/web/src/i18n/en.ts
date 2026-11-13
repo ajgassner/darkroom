@@ -254,6 +254,8 @@ export const en = {
     sampleTruncated: '{{name}}: shortened to {{sec}} s',
     sampleShort: '{{name}}: only {{sec}} s. 10–30 s work better for cloning.',
     noSpeechRecognized: 'No speech recognized. Is there speech in the recording?',
+    elementDeleted: 'Element “{{label}}” deleted',
+    voiceDeleted: 'Voice “{{label}}” deleted',
     micDenied: 'No access to the microphone. Please allow it in the browser.',
     transcriptSaved: 'Transcript saved',
     selectElementFirst: 'Select or create an element first',
@@ -342,7 +344,10 @@ export const en = {
   },
   elements: {
     title: 'Elements',
-    newPlaceholder: 'new name, e.g. max',
+    newPlaceholder: 'Name, e.g. Max Müller',
+    delete: 'Delete element',
+    confirmDelete:
+      'Delete the element “{{label}}”? The folder refs/{{name}}/ with all its photos will be removed. This cannot be undone.',
     create: 'Create',
     empty:
       'Select or create an element. Use elements in the prompt with @name, e.g. “Make a picture of @max and put the @companylogo in the top right”.',
@@ -372,7 +377,10 @@ export const en = {
   },
   voices: {
     title: 'Own voices',
-    newPlaceholder: 'new name, e.g. me',
+    newPlaceholder: 'Name, e.g. My voice',
+    delete: 'Delete voice',
+    confirmDelete:
+      'Delete the voice “{{label}}”? The folder voices/{{name}}/ with all its samples and transcripts will be removed. This cannot be undone.',
     create: 'Create',
     empty:
       'Select or create a voice. For a good clone: speak calmly and clearly for 10–30 seconds, without background noise or music. Only your own voice or with the consent of the person.',
@@ -381,7 +389,9 @@ export const en = {
     stopRecording: 'Stop ({{sec}} s)',
     transcription: 'Transcription',
     engineLocal: 'Local (Whisper, offline)',
-    engineApi: 'API ({{model}}, ZDR)',
+    engineApi: 'API ({{model}}, {{privacy}})',
+    privacyBlocked:
+      'The transcription model has no endpoint for the privacy mode “{{mode}}”. Choose “Local (Whisper, offline)” under Transcription instead.',
     language: 'Language',
     auto: 'Automatic',
     drop: 'Drop an audio file here or click (e.g. voice memo m4a, mp3, wav)',
@@ -411,6 +421,14 @@ export const en = {
     headers: 'Response headers',
     none: '(none)',
   },
+  newItem: {
+    folder: 'Folder: {{path}}',
+    empty: 'The name needs at least one letter or digit.',
+    taken: '{{path}} already exists. Choose another name.',
+  },
+  layout: {
+    settings: 'Settings',
+  },
   paste: {
     question: 'What do you want to do with the pasted image?',
     tools: 'Edit with tools',
@@ -421,6 +439,7 @@ export const en = {
     pause: 'Pause',
     position: 'Position',
     unavailable: 'not loadable',
+    valueText: '{{position}} of {{duration}}',
   },
   // Codes sent by the server (entry.notices[].code); unknown codes fall back to the English text from the server.
   notice: {
@@ -487,5 +506,6 @@ export const en = {
     invalid_debug_id: 'Invalid debug ID',
     nothing_to_delete: 'Nothing selected to delete',
     not_found: 'Not found',
+    server_unreachable: 'darkroom is not reachable. Is it still running? Start it with darkroom start.',
   },
 } as const;

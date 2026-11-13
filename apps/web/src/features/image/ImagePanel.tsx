@@ -7,6 +7,7 @@ import { Checkbox, SectionTitle, Tooltip } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
 import { addExtraFiles } from '@/lib/actions';
 import { outUrl } from '@/lib/api';
+import { usd } from '@/lib/format';
 import { promptMentions } from '@/lib/mentions';
 import {
   ASPECTS,
@@ -22,7 +23,7 @@ import {
   sortByRecommendation,
 } from '@/lib/models';
 import { imageNotes } from '@/lib/notes';
-import { estimateImagePrice, historyAvg, type UnitPrice, unitPrice, usd } from '@/lib/pricing';
+import { estimateImagePrice, historyAvg, type UnitPrice, unitPrice } from '@/lib/pricing';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { ImageModel } from '@/lib/types';
 import { cn } from '@/lib/utils';

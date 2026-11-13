@@ -74,7 +74,7 @@ Start the web UI and create your first element: **Element → Manage**, enter a 
 
 ## Elements and @mentions
 
-An element is a folder `refs/<name>/` with images and an `element.json`, editable in the UI under **Element → Manage**:
+An element is a folder `refs/<name>/` with images and an `element.json`, editable in the UI under **Element → Manage**. A name typed there becomes the display name, and the folder name is derived from it (`Max Müller` → `refs/max-mueller/`, mentioned as `@max-mueller`); elements and own voices can be deleted there too, which removes their folder.
 
 ```json
 {

@@ -1,9 +1,10 @@
 // Display texts built from results and settings. Pure: the caller passes the translate function.
 import type { TFunction } from 'i18next';
+import { num, usd } from './format';
 import { allowedByPrivacy, shortName } from './models';
-import { estimateRun, usd } from './pricing';
+import { estimateRun } from './pricing';
 import type { Settings } from './store';
-import type { CostSummary, DebugRecord, ImageModel, ManifestEntry, VoiceInfo } from './types';
+import type { CostSummary, DebugRecord, ImageModel, ManifestEntry, PrivacyMode, VoiceInfo } from './types';
 
 /** "@anna, @logo" */
 function mentionList(names: string[]): string {
@@ -140,7 +141,7 @@ export function entryInfoRows(t: TFunction, e: ManifestEntry, modelName: (id: st
     [t('lightbox.model'), modelName(e.model)],
     [t('lightbox.provider'), e.provider || none],
     [t('lightbox.cost'), costText(t, e)],
-    [t('lightbox.duration'), t('lightbox.seconds', { value: (e.durationMs / 1000).toFixed(1) })],
+    [t('lightbox.duration'), t('lightbox.seconds', { value: num(e.durationMs / 1000, 1) })],
     [t('lightbox.elements'), mentionList(entryElements(e)) || none],
     [t('lightbox.references'), String(e.refCount)],
     [
@@ -173,7 +174,7 @@ export function debugRows(t: TFunction, e: ManifestEntry, d: DebugRecord): Row[]
   return [
     [t('debug.endpoint'), `${d.method} ${d.endpoint}`],
     [t('debug.status'), d.status === null ? t('debug.noResponse') : String(d.status)],
-    [t('debug.duration'), `${(d.durationMs / 1000).toFixed(1)} s`],
+    [t('debug.duration'), t('lightbox.seconds', { value: num(d.durationMs / 1000, 1) })],
     [t('debug.model'), e.model],
     [t('debug.provider'), e.provider || headers?.['x-openrouter-provider'] || none],
     [t('debug.generationId'), e.generationId || headers?.['x-generation-id'] || none],
@@ -181,4 +182,33 @@ export function debugRows(t: TFunction, e: ManifestEntry, d: DebugRecord): Row[]
     [t('debug.elements'), mentionList(entryElements(e)) || none],
     [t('debug.refsSent'), String(d.sentFiles.length)],
   ];
+}
+
+// ---------------------------------------------------------------- Transcription (own voices)
+
+/** Short name of what a privacy mode guarantees: "ZDR", "ZDR strict" or "no ZDR". */
+const PRIVACY_SHORT = {
+  zdr: 'topbar.privacyZdrShort',
+  'zdr-strict': 'topbar.privacyStrictShort',
+  off: 'zdr.none',
+} as const satisfies Record<PrivacyMode, string>;
+
+function privacyShort(t: TFunction, privacy: PrivacyMode): string {
+  return t(PRIVACY_SHORT[privacy] ?? PRIVACY_SHORT.zdr);
+}
+
+/** Label of the API transcription engine: its model and the current privacy mode, e.g. "API (whisper-1, ZDR)". */
+export function transcribeApiLabel(t: TFunction, apiModel: string | undefined, privacy: PrivacyMode): string {
+  const model = (apiModel ?? 'Whisper').replace(/^[^/]+\//, '');
+  return t('voices.engineApi', { model, privacy: privacyShort(t, privacy) });
+}
+
+/**
+ * Message for an API transcription the privacy mode blocked: suggests the local engine instead of another model
+ * (null for every other error, which keeps the general message).
+ */
+export function transcribeBlockedText(t: TFunction, err: unknown, engine: string, privacy: PrivacyMode): string | null {
+  const code = (err as { code?: unknown } | null)?.code;
+  if (engine !== 'api' || (code !== 'privacy_blocked' && code !== 'privacy_blocked_strict')) return null;
+  return t('voices.privacyBlocked', { mode: privacyShort(t, privacy) });
 }

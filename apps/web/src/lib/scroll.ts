@@ -1,4 +1,12 @@
-// Scrolling to newly started runs: their live cards appear at the top of the gallery.
+// Scrolling to newly started runs (their live cards appear at the top of the gallery) and keeping the focus in place.
+
+/** Id of the composer's prompt field. */
+export const PROMPT_ID = 'prompt';
+
+/** Put the keyboard focus into the prompt field (e.g. when the focused live card of a run disappears). */
+export function focusComposer() {
+  document.getElementById(PROMPT_ID)?.focus();
+}
 
 /** Scroll position that puts an element (top in page coordinates) right below the sticky bars covering it. */
 export function revealTop(elementTop: number, coveredBy: number, gap = 12): number {

@@ -259,6 +259,8 @@ export const de: Bundle<typeof en> = {
     sampleTruncated: '{{name}}: auf {{sec}} s gekürzt',
     sampleShort: '{{name}}: nur {{sec}} s. Für einen guten Klon besser 10–30 s.',
     noSpeechRecognized: 'Kein Text erkannt. Ist auf der Aufnahme Sprache zu hören?',
+    elementDeleted: 'Element „{{label}}“ gelöscht',
+    voiceDeleted: 'Stimme „{{label}}“ gelöscht',
     micDenied: 'Kein Zugriff aufs Mikrofon. Bitte im Browser erlauben.',
     transcriptSaved: 'Transkript gespeichert',
     selectElementFirst: 'Zuerst ein Element wählen oder anlegen',
@@ -348,7 +350,10 @@ export const de: Bundle<typeof en> = {
   },
   elements: {
     title: 'Elemente',
-    newPlaceholder: 'neuer Name, z. B. max',
+    newPlaceholder: 'Name, z. B. Max Müller',
+    delete: 'Element löschen',
+    confirmDelete:
+      'Element „{{label}}“ löschen? Der Ordner refs/{{name}}/ wird mit allen Fotos entfernt. Das lässt sich nicht rückgängig machen.',
     create: 'Anlegen',
     empty:
       'Element wählen oder anlegen. Elemente lassen sich im Prompt mit @name verwenden, z. B. „Mach ein Bild von @max und füge das @firmenlogo oben rechts ein“.',
@@ -378,7 +383,10 @@ export const de: Bundle<typeof en> = {
   },
   voices: {
     title: 'Eigene Stimmen',
-    newPlaceholder: 'neuer Name, z. B. ich',
+    newPlaceholder: 'Name, z. B. Meine Stimme',
+    delete: 'Stimme löschen',
+    confirmDelete:
+      'Stimme „{{label}}“ löschen? Der Ordner voices/{{name}}/ wird mit allen Aufnahmen und Transkripten entfernt. Das lässt sich nicht rückgängig machen.',
     create: 'Anlegen',
     empty:
       'Stimme wählen oder anlegen. Für einen guten Klon: 10–30 Sekunden ruhig und deutlich sprechen, ohne Hintergrundgeräusche oder Musik. Nur deine eigene Stimme oder mit Einverständnis der Person.',
@@ -387,7 +395,9 @@ export const de: Bundle<typeof en> = {
     stopRecording: 'Stopp ({{sec}} s)',
     transcription: 'Transkription',
     engineLocal: 'Lokal (Whisper, offline)',
-    engineApi: 'API ({{model}}, ZDR)',
+    engineApi: 'API ({{model}}, {{privacy}})',
+    privacyBlocked:
+      'Das Transkriptionsmodell hat keinen Endpunkt für den Datenschutz-Modus „{{mode}}“. Wähle stattdessen bei Transkription „Lokal (Whisper, offline)“.',
     language: 'Sprache',
     auto: 'Automatisch',
     drop: 'Audiodatei hierher ziehen oder klicken (z. B. Sprachmemo m4a, mp3, wav)',
@@ -417,6 +427,14 @@ export const de: Bundle<typeof en> = {
     headers: 'Antwort-Header',
     none: '(keine)',
   },
+  newItem: {
+    folder: 'Ordner: {{path}}',
+    empty: 'Der Name braucht mindestens einen Buchstaben oder eine Ziffer.',
+    taken: '{{path}} gibt es schon. Wähle einen anderen Namen.',
+  },
+  layout: {
+    settings: 'Einstellungen',
+  },
   paste: {
     question: 'Was möchtest du mit dem eingefügten Bild machen?',
     tools: 'Mit Werkzeugen bearbeiten',
@@ -427,6 +445,7 @@ export const de: Bundle<typeof en> = {
     pause: 'Pause',
     position: 'Position',
     unavailable: 'nicht ladbar',
+    valueText: '{{position}} von {{duration}}',
   },
   notice: {
     model_unknown: 'Modell nicht in der Image-Models-API gefunden, Parameter ungeprüft gesendet',
@@ -494,5 +513,6 @@ export const de: Bundle<typeof en> = {
     invalid_debug_id: 'Ungültige Debug-ID',
     nothing_to_delete: 'Nichts zum Löschen ausgewählt',
     not_found: 'Nicht gefunden',
+    server_unreachable: 'darkroom ist nicht erreichbar. Läuft es noch? Starte es mit darkroom start.',
   },
 };

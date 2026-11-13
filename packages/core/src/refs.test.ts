@@ -7,6 +7,7 @@ import { REFS_DIR } from './config.ts';
 import {
   addPhoto,
   DEFAULT_INSTRUCTIONS,
+  deleteElement,
   deletePhoto,
   elementReferences,
   encodeImage,
@@ -15,6 +16,7 @@ import {
   isTemplate,
   listElements,
   photoPath,
+  removeNamedDir,
   replaceMentions,
   SizedCache,
   saveElement,
@@ -145,6 +147,34 @@ describe('element storage', () => {
 
   it.each(['../element.json', 'a/b.jpg', '.hidden.jpg', 'notes.txt'])('rejects photo path %j', (file) => {
     expect(() => photoPath('photos', file)).toThrow();
+  });
+});
+
+describe('deleting elements', () => {
+  it('removes refs/<name>/ with everything in it', async () => {
+    await saveElement('temp', { label: 'Temp' });
+    await addPhoto('temp', 'a.png', await testImage());
+    await deleteElement('temp');
+    await expect(fs.access(path.join(REFS_DIR, 'temp'))).rejects.toThrow();
+    await expect(deleteElement('temp')).rejects.toMatchObject({ code: 'element_not_found', params: { name: 'temp' } });
+  });
+
+  it('refuses names that leave the folder, files and symlinks', async () => {
+    const base = path.join(REFS_DIR, '..', 'rm-base');
+    const outside = path.join(REFS_DIR, '..', 'rm-outside');
+    await fs.mkdir(path.join(base, 'file-dir'), { recursive: true });
+    await fs.mkdir(outside, { recursive: true });
+    await fs.writeFile(path.join(base, 'plain'), 'x');
+    await fs.symlink(outside, path.join(base, 'link'));
+    const notFound = () => new Error('not found');
+    for (const bad of ['..', '../rm-outside', '', '.']) {
+      await expect(removeNamedDir(base, bad, notFound)).rejects.toMatchObject({ code: 'invalid_name' });
+    }
+    await expect(removeNamedDir(base, 'plain', notFound)).rejects.toThrow('not found');
+    await expect(removeNamedDir(base, 'link', notFound)).rejects.toThrow('not found');
+    await fs.access(outside);
+    await removeNamedDir(base, 'file-dir', notFound);
+    expect((await fs.readdir(base)).sort()).toEqual(['link', 'plain']);
   });
 });
 
