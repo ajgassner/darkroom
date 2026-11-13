@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Claude Code Stop hook: Biome, TypeScript, Vitest and fallow (dead code, duplicates, complexity, boundaries).
+# Claude Code Stop hook: Biome, TypeScript, the tests affected by the changes, and fallow (dead code, duplicates,
+# complexity, boundaries). The full test suite runs in CI on every pull request.
 # Exit 2 with the findings on stderr sends them back to Claude so it fixes them before finishing.
 #
 # Runs only when the working tree changed since the last check, and never blocks twice in a row on the same
@@ -40,7 +41,17 @@ run() {
 run "Biome" biome check --error-on-warnings .
 run "TypeScript (node)" tsc -p tsconfig.json --noEmit
 run "TypeScript (web)" tsc -p apps/web/tsconfig.json --noEmit
-run "Vitest" vitest run
+# Only the tests that import a changed TypeScript file (vitest follows the import graph); none for docs-only changes
+changed=()
+while IFS= read -r file; do changed+=("$file"); done < <(
+  {
+    git diff HEAD --name-only --diff-filter=d
+    git ls-files -o --exclude-standard
+  } | grep -E '\.tsx?$' | sort -u
+)
+if [ ${#changed[@]} -gt 0 ]; then
+  run "Vitest (related to ${#changed[@]} changed files)" vitest related --run --passWithNoTests "${changed[@]}"
+fi
 run "fallow" fallow
 
 if [ -n "$report" ]; then

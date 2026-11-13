@@ -37,7 +37,7 @@ The `agent-browser` project skill drives the UI in a real browser for UI verific
 
 ## Stop hook and quality gates
 
-`.claude/settings.json` runs `scripts/stop-check.sh` on Stop: Biome, both tsc configs, Vitest and fallow. Findings are sent back and must be fixed before finishing. fallow runs **without a baseline**, so any new finding fails:
+`.claude/settings.json` runs `scripts/stop-check.sh` on Stop: Biome, both tsc configs, the Vitest tests related to the changed `.ts`/`.tsx` files (`vitest related`; none for docs-only changes) and fallow. The full suite runs in CI and with `pnpm check`. Findings are sent back and must be fixed before finishing. fallow runs **without a baseline**, so any new finding fails:
 
 - Limits in `.fallowrc.jsonc`: cyclomatic 20, cognitive 15, CRAP 60. Complex untested functions fail; add tests or split the function.
 - Unused exports are reported inside the internal packages too (`includeEntryExports`), so remove exports that nothing imports.
