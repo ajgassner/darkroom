@@ -53,77 +53,281 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Install this commit (not the latest release) with the installer, as a user would, then start the UI.
-      # A failed update (missing source) must leave the installation working.
-      - name: Install and start (macOS, Linux)
-        if: runner.os != 'Windows'
+      # Source archives of this commit (not the latest release): as is, with another version (for the update)
+      # and with a build script that fails (for the rollback). "git stash create" makes a commit of the
+      # patched tree without touching refs or the checkout.
+      - name: Create source archives
+        shell: bash
         run: |
-          git archive --format=tar.gz --prefix=darkroom/ -o "$RUNNER_TEMP/src.tar.gz" HEAD
-          mkdir -p "$HOME/darkroom" && echo 'OPENROUTER_API_KEY=ci' >"$HOME/darkroom/.env"
-          DARKROOM_SOURCE="file://$RUNNER_TEMP/src.tar.gz" bash install.sh
-          darkroom="$HOME/.darkroom/bin/darkroom"
+          set -euo pipefail
+          format=tar.gz
+          if [ "$RUNNER_OS" = Windows ]; then format=zip; fi
           version=$(node -p "require('./package.json').version")
-          test "$("$darkroom" --version)" = "$version"
-          if DARKROOM_SOURCE="file://$RUNNER_TEMP/missing.tar.gz" bash install.sh; then
-            echo "::error::the update from a missing source did not fail"
+          stash() { git -c user.name=ci -c user.email=ci@localhost stash create; }
+          git archive --format=$format --prefix=darkroom/ -o "$RUNNER_TEMP/src.$format" HEAD
+          npm pkg set "version=$version-ci.update"
+          git archive --format=$format --prefix=darkroom/ -o "$RUNNER_TEMP/update.$format" "$(stash)"
+          npm pkg set "version=$version-ci.broken" "scripts.build=exit 1"
+          git archive --format=$format --prefix=darkroom/ -o "$RUNNER_TEMP/broken.$format" "$(stash)"
+          git checkout -- package.json
+          ls -l "$RUNNER_TEMP"
+
+      # Refuses folders that would put data at risk, installs, updates while darkroom runs (which asks for a
+      # restart), rolls back a build that fails after the swap, keeps the installation when the download
+      # fails, starts the UI and uninstalls only what the installer created.
+      - name: Install, update, roll back, uninstall (macOS, Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          error() {
+            echo "::error::$*"
             exit 1
+          }
+          version=$(node -p "require('./package.json').version")
+          src() { echo "file://$RUNNER_TEMP/$1.tar.gz"; }
+          install_dir="$HOME/.darkroom"
+          data_dir="$HOME/darkroom"
+          darkroom="$install_dir/bin/darkroom"
+          mkdir -p "$data_dir/out"
+          echo 'OPENROUTER_API_KEY=ci' >"$data_dir/.env"
+          echo keep >"$data_dir/out/keep.txt"
+          expect_version() {
+            local actual
+            actual=$("$darkroom" --version) || error "$2: darkroom does not run"
+            [ "$actual" = "$1" ] || error "$2: expected version $1, got $actual"
+          }
+          expect_data() {
+            grep -qx 'OPENROUTER_API_KEY=ci' "$data_dir/.env" && [ -f "$data_dir/out/keep.txt" ] ||
+              error "$1: the data folder changed"
+          }
+          expect_intact() {
+            expect_data "$1"
+            local left
+            left=$(cd "$install_dir" && ls -d staging ./*.old ./*.trash 2>/dev/null || true)
+            [ -z "$left" ] || error "$1: leftovers in the install folder: $left"
+            [ -f "$install_dir/node/.darkroom-complete" ] && [ -f "$install_dir/app/.darkroom-complete" ] ||
+              error "$1: the installed version is not marked complete"
+          }
+          expect_refusal() { # what, expected message, environment
+            local what=$1 message=$2 output
+            shift 2
+            if output=$(env DARKROOM_SOURCE="$(src src)" "$@" bash install.sh 2>&1); then
+              error "the installer accepted $what"
+            fi
+            echo "$output"
+            grep -qF "$message" <<<"$output" || error "the installer failed for another reason than $what"
+          }
+          start_server() {
+            "$darkroom" start &
+            server=$!
+            for _ in $(seq 60); do curl -sf http://localhost:5177/api/status >/dev/null && return; sleep 1; done
+            error "darkroom did not start"
+          }
+          stop_server() {
+            kill "$server"
+            wait "$server" || true
+          }
+
+          # Folders that would put data at risk are refused before anything is touched
+          mkdir -p "$RUNNER_TEMP/foreign"
+          echo mine >"$RUNNER_TEMP/foreign/notes.txt"
+          expect_refusal "a data folder inside the install folder" "is inside the install folder" \
+            DARKROOM_HOME="$install_dir/data"
+          expect_refusal "the data folder as install folder" "are the same" DARKROOM_DIR="$data_dir"
+          expect_refusal "the home folder as install folder" "your home folder" \
+            DARKROOM_DIR="$HOME" DARKROOM_HOME="$RUNNER_TEMP/data"
+          expect_refusal "a folder with other files" "did not create" DARKROOM_DIR="$RUNNER_TEMP/foreign"
+          [ ! -e "$install_dir" ] || error "a refused installation created $install_dir"
+          [ "$(ls -A "$RUNNER_TEMP/foreign")" = notes.txt ] || error "a refused installation changed a folder"
+
+          DARKROOM_SOURCE="$(src src)" bash install.sh
+          expect_version "$version" "fresh install"
+          expect_intact "fresh install"
+          [ -d "$install_dir/cache/pnpm-store" ] || error "the pnpm store is not in the install folder"
+          rc=$(sed -n "s/^rc='\(.*\)'\$/\1/p" "$darkroom")
+          if [ -n "$rc" ]; then grep -qF "$install_dir/bin" "$rc" || error "no PATH entry in $rc"; fi
+          # Extra arguments go to the CLI, which only prints help
+          "$darkroom" uninstall --help | grep -q 'data folder' || error "uninstall --help did not print the help"
+          "$darkroom" update --help | grep -q 'installer' || error "update --help did not print the help"
+          expect_version "$version" "uninstall --help"
+
+          start_server
+          DARKROOM_SOURCE="$(src update)" bash install.sh | tee "$RUNNER_TEMP/update.log"
+          grep -q 'restart it' "$RUNNER_TEMP/update.log" || error "the update did not ask to restart the running darkroom"
+          expect_version "$version-ci.update" "update"
+          expect_intact "update"
+          stop_server
+
+          if DARKROOM_SOURCE="$(src broken)" bash install.sh 2>&1 | tee "$RUNNER_TEMP/broken.log"; then
+            error "the update with a failing build did not fail"
           fi
-          test "$("$darkroom" --version)" = "$version"
-          "$darkroom" start &
-          for _ in $(seq 60); do curl -sf http://localhost:5177/api/status >/dev/null && break; sleep 1; done
-          curl -sf http://localhost:5177/ | grep -q '<title>darkroom</title>'
-          "$darkroom" uninstall
-          test ! -e "$HOME/.darkroom" && test -f "$HOME/darkroom/.env"
+          grep -q 'restoring the previous version' "$RUNNER_TEMP/broken.log" || error "the failed build was not rolled back"
+          expect_version "$version-ci.update" "failed build"
+          expect_intact "failed build"
+
+          if DARKROOM_SOURCE="$(src missing)" bash install.sh; then error "the update from a missing source did not fail"; fi
+          expect_version "$version-ci.update" "missing source"
+          expect_intact "missing source"
+
+          start_server
+          curl -sf http://localhost:5177/ | grep -q '<title>darkroom</title>' || error "the UI is not served"
+          stop_server
+
+          # Not a terminal: uninstall doesn't ask. A file of the user's stays, and with it the folder.
+          echo mine >"$install_dir/notes.txt"
+          "$darkroom" uninstall </dev/null
+          [ "$(ls -A "$install_dir")" = notes.txt ] || error "uninstall left: $(ls -A "$install_dir")"
+          expect_data "uninstall"
+          if [ -n "$rc" ] && grep -qF "$install_dir/bin" "$rc"; then error "uninstall left the PATH entry in $rc"; fi
 
       # Like a profile folder C:\Users\Jörg: non-ASCII characters (and an apostrophe) in both folders.
-      # Also checks that a failed update keeps the installation, that the command finds its data folder
-      # without DARKROOM_HOME, and that %VARIABLE% entries in the user PATH survive install and uninstall.
-      - name: Install and start (Windows)
+      # The fresh install runs like "irm | iex" in this session (nothing may leak into it); the update and
+      # the failed build run in Windows PowerShell 5.1, which "darkroom update" uses. Also checks that an
+      # update fails cleanly while darkroom runs, that the command finds its data folder without
+      # DARKROOM_HOME, and that %VARIABLE% entries in the user PATH survive install and uninstall.
+      - name: Install, update, roll back, uninstall (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $src = Join-Path $env:RUNNER_TEMP 'src.zip'
-          git archive --format=zip --prefix=darkroom/ -o $src HEAD
+          $ErrorActionPreference = 'Stop'
+          function Fail($msg) {
+            Write-Host "::error::$msg"
+            exit 1
+          }
+          $temp = $env:RUNNER_TEMP
+          $script = Join-Path $PWD 'install.ps1'
+          $version = node -p "require('./package.json').version"
           $installDir = "$HOME\.d$([char]0xE5)rkroom"
           $dataDir = "$HOME\J$([char]0xF6)rg's darkroom"
-          New-Item -ItemType Directory -Force $dataDir | Out-Null
+          $darkroom = "$installDir\bin\darkroom.cmd"
+          New-Item -ItemType Directory -Force (Join-Path $dataDir 'out') | Out-Null
           Set-Content (Join-Path $dataDir '.env') 'OPENROUTER_API_KEY=ci'
+          Set-Content (Join-Path $dataDir 'out\keep.txt') 'keep'
           $envKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment')
           $userPath = $envKey.GetValue('Path', '', 'DoNotExpandEnvironmentNames')
           $envKey.SetValue('Path', (@($userPath, '%USERPROFILE%\ci-unexpanded') | Where-Object { $_ }) -join ';', 'ExpandString')
+
+          function Assert-Version($expected, $when) {
+            $actual = & $darkroom --version
+            if ($LASTEXITCODE -ne 0 -or $actual -ne $expected) { Fail "${when}: expected version $expected, got $actual" }
+          }
+          function Assert-Data($when) {
+            if (-not (Select-String -LiteralPath (Join-Path $dataDir '.env') -Pattern '^OPENROUTER_API_KEY=ci$' -Quiet) -or
+              -not (Test-Path -LiteralPath (Join-Path $dataDir 'out\keep.txt'))) { Fail "${when}: the data folder changed" }
+          }
+          function Assert-Intact($when) {
+            Assert-Data $when
+            $left = Get-ChildItem -LiteralPath $installDir -Force | Where-Object { $_.Name -match '^(staging|.*\.old|.*\.trash)$' }
+            if ($left) { Fail "${when}: leftovers in the install folder: $($left.Name -join ', ')" }
+            foreach ($part in 'node', 'app') {
+              if (-not (Test-Path -LiteralPath "$installDir\$part\.darkroom-complete")) { Fail "${when}: $part is not marked complete" }
+            }
+          }
+          function Assert-Refused($what, $message) {
+            $refused = $null
+            try { & $script } catch { $refused = $_.Exception.Message }
+            if (-not $refused) { Fail "The installer accepted $what" }
+            Write-Host $refused
+            if (-not $refused.Contains($message)) { Fail "The installer failed for another reason than $what" }
+          }
+          function Start-Darkroom {
+            Start-Process -FilePath $darkroom -ArgumentList 'start' -NoNewWindow
+            foreach ($i in 1..60) {
+              try { Invoke-WebRequest http://localhost:5177/api/status -UseBasicParsing | Out-Null; return } catch { Start-Sleep 1 }
+            }
+            Fail 'darkroom did not start'
+          }
+          function Stop-Darkroom {
+            Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+            Start-Sleep 2
+          }
+
+          # Folders that would put data at risk are refused before anything is touched
+          $env:DARKROOM_SOURCE = "$temp\src.zip"
+          New-Item -ItemType Directory -Force "$temp\foreign" | Out-Null
+          Set-Content "$temp\foreign\notes.txt" 'mine'
+          $env:DARKROOM_DIR = $installDir
+          $env:DARKROOM_HOME = "$installDir\data"
+          Assert-Refused 'a data folder inside the install folder' 'is inside the install folder'
+          $env:DARKROOM_DIR = $dataDir
+          $env:DARKROOM_HOME = $dataDir
+          Assert-Refused 'the data folder as install folder' 'are the same'
+          $env:DARKROOM_DIR = $HOME
+          $env:DARKROOM_HOME = "$temp\data"
+          Assert-Refused 'the home folder as install folder' 'your home folder'
+          $env:DARKROOM_DIR = "$temp\foreign"
+          Assert-Refused 'a folder with other files' 'did not create'
+          if (Test-Path -LiteralPath $installDir) { Fail 'A refused installation created the install folder' }
+          if ((Get-ChildItem -Force "$temp\foreign").Name -ne 'notes.txt') { Fail 'A refused installation changed a folder' }
+
+          # Fresh install like "irm | iex"; nothing may leak into this session
           $env:DARKROOM_DIR = $installDir
           $env:DARKROOM_HOME = $dataDir
-          $env:DARKROOM_SOURCE = $src
-          ./install.ps1
-          Remove-Item Env:DARKROOM_HOME
-          $darkroom = "$installDir\bin\darkroom.cmd"
-          $expected = node -p "require('./package.json').version"
-          $version = & $darkroom --version
-          if ($version -ne $expected) { throw "Unexpected version: $version" }
-
-          $env:DARKROOM_SOURCE = Join-Path $env:RUNNER_TEMP 'missing.zip'
-          $failed = $false
-          try { ./install.ps1 } catch { $failed = $true }
-          if (-not $failed) { throw 'The update from a missing source did not fail' }
-          $version = & $darkroom --version
-          if ($version -ne $expected) { throw "The failed update broke the installation: $version" }
-
-          Start-Process -FilePath $darkroom -ArgumentList 'start' -NoNewWindow
-          $ok = $false
-          foreach ($i in 1..60) {
-            try { Invoke-WebRequest http://localhost:5177/api/status -UseBasicParsing | Out-Null; $ok = $true; break } catch { Start-Sleep 1 }
+          $pathBefore = $env:Path
+          Get-Content -Raw -LiteralPath $script | Invoke-Expression
+          if ($env:Path -ne $pathBefore -or $env:pnpm_config_store_dir -or $env:npm_config_cache) {
+            Fail 'The installer changed the environment of the calling session'
           }
-          if (-not $ok) { throw 'Server did not start' }
-          if ((Invoke-WebRequest http://localhost:5177/ -UseBasicParsing).Content -notmatch '<title>darkroom</title>') { throw 'UI not served' }
-          $status = Invoke-RestMethod http://localhost:5177/api/status
-          if ($status.envFile -ne (Join-Path $dataDir '.env') -or -not $status.hasKey) { throw "Wrong data folder: $($status.envFile)" }
+          if ((Get-Command Remove-Tree, Test-Inside -ErrorAction SilentlyContinue) -or
+            (Get-Variable NodeMajor, savedEnv -ErrorAction SilentlyContinue)) {
+            Fail 'Functions or variables of the installer leaked into the calling session'
+          }
+          Remove-Item Env:DARKROOM_HOME
+          Assert-Version $version 'fresh install'
+          Assert-Intact 'fresh install'
+          if (-not (Test-Path -LiteralPath "$installDir\cache\pnpm-store")) { Fail 'The pnpm store is not in the install folder' }
+          # Extra arguments go to the CLI, which only prints help
+          if ((& $darkroom uninstall --help | Out-String) -notmatch 'data folder') { Fail 'uninstall --help did not print the help' }
+          if ((& $darkroom update --help | Out-String) -notmatch 'installer') { Fail 'update --help did not print the help' }
+          Assert-Version $version 'uninstall --help'
 
-          Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force # Windows locks the files of a running app
-          Start-Sleep 2
-          & $darkroom uninstall
-          if ($LASTEXITCODE -ne 0) { throw "Uninstall failed with exit code $LASTEXITCODE" }
-          if (Test-Path -LiteralPath $installDir) { throw 'The install folder is still there' }
-          if (-not (Test-Path -LiteralPath (Join-Path $dataDir '.env'))) { throw 'The data folder is gone' }
+          # An update while darkroom runs fails before anything changes and says to stop darkroom
+          Start-Darkroom
+          $env:DARKROOM_SOURCE = "$temp\update.zip"
+          $message = $null
+          try { & $script } catch { $message = $_.Exception.Message }
+          Write-Host $message
+          if (-not $message) { Fail 'The update succeeded while darkroom was running' }
+          if (-not $message.Contains('Stop it')) { Fail "The update failed without asking to stop darkroom: $message" }
+          Stop-Darkroom
+          Assert-Version $version 'update while running'
+          Assert-Intact 'update while running'
+
+          # Update and failed build with Windows PowerShell 5.1, the second one like "darkroom update" (iex)
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
+          if ($LASTEXITCODE -ne 0) { Fail "The update with Windows PowerShell failed with exit code $LASTEXITCODE" }
+          Assert-Version "$version-ci.update" 'update'
+          Assert-Intact 'update'
+
+          $env:DARKROOM_SOURCE = "$temp\broken.zip"
+          $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Content -Raw -LiteralPath '$script' | Invoke-Expression" 2>&1 | Out-String
+          $exitCode = $LASTEXITCODE
+          Write-Host $output
+          if ($exitCode -eq 0) { Fail 'The update with a failing build did not fail' }
+          if ($output -notmatch 'restoring the previous version') { Fail 'The failed build was not rolled back' }
+          Assert-Version "$version-ci.update" 'failed build'
+          Assert-Intact 'failed build'
+
+          $env:DARKROOM_SOURCE = "$temp\missing.zip"
+          $failed = $false
+          try { & $script } catch { $failed = $true }
+          if (-not $failed) { Fail 'The update from a missing source did not fail' }
+          Assert-Version "$version-ci.update" 'missing source'
+          Assert-Intact 'missing source'
+
+          Start-Darkroom
+          if ((Invoke-WebRequest http://localhost:5177/ -UseBasicParsing).Content -notmatch '<title>darkroom</title>') { Fail 'UI not served' }
+          $status = Invoke-RestMethod http://localhost:5177/api/status
+          if ($status.envFile -ne (Join-Path $dataDir '.env') -or -not $status.hasKey) { Fail "Wrong data folder: $($status.envFile)" }
+          Stop-Darkroom # Windows locks the files of a running app
+
+          & $darkroom uninstall --yes
+          if ($LASTEXITCODE -ne 0) { Fail "Uninstall failed with exit code $LASTEXITCODE" }
+          if (Test-Path -LiteralPath $installDir) {
+            Fail "The install folder is still there: $((Get-ChildItem -Force -LiteralPath $installDir).Name -join ', ')"
+          }
+          Assert-Data 'uninstall'
           $userPath = (Get-Item HKCU:\Environment).GetValue('Path', '', 'DoNotExpandEnvironmentNames')
-          if ($userPath -like "*$installDir*") { throw "The PATH entry is still there: $userPath" }
-          if ($userPath -notlike '*%USERPROFILE%\ci-unexpanded*') { throw "PATH entries were expanded: $userPath" }
+          if ($userPath -like "*$installDir*") { Fail "The PATH entry is still there: $userPath" }
+          if ($userPath -notlike '*%USERPROFILE%\ci-unexpanded*') { Fail "PATH entries were expanded: $userPath" }

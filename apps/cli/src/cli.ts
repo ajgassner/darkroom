@@ -176,18 +176,30 @@ const program = new Command()
   .version(APP_VERSION)
   .showHelpAfterError();
 
-// The installed darkroom command handles these itself (they replace or remove the app the CLI runs from);
-// they only reach the CLI in a git checkout.
-const checkoutHint = (what: string, how: string) => () =>
-  p.log.info(`This is a git checkout, not an installed darkroom. To ${what}: ${how}`);
+// The installed darkroom command handles "darkroom update" and "darkroom uninstall [--yes]" itself (they replace
+// or remove the app the CLI runs from). They reach the CLI only with other arguments (like --help) or in a git
+// checkout.
+const checkoutHint = (what: string, installed: string, checkout: string) => () =>
+  p.log.info(`To ${what} an installed darkroom, run: ${installed}\nIn a git checkout: ${checkout}`);
 program
   .command('update')
   .description('Update to the latest release (keeps your data)')
-  .action(checkoutHint('update', 'git pull && pnpm install && pnpm build'));
+  .addHelpText(
+    'after',
+    '\nRuns the installer again: downloads the latest release and its Node.js, and keeps the previous version if\n' +
+      'anything fails. Restart a running darkroom afterwards. Your data folder is not touched.',
+  )
+  .action(checkoutHint('update', 'darkroom update', 'git pull && pnpm install && pnpm build'));
 program
   .command('uninstall')
   .description('Remove darkroom (keeps your data)')
-  .action(checkoutHint('uninstall', 'delete the checkout folder'));
+  .option('-y, --yes', 'do not ask for confirmation')
+  .addHelpText(
+    'after',
+    '\nRemoves what the installer created in the install folder (the app, its Node.js and caches) and the PATH\n' +
+      'entry. Asks for confirmation in a terminal. Your data folder (.env, refs, voices, out) stays.',
+  )
+  .action(checkoutHint('uninstall', 'darkroom uninstall', 'delete the checkout folder'));
 
 program
   .command('gen')
