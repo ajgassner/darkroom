@@ -41,8 +41,10 @@ export function LoadingScreen() {
 export function Splash({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-      <img src="/favicon.svg" alt="" className="size-14" />
-      <div className="-mt-2 text-lg font-semibold tracking-tight">darkroom</div>
+      <div className="flex flex-col items-center gap-2">
+        <img src="/favicon.svg" alt="" className="size-14" />
+        <div className="text-lg font-semibold tracking-tight">darkroom</div>
+      </div>
       {children}
     </div>
   );
