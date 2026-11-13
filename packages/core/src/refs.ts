@@ -6,6 +6,7 @@ import type { ElementConfig, ElementInfo, ElementType } from './contract.ts';
 import { AppError } from './errors.ts';
 import { safeBaseName } from './files.ts';
 import { decodable } from './heic.ts';
+import { readJsonObject, serialized, writeJsonAtomic } from './json-file.ts';
 
 export type { ElementConfig, ElementInfo, ElementType };
 
@@ -87,12 +88,8 @@ export async function getElement(name: string): Promise<ElementInfo> {
   const files = await fs.readdir(dir).catch(() => {
     throw new AppError('element_not_found', `Element "${name}" not found (refs/${name}/)`, { name });
   });
-  let cfg: Partial<ElementConfig> = {};
-  try {
-    cfg = JSON.parse(await fs.readFile(path.join(dir, 'element.json'), 'utf8'));
-  } catch {
-    // no configuration: defaults
-  }
+  // No or a damaged configuration: defaults
+  const cfg = await readJsonObject<ElementConfig>(path.join(dir, 'element.json'));
   const type: ElementType = isElementType(cfg.type) ? cfg.type : 'person';
   return {
     name,
@@ -107,12 +104,20 @@ export async function getElement(name: string): Promise<ElementInfo> {
 export async function saveElement(name: string, cfg: Partial<ElementConfig>): Promise<ElementInfo> {
   const dir = elementDir(name);
   await fs.mkdir(dir, { recursive: true });
-  let current: Partial<ElementConfig> = {};
-  try {
-    current = JSON.parse(await fs.readFile(path.join(dir, 'element.json'), 'utf8'));
-  } catch {}
-  const next = { ...current, ...cfg };
-  await fs.writeFile(path.join(dir, 'element.json'), `${JSON.stringify(next, null, 2)}\n`);
+  const file = path.join(dir, 'element.json');
+  // One read-modify-write at a time; a damaged file is refused instead of being overwritten with defaults
+  await serialized(`element:${name}`, async () => {
+    const current = await readJsonObject<ElementConfig>(
+      file,
+      () =>
+        new AppError(
+          'element_config_invalid',
+          `refs/${name}/element.json is damaged and was left unchanged. Fix or delete it.`,
+          { name },
+        ),
+    );
+    await writeJsonAtomic(file, { ...current, ...cfg });
+  });
   return getElement(name);
 }
 

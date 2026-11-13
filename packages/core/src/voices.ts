@@ -1,11 +1,11 @@
 // Own voices: voices/<name>/ with recorded samples and their transcripts (voice.json).
-import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { VOICES_DIR } from './config.ts';
 import type { VoiceInfo } from './contract.ts';
 import { AppError } from './errors.ts';
 import { safeBaseName } from './files.ts';
+import { readJsonObject, serialized, writeJsonAtomic } from './json-file.ts';
 import { validName } from './refs.ts';
 import { parseWav, pcmToWav, type WavInfo } from './wav.ts';
 
@@ -31,51 +31,24 @@ const configFile = (name: string) => path.join(voiceDir(name), 'voice.json');
  * voice.json of a voice ({} without one). Reading for display tolerates a damaged file; the write path
  * (`strict`) refuses it instead, so that the label and transcripts are not overwritten with nothing.
  */
-async function readConfig(name: string, strict = false): Promise<VoiceConfig> {
-  let text: string;
-  try {
-    text = await fs.readFile(configFile(name), 'utf8');
-  } catch (err) {
-    if (!strict || (err as NodeJS.ErrnoException).code === 'ENOENT') return {};
-    throw err;
-  }
-  let cfg: unknown = null;
-  try {
-    cfg = JSON.parse(text);
-  } catch {}
-  if (cfg && typeof cfg === 'object' && !Array.isArray(cfg)) return cfg as VoiceConfig;
-  if (!strict) return {};
-  throw new AppError(
-    'voice_config_invalid',
-    `voices/${name}/voice.json is damaged and was left unchanged. Fix or delete it.`,
-    { name },
+function readConfig(name: string, strict = false): Promise<VoiceConfig> {
+  return readJsonObject<VoiceConfig>(
+    configFile(name),
+    strict
+      ? () =>
+          new AppError(
+            'voice_config_invalid',
+            `voices/${name}/voice.json is damaged and was left unchanged. Fix or delete it.`,
+            { name },
+          )
+      : undefined,
   );
 }
 
-/** Replace voice.json atomically (temporary file + rename), so readers never see it half-written. */
-async function writeConfig(name: string, cfg: VoiceConfig): Promise<void> {
-  const file = configFile(name);
-  const tmp = `${file}.${process.pid}-${crypto.randomUUID().slice(0, 8)}.tmp`;
-  try {
-    await fs.writeFile(tmp, `${JSON.stringify(cfg, null, 2)}\n`);
-    await fs.rename(tmp, file);
-  } finally {
-    await fs.rm(tmp, { force: true });
-  }
-}
+const writeConfig = (name: string, cfg: VoiceConfig) => writeJsonAtomic(configFile(name), cfg);
 
 /** Read-modify-write of voice.json, one at a time per voice (in this process). */
-const configWrites = new Map<string, Promise<unknown>>();
-
-function updateConfig<T>(name: string, fn: () => Promise<T>): Promise<T> {
-  const p = (configWrites.get(name) ?? Promise.resolve()).then(fn, fn);
-  const tail = p.catch(() => {});
-  configWrites.set(name, tail);
-  void tail.then(() => {
-    if (configWrites.get(name) === tail) configWrites.delete(name);
-  });
-  return p;
-}
+const updateConfig = <T>(name: string, fn: () => Promise<T>) => serialized(`voice:${name}`, fn);
 
 export async function listVoices(): Promise<VoiceInfo[]> {
   await fs.mkdir(VOICES_DIR, { recursive: true });

@@ -111,6 +111,7 @@ function SpeechSections() {
         </div>
         <div className="flex gap-1.5">
           <Select
+            ariaLabel={t('audio.voice')}
             className="min-w-0 flex-1"
             value={s.voice}
             onValueChange={(v) => s.set({ voice: v })}

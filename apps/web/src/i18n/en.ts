@@ -129,7 +129,7 @@ export const en = {
     instructionsIgnored: 'Instructions are only used by Gemini, Fish Audio and OpenAI.',
     musicMissing: 'No music model available.',
     musicNoZdr:
-      'Music models have no ZDR. The prompt goes to Google without Zero Data Retention (fine as long as it contains nothing personal).',
+      'This music model has no ZDR endpoint. The prompt goes to the provider without Zero Data Retention (fine as long as it contains nothing personal).',
   },
   composer: {
     placeholderImage: 'Describe the photo, e.g. “Business portrait in a bright office, suit, soft window light”',
@@ -464,6 +464,7 @@ export const en = {
     element_no_photos: 'Element “@{{name}}” has no photos yet',
     voice_not_found: 'Voice “{{name}}” no longer exists',
     voice_config_invalid: 'voices/{{name}}/voice.json is damaged and was left unchanged. Fix or delete it.',
+    element_config_invalid: 'refs/{{name}}/element.json is damaged and was left unchanged. Fix or delete it.',
     invalid_name: 'Invalid name “{{name}}” (allowed: letters, digits, _ - .)',
     invalid_filename: 'Invalid file name',
     invalid_path: 'Invalid path: {{path}}',

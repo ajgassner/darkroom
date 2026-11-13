@@ -9,3 +9,6 @@ models/
 .update-check.json
 dist/
 coverage/
+
+# Worktrees of Claude Code agents
+.claude/worktrees/

@@ -133,7 +133,7 @@ export const de: Bundle<typeof en> = {
     instructionsIgnored: 'Anweisungen werden nur von Gemini, Fish Audio und OpenAI berücksichtigt.',
     musicMissing: 'Kein Musikmodell verfügbar.',
     musicNoZdr:
-      'Musikmodelle haben kein ZDR. Der Prompt geht ohne Zero Data Retention an Google (unkritisch, solange er nichts Persönliches enthält).',
+      'Dieses Musikmodell hat keinen ZDR-Endpunkt. Der Prompt geht ohne Zero Data Retention an den Anbieter (unkritisch, solange er nichts Persönliches enthält).',
   },
   composer: {
     placeholderImage: 'Beschreibe das Foto, z. B. „Business-Porträt im hellen Büro, Anzug, weiches Fensterlicht“',
@@ -470,6 +470,8 @@ export const de: Bundle<typeof en> = {
     voice_not_found: 'Stimme „{{name}}“ gibt es nicht mehr',
     voice_config_invalid:
       'voices/{{name}}/voice.json ist beschädigt und wurde nicht verändert. Bitte reparieren oder löschen.',
+    element_config_invalid:
+      'refs/{{name}}/element.json ist beschädigt und wurde nicht verändert. Bitte reparieren oder löschen.',
     invalid_name: 'Ungültiger Name „{{name}}“ (erlaubt: Buchstaben, Ziffern, _ - .)',
     invalid_filename: 'Ungültiger Dateiname',
     invalid_path: 'Ungültiger Pfad: {{path}}',

@@ -83,6 +83,30 @@ describe('element storage', () => {
     expect((await getElement('odd')).type).toBe('person');
   });
 
+  it('keeps every field when element.json is saved concurrently', async () => {
+    await saveElement('busy', { type: 'logo' });
+    await Promise.all([
+      saveElement('busy', { label: 'Busy Inc.' }),
+      saveElement('busy', { instructions: 'top left' }),
+      saveElement('busy', { type: 'object' }),
+    ]);
+    expect(await getElement('busy')).toMatchObject({ label: 'Busy Inc.', instructions: 'top left', type: 'object' });
+    const files = await fs.readdir(path.join(REFS_DIR, 'busy'));
+    expect(files.filter((f) => f.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('refuses to overwrite a damaged element.json but still reads it with defaults', async () => {
+    const file = path.join(REFS_DIR, 'broken', 'element.json');
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, '{"label": "Bro');
+    expect(await getElement('broken')).toMatchObject({ label: 'broken', type: 'person' });
+    await expect(saveElement('broken', { label: 'New' })).rejects.toMatchObject({
+      code: 'element_config_invalid',
+      params: { name: 'broken' },
+    });
+    expect(await fs.readFile(file, 'utf8')).toBe('{"label": "Bro');
+  });
+
   it('reports missing elements and invalid names with codes', async () => {
     await expect(getElement('missing')).rejects.toMatchObject({ code: 'element_not_found' });
     await expect(getElement('../etc')).rejects.toMatchObject({ code: 'invalid_name' });
