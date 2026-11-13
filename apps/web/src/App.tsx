@@ -11,6 +11,7 @@ import { Composer } from '@/features/Composer';
 import { DebugDialog } from '@/features/dialogs/DebugDialog';
 import { ElementsDialog } from '@/features/dialogs/ElementsDialog';
 import { PasteDialog, usePasteHandler } from '@/features/dialogs/PasteDialog';
+import { UploadsDialog } from '@/features/dialogs/UploadsDialog';
 import { VoicesDialog } from '@/features/dialogs/VoicesDialog';
 import { Gallery } from '@/features/gallery/Gallery';
 import { Lightbox } from '@/features/gallery/Lightbox';
@@ -89,6 +90,7 @@ function Studio() {
       <VoicesDialog />
       <DebugDialog />
       <PasteDialog />
+      <UploadsDialog />
       <AppToaster />
     </TooltipProvider>
   );

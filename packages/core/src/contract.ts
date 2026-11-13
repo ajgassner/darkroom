@@ -176,6 +176,17 @@ export interface ManifestEntry {
   mediaType: string | null;
 }
 
+/** GET /api/uploads: an uploaded additional reference (out/uploads/<hash>.jpg), listed newest first. */
+export interface UploadInfo {
+  /** Path relative to out/ ("uploads/<hash>.jpg"), as in ManifestEntry.extraRefs. */
+  file: string;
+  size: number;
+  /** When the file was stored (ISO time). */
+  mtime: string;
+  /** Number of runs (with entries that are not deleted) that use it. */
+  runs: number;
+}
+
 export interface CostSummary {
   total: number;
   images: number;

@@ -21,9 +21,11 @@ import type {
   SpeechModel,
   Status,
   UpdateResponse,
+  UploadInfo,
   VoiceInfo,
 } from './types';
 import { audioSettingsFrom, extraRefsFrom, imageSettingsFrom } from './ui/reuse';
+import { uploadName, withoutOutRefs } from './ui/uploads';
 
 const t = i18n.t.bind(i18n);
 
@@ -179,11 +181,34 @@ export async function deleteEntries(
 ): Promise<boolean> {
   if (confirmText && !window.confirm(confirmText)) return false;
   try {
-    const r = await api<{ entries: number; files: string[] }>('/api/delete', { body });
-    const gone = new Set(r.files);
-    useUi.setState((s) => ({ extraRefs: s.extraRefs.filter((x) => !(x.kind === 'out' && gone.has(x.outFile))) }));
+    const r = await api<{ entries: number; files: string[]; uploads?: string[] }>('/api/delete', { body });
+    // Results and uploads that went with them can no longer be sent as references
+    useUi.setState((s) => ({ extraRefs: withoutOutRefs(s.extraRefs, [...r.files, ...(r.uploads ?? [])]) }));
     await refreshHistory();
     toast.success(r.files.length ? t('toast.deleted', { count: r.files.length }) : t('toast.removed'));
+    return true;
+  } catch (err) {
+    toastError(err);
+    return false;
+  }
+}
+
+/** Previous uploads (newest first); null when they could not be loaded (the error is shown as a toast). */
+export async function loadUploads(): Promise<UploadInfo[] | null> {
+  try {
+    return await api<UploadInfo[]>('/api/uploads');
+  } catch (err) {
+    toastError(err);
+    return null;
+  }
+}
+
+/** Delete a previous upload; it is also taken out of the current references. */
+export async function deleteUpload(file: string): Promise<boolean> {
+  try {
+    await api(`/api/uploads/${encodeURIComponent(uploadName(file))}`, { method: 'DELETE' });
+    useUi.setState((s) => ({ extraRefs: withoutOutRefs(s.extraRefs, [file]) }));
+    toast.success(t('toast.uploadDeleted'));
     return true;
   } catch (err) {
     toastError(err);

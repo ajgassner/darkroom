@@ -8,6 +8,7 @@ import { usd } from './text/format';
 import { existingElement } from './text/mentions';
 import type { ManifestEntry, RunEvent } from './types';
 import { revealGallery } from './ui/scroll';
+import { storedUploads } from './ui/uploads';
 
 const t = i18n.t.bind(i18n);
 let runCounter = 0;
@@ -16,7 +17,13 @@ let runCounter = 0;
  * Start one run (several can run at the same time). Shows a live card with placeholders, streams results,
  * and can be cancelled; cancelling also aborts the upstream calls on the server.
  */
-async function startRun(url: string, body: unknown, plan: LiveRun['plan'], first: LiveFirst) {
+async function startRun(
+  url: string,
+  body: unknown,
+  plan: LiveRun['plan'],
+  first: LiveFirst,
+  onEntry: (e: ManifestEntry) => void = () => {},
+) {
   const ctrl = new AbortController();
   const key = `run-${++runCounter}`;
   const run: LiveRun = {
@@ -48,6 +55,7 @@ async function startRun(url: string, body: unknown, plan: LiveRun['plan'], first
           case 'error':
             entries.push(ev.entry);
             updateLiveRun(key, (r) => ({ entries: [...r.entries, ev.entry] }));
+            onEntry(ev.entry);
             break;
           case 'done':
             announceDone(ev, first.kind, entries);
@@ -113,6 +121,8 @@ function generateImage() {
     },
     models.map((model) => ({ model, count: s.count })),
     { kind: 'image', prompt, element, params: { aspect_ratio: s.aspect, resolution: s.size } },
+    // New uploads are stored by the server now: refer to the stored files from here on
+    (e) => useUi.setState((u) => ({ extraRefs: storedUploads(u.extraRefs, extraRefs, e.extraRefs) })),
   );
 }
 

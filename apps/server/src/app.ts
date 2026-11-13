@@ -10,6 +10,7 @@ import { fileRoutes } from './routes/files.ts';
 import { metaRoutes } from './routes/meta.ts';
 import { modelRoutes } from './routes/models.ts';
 import { runRoutes } from './routes/runs.ts';
+import { uploadRoutes } from './routes/uploads.ts';
 import { voiceRoutes } from './routes/voices.ts';
 
 export async function buildApp() {
@@ -52,6 +53,7 @@ export async function buildApp() {
   await app.register(elementRoutes);
   await app.register(voiceRoutes);
   await app.register(runRoutes);
+  await app.register(uploadRoutes);
   await app.register(fileRoutes);
   return app;
 }

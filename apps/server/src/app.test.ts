@@ -241,7 +241,11 @@ describe('API', () => {
     expect((await get(`/api/debug/${entry.debugId}`)).json()).toMatchObject({ status: 200 });
 
     expect((await post('/api/delete', {})).json()).toMatchObject({ code: 'nothing_to_delete' });
-    expect((await post('/api/delete', { ids: [entry.id] })).json()).toEqual({ entries: 1, files: [entry.file] });
+    expect((await post('/api/delete', { ids: [entry.id] })).json()).toEqual({
+      entries: 1,
+      files: [entry.file],
+      uploads: [],
+    });
     expect((await get('/api/history')).json()).toEqual([]);
     expect((await get(`/out/${entry.file}`)).statusCode).toBe(404);
     // Costs of deleted results still count
@@ -266,6 +270,70 @@ describe('API', () => {
   it('reports run errors inside the stream', async () => {
     const events = ndjson((await post('/api/generate', { prompt: ' ', models: ['test/zdr'] })).body);
     expect(events).toEqual([{ type: 'fatal', error: 'Prompt is missing', code: 'prompt_missing' }]);
+  });
+});
+
+describe('uploaded references', () => {
+  const uploadsDir = path.join(OUT_DIR, 'uploads');
+  const exists = (rel: string) =>
+    fs.stat(path.join(OUT_DIR, rel)).then(
+      () => true,
+      () => false,
+    );
+
+  async function generate(extraRef: object) {
+    fakeOpenRouter();
+    const res = await post('/api/generate', { prompt: 'p', models: ['test/zdr'], extraRefs: [extraRef] });
+    return ndjson(res.body).find((e) => e.type === 'image').entry;
+  }
+
+  it('keeps an upload while a run uses it and removes it with the last one', async () => {
+    const dataUrl = `data:image/png;base64,${(await testImage({ width: 64, height: 48 })).toString('base64')}`;
+    const first = await generate({ dataUrl, name: 'me.png' });
+    const [upload] = first.extraRefs;
+    expect(upload).toMatch(/^uploads\/[0-9a-f]{16}\.jpg$/);
+    // Picked again under "Previous uploads": sent as a file from out/
+    const second = await generate({ outFile: upload });
+    expect(second).toMatchObject({ ok: true, extraRefs: [upload], refCount: 1 });
+    // Never used by any entry: only an explicit delete removes it
+    await fs.writeFile(path.join(uploadsDir, 'aaaaaaaaaaaaaaaa.jpg'), await testImage({ format: 'jpeg' }));
+
+    const list = (await get('/api/uploads')).json();
+    expect(list.find((u: { file: string }) => u.file === upload)).toMatchObject({ runs: 2 });
+    expect(list.find((u: { file: string }) => u.file === 'uploads/aaaaaaaaaaaaaaaa.jpg')).toMatchObject({ runs: 0 });
+
+    expect((await post('/api/delete', { runId: first.runId })).json()).toMatchObject({ entries: 1, uploads: [] });
+    expect(await exists(upload)).toBe(true);
+    expect((await get('/api/uploads')).json().find((u: { file: string }) => u.file === upload).runs).toBe(1);
+    expect((await post('/api/delete', { runId: second.runId })).json()).toMatchObject({ uploads: [upload] });
+    expect(await exists(upload)).toBe(false);
+    expect(await exists('uploads/aaaaaaaaaaaaaaaa.jpg')).toBe(true);
+  });
+
+  it('serves thumbnails and deletes uploads by name only', async () => {
+    await fs.mkdir(uploadsDir, { recursive: true });
+    const name = 'bbbbbbbbbbbbbbbb.jpg';
+    await fs.writeFile(path.join(uploadsDir, name), await testImage({ format: 'jpeg', width: 400, height: 300 }));
+    await fs.writeFile(path.join(OUT_DIR, 'keep.png'), await testImage());
+
+    const thumb = await get(`/api/uploads/${name}/thumb?size=100`);
+    expect(thumb.headers['content-type']).toBe('image/jpeg');
+    expect((await sharp(thumb.rawPayload).metadata()).width).toBe(100);
+    expect((await get('/api/uploads/cccccccccccccccc.jpg/thumb')).json()).toMatchObject({ code: 'upload_not_found' });
+    expect((await get('/api/uploads/..%2Fkeep.png/thumb')).json()).toMatchObject({ code: 'invalid_upload' });
+
+    for (const bad of ['..%2Fkeep.png', '..%2F..%2F.env', 'keep.png', `${name}%2F..%2F..%2Fkeep.png`]) {
+      expect({ bad, ...(await del(`/api/uploads/${bad}`)).json() }).toMatchObject({ bad, code: 'invalid_upload' });
+    }
+    // Paths with dot segments are resolved before routing and reach no upload route
+    for (const bad of ['../keep.png', '%2E%2E', '..']) {
+      expect((await del(`/api/uploads/${bad}`)).statusCode).toBe(404);
+    }
+    expect(await exists('keep.png')).toBe(true);
+    expect((await del('/api/uploads/cccccccccccccccc.jpg')).statusCode).toBe(404);
+    expect((await del(`/api/uploads/${name}`)).json()).toEqual({ ok: true });
+    expect(await exists(`uploads/${name}`)).toBe(false);
+    expect((await get('/api/uploads')).json().map((u: { file: string }) => u.file)).not.toContain(`uploads/${name}`);
   });
 });
 
