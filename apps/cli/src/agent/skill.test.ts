@@ -1,8 +1,8 @@
 import { APP_VERSION } from '@darkroom/core/config';
 import type { Command } from 'commander';
 import { describe, expect, it } from 'vitest';
-import { program } from './cli.ts';
-import { EXIT } from './mode.ts';
+import { program } from '../cli.ts';
+import { EXIT } from '../output/mode.ts';
 import { skillGuide } from './skill.ts';
 
 const guide = skillGuide(program);

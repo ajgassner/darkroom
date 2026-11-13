@@ -5,10 +5,10 @@ import sharp from 'sharp';
 import { describe, expect, it, vi } from 'vitest';
 import { testImage } from '../../test/fake-openrouter.ts';
 import { REFS_DIR } from '../config.ts';
-import { decodable } from '../image/heic.ts';
+import { decodable } from '../storage/heic.ts';
 import { elementReferences, saveElement, thumbnail } from './refs.ts';
 
-vi.mock('../image/heic.ts', () => ({ decodable: vi.fn() }));
+vi.mock('../storage/heic.ts', () => ({ decodable: vi.fn() }));
 
 const FAKE_HEIC = Buffer.from('fake-heic-content');
 const convert = vi.mocked(decodable);

@@ -2,7 +2,7 @@ import { stripVTControlCharacters as plain } from 'node:util';
 import type { SpeechModelInfo } from '@darkroom/core/contract';
 import { rankModels } from '@darkroom/core/models/catalog';
 import { describe, expect, it } from 'vitest';
-import type { CatalogImageModel } from './choices.ts';
+import type { CatalogImageModel } from '../interactive/choices.ts';
 import { favoriteBlocks, imageModelBlocks, musicModelBlocks, speechModelBlocks, voiceBlocks } from './listing.ts';
 
 const zdr = [{ tag: 'p/zdr', provider: 'P', safetyRetention: false }];

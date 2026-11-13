@@ -30,7 +30,7 @@ import {
   musicPrivacyNote,
   RECOMMENDED_MARK,
   takesInstructions,
-} from './choices.ts';
+} from '../interactive/choices.ts';
 
 export interface ListOptions {
   privacy: PrivacyMode;

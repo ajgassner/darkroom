@@ -4,8 +4,8 @@ import sharp from 'sharp';
 import { REFS_DIR } from '../config.ts';
 import type { ElementConfig, ElementInfo, ElementType } from '../contract.ts';
 import { AppError } from '../errors.ts';
-import { decodable } from '../image/heic.ts';
 import { safeBaseName } from '../storage/files.ts';
+import { decodable } from '../storage/heic.ts';
 import { readJsonObject, serialized, writeJsonAtomic } from '../storage/json-file.ts';
 
 export type { ElementConfig, ElementInfo, ElementType };

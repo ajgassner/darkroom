@@ -1,5 +1,5 @@
 // JSON output (--json): one document on stdout per command, for scripts and AI agents. The shapes are documented
-// in the skill guide (skill.ts) and stay stable: fields may be added, never renamed or removed.
+// in the skill guide (agent/skill.ts) and stay stable: fields may be added, never renamed or removed.
 import path from 'node:path';
 import { voiceGroups } from '@darkroom/core/audio/voice-lang';
 import type {
@@ -19,7 +19,7 @@ import type {
 import { maxRefs } from '@darkroom/core/image/params';
 import { imagePriceLabel, isNewModel, privacyAllows, speechPriceLabel, zdrStatus } from '@darkroom/core/models/catalog';
 import { CommanderError } from 'commander';
-import { type CatalogImageModel, musicPrivacyNote, takesInstructions } from './choices.ts';
+import { type CatalogImageModel, musicPrivacyNote, takesInstructions } from '../interactive/choices.ts';
 import { type ListOptions, listedImageModels, listedModels, musicLength } from './listing.ts';
 
 interface Writable {

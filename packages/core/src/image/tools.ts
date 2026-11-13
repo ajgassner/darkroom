@@ -7,9 +7,9 @@ import { DEFAULT_MODEL, OUT_DIR, type PrivacyMode, resolveOut } from '../config.
 import type { RunEvent } from '../contract.ts';
 import { AppError, errorFields } from '../errors.ts';
 import { runStamp, safeBaseName } from '../storage/files.ts';
+import { decodable } from '../storage/heic.ts';
 import { appendEntry, type ManifestEntry, newEntry } from '../storage/manifest.ts';
 import { runGeneration } from './generate.ts';
-import { decodable } from './heic.ts';
 import { LOCAL_TOOL_FNS, type LocalResult } from './local-tools.ts';
 
 export interface ToolOptions {

@@ -2,6 +2,7 @@
 // Prompts go through a Prompter (clack in the terminal, a script in tests); Escape goes back one question.
 import type { PrivacyMode } from '@darkroom/core/config';
 import type { ElementInfo, MusicModelInfo, SpeechModelInfo, VoiceInfo } from '@darkroom/core/contract';
+import type { PreviewRequest } from '../commands/preview.ts';
 import {
   aspectChoices,
   type CatalogImageModel,
@@ -22,7 +23,6 @@ import {
   voiceChoices,
 } from './choices.ts';
 import type { ImageRun, MusicRun, SpeechRun } from './command-line.ts';
-import type { PreviewRequest } from './preview.ts';
 
 /** Escape at a prompt: go back one question. */
 export const BACK: unique symbol = Symbol('back');

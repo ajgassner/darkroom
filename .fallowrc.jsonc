@@ -7,7 +7,9 @@
   // Architecture: core holds the logic; server and CLI build on it; the web UI talks to the server over HTTP
   // and may only use core's types (the shared API contract), never its runtime code.
   // Inside core, the domain folders build on the shared base (contract, config, errors and the test helpers).
-  // image and elements import each other: refs.ts uses image/heic.ts, generation and prompts use the elements.
+  // Inside the CLI, cli.ts (commander definitions) wires the folders together: commands/ implements the commands on
+  // top of interactive/ (questions and choices), output/ (terminal, JSON and text output) and platform/ (opening
+  // files, playing audio); agent/ (the skill guide) reads the command definitions. args.ts parses arguments.
   // Inside web, features build on lib, components and i18n; lib never imports UI code. The flows that talk to the
   // server (api, actions, runs) sit on top of the pure helpers and state, which never call them.
   "boundaries": {
@@ -24,7 +26,13 @@
       { "name": "core-storage", "patterns": ["packages/core/src/storage/**"] },
       { "name": "core-system", "patterns": ["packages/core/src/system/**"] },
       { "name": "server", "patterns": ["apps/server/**"] },
-      { "name": "cli", "patterns": ["apps/cli/**"] },
+      { "name": "cli", "patterns": ["apps/cli/src/cli{,.test}.ts"] },
+      { "name": "cli-args", "patterns": ["apps/cli/src/args{,.test}.ts"] },
+      { "name": "cli-commands", "patterns": ["apps/cli/src/commands/**"] },
+      { "name": "cli-interactive", "patterns": ["apps/cli/src/interactive/**"] },
+      { "name": "cli-output", "patterns": ["apps/cli/src/output/**"] },
+      { "name": "cli-agent", "patterns": ["apps/cli/src/agent/**"] },
+      { "name": "cli-platform", "patterns": ["apps/cli/src/platform/**"] },
       { "name": "web", "patterns": ["apps/web/vite.config.ts", "apps/web/src/{App,main}.tsx"] },
       { "name": "web-features", "patterns": ["apps/web/src/features/**"] },
       { "name": "web-components", "patterns": ["apps/web/src/components/**"] },
@@ -38,7 +46,7 @@
       { "from": "core-storage", "allow": ["core"] },
       { "from": "core-system", "allow": ["core"] },
       { "from": "core-openrouter", "allow": ["core", "core-storage"] },
-      { "from": "core-elements", "allow": ["core", "core-storage", "core-image"] },
+      { "from": "core-elements", "allow": ["core", "core-storage"] },
       { "from": "core-image", "allow": ["core", "core-storage", "core-system", "core-openrouter", "core-elements"] },
       { "from": "core-models", "allow": ["core", "core-storage", "core-openrouter", "core-image"] },
       { "from": "core-audio", "allow": ["core", "core-storage", "core-system", "core-openrouter", "core-elements"] },
@@ -58,6 +66,12 @@
       {
         "from": "cli",
         "allow": [
+          "cli-args",
+          "cli-commands",
+          "cli-interactive",
+          "cli-output",
+          "cli-agent",
+          "cli-platform",
           "core",
           "core-openrouter",
           "core-models",
@@ -68,6 +82,36 @@
           "core-system"
         ]
       },
+      { "from": "cli-args", "allow": [], "allowTypeOnly": ["core-image"] },
+      {
+        "from": "cli-commands",
+        "allow": [
+          "cli-args",
+          "cli-interactive",
+          "cli-output",
+          "cli-platform",
+          "core",
+          "core-openrouter",
+          "core-models",
+          "core-image",
+          "core-elements",
+          "core-audio",
+          "core-storage"
+        ]
+      },
+      // flow.ts only takes the type of a preview request from commands/preview.ts
+      {
+        "from": "cli-interactive",
+        "allow": ["core", "core-models", "core-image", "core-audio", "core-storage"],
+        "allowTypeOnly": ["cli-commands"]
+      },
+      {
+        "from": "cli-output",
+        "allow": ["cli-args", "cli-interactive", "core", "core-models", "core-image", "core-audio"]
+      },
+      // skill.test.ts checks the guide against the real program from cli.ts
+      { "from": "cli-agent", "allow": ["cli", "cli-commands", "cli-output", "core", "core-models"] },
+      { "from": "cli-platform", "allow": [] },
       {
         "from": "web",
         "allow": ["web-features", "web-components", "web-flows", "web-lib", "web-i18n"],

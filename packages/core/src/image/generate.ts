@@ -28,8 +28,8 @@ import {
 } from '../openrouter/openrouter.ts';
 import { allowedProviders, privacyBlocked, providerField } from '../openrouter/privacy.ts';
 import { runStamp, slug } from '../storage/files.ts';
+import { decodable } from '../storage/heic.ts';
 import { appendEntry, type ManifestEntry, newEntry } from '../storage/manifest.ts';
-import { decodable } from './heic.ts';
 import { fitParams, maxN, maxRefs, type WantedParams } from './params.ts';
 import { composePrompt } from './prompt.ts';
 
