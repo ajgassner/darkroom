@@ -94,6 +94,21 @@ export async function removeNamedDir(base: string, name: string, notFound: () =>
   await fs.rm(dir, { recursive: true });
 }
 
+/**
+ * The existing subfolder of base that has this name ignoring case, or null. macOS and Windows treat "Max" and "max"
+ * as the same folder, so a new item must not reuse a name that differs only in case.
+ */
+export async function existingFolder(base: string, name: string): Promise<string | null> {
+  const dirs = await fs.readdir(base, { withFileTypes: true }).catch(() => []);
+  const wanted = name.toLowerCase();
+  return dirs.find((d) => d.isDirectory() && d.name.toLowerCase() === wanted)?.name ?? null;
+}
+
+/** Folder name of the element called `name` (ignoring case), or null if there is none. */
+export function existingElement(name: string): Promise<string | null> {
+  return existingFolder(REFS_DIR, name);
+}
+
 /** Deletes an element: refs/<name>/ with its photos and element.json. */
 export async function deleteElement(name: string): Promise<void> {
   await serialized(`element:${name}`, () =>

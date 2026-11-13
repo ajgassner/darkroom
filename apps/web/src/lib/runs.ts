@@ -1,6 +1,6 @@
 import { toast } from 'sonner';
 import i18n from '@/i18n';
-import { entryError, errorMessage, refreshHistory } from './actions';
+import { entryError, refreshHistory, toastError } from './actions';
 import { streamEvents } from './api';
 import { usd } from './format';
 import { existingElement } from './mentions';
@@ -57,7 +57,7 @@ async function startRun(url: string, body: unknown, plan: LiveRun['plan'], first
     );
   } catch (err) {
     if (ctrl.signal.aborted) toast(t('toast.aborted'));
-    else toast.error(errorMessage(err));
+    else toastError(err);
   } finally {
     useUi.setState((s) => ({ liveRuns: s.liveRuns.filter((r) => r.key !== key) }));
     await refreshHistory().catch(() => {});

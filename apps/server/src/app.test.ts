@@ -157,6 +157,27 @@ describe('API', () => {
     expect(broken.json()).toMatchObject({ code: 'image_unreadable' });
   });
 
+  it('refuses to create an element or voice that already exists, ignoring case', async () => {
+    expect((await post('/api/elements', { name: 'twin', label: 'Twin' })).statusCode).toBe(200);
+    for (const name of ['twin', 'Twin', 'TWIN']) {
+      const res = await post('/api/elements', { name, label: 'Other' });
+      expect(res.statusCode).toBe(409);
+      expect(res.json()).toMatchObject({ code: 'element_exists', params: { name: 'twin' } });
+    }
+    // The existing element is left as it was
+    expect((await get('/api/elements/twin')).json()).toMatchObject({ label: 'Twin' });
+
+    expect((await post('/api/voices', { name: 'Echo', label: 'Echo' })).statusCode).toBe(200);
+    const res = await post('/api/voices', { name: 'echo', label: 'Other' });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({ code: 'voice_exists', params: { name: 'Echo' } });
+    expect((await get('/api/voices')).json().find((v: { name: string }) => v.name === 'Echo')).toMatchObject({
+      label: 'Echo',
+    });
+    // A voice may share its name with an element (separate folders)
+    expect((await post('/api/voices', { name: 'twin' })).statusCode).toBe(200);
+  });
+
   it('serves voice samples to the player, with range requests', async () => {
     await post('/api/voices', { name: 'me', label: 'Me' });
     const wav = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(40)]);

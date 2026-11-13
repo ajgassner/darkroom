@@ -81,6 +81,9 @@ export const en = {
     favoriteAdd: 'Add to favorites',
     favoriteRemove: 'Remove from favorites',
     maxRefs: 'max {{count}} refs',
+    aspects_one: '{{count}} ratio',
+    aspects_other: '{{count}} ratios',
+    aspectsHint: 'Aspect ratios: {{list}}',
     blocked: '{{id}}: not available in the current privacy mode',
     estimate: '≈ {{price}}/image',
     history: 'Ø {{price}} for you ({{count}})',
@@ -101,8 +104,12 @@ export const en = {
     low: 'low',
     medium: 'medium',
     high: 'high',
-    partial: 'Not supported by all selected models, adjusted there',
-    unsupported: 'Not supported by any selected model',
+    uses: '{{model}} uses {{value}}',
+    ignoresAspect: '{{model}} ignores the aspect ratio',
+    ignoresSize: '{{model}} ignores the size',
+    ignoresQuality: '{{model}} ignores the quality',
+    ignoresFormat: '{{model}} returns its default format',
+    legend: '≈ not supported by all selected models — they use the nearest value or their default',
   },
   refs: {
     title: 'Additional references',
@@ -121,6 +128,7 @@ export const en = {
     refsOver:
       '{{model}}: max {{max}} references. {{count}} image(s) will be left out, spread across the elements (each keeps at least one).',
     aspectAdjusted: '{{model}}: {{from}} → {{to}}',
+    aspectUnsupported: '{{model}}: aspect ratio not selectable, uses its default.',
     sizeUnsupported: '{{model}}: size not selectable, uses its default size.',
     sizeAdjusted: '{{model}}: size {{from}} → {{to}}',
     formatUnsupported: '{{model}}: file format not selectable, returns its default format.',
@@ -187,9 +195,10 @@ export const en = {
     langsInclDe: 'incl. German',
     clone: 'Clone',
     cloneHint: 'Can clone own voices',
+    followsInstructions: 'follows instructions',
     pricePerChars: '{{value}}/1,000 chars',
     pricePerUnit: '{{value}} per unit',
-    priceNa: 'price n/a',
+    priceNa: 'price unknown',
   },
   gallery: {
     empty: 'No images yet. Create an element, select a model, enter a prompt.',
@@ -428,7 +437,8 @@ export const en = {
   },
   newItem: {
     folder: 'Folder: {{path}}',
-    empty: 'The name needs at least one letter or digit.',
+    empty:
+      'Folder names use Latin letters and digits only. Write a name in another script (e.g. Cyrillic, Chinese) in Latin letters.',
     taken: '{{path}} already exists. Choose another name.',
   },
   layout: {
@@ -485,6 +495,8 @@ export const en = {
     no_model: 'No model selected',
     prompt_missing: 'The prompt is missing',
     text_missing: 'The text is missing',
+    element_exists: 'An element “@{{name}}” already exists. Choose another name.',
+    voice_exists: 'A voice “{{name}}” already exists. Choose another name.',
     element_not_found: 'Element “@{{name}}” no longer exists',
     element_no_photos: 'Element “@{{name}}” has no photos yet',
     voice_not_found: 'Voice “{{name}}” no longer exists',

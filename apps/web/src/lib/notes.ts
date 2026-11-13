@@ -1,11 +1,12 @@
 // Which notes/warnings the side panels show for the current settings. Pure: returns translation keys
 // (below `notes.`) with their params, the panels translate and render them.
 import type { en } from '@/i18n/en';
+import { fallbackOf } from './capabilities';
 import { activeElements, promptMentions } from './mentions';
-import { allowedByPrivacy, enumVals, maxRefs, nearestAspect, nearestSize } from './models';
+import { allowedByPrivacy, maxRefs } from './models';
 import type { Settings } from './store';
 import type { ElementInfo, ImageModel, MusicModel, SpeechModel, Status, VoiceInfo } from './types';
-import { pricePerThousandChars } from './voices';
+import { followsInstructions, pricePerThousandChars } from './voices';
 
 export type NoteKey = Exclude<keyof (typeof en)['notes'], 'title'>;
 export type NoteTone = '' | 'warn' | 'err';
@@ -16,6 +17,11 @@ export interface Note {
 }
 
 type StatusLike = Pick<Status, 'hasKey'> | null | undefined;
+
+/** Errors among the notes: what keeps a run from starting (or a model from running). */
+export function blockingNotes(notes: Note[]): Note[] {
+  return notes.filter((n) => n.tone === 'err');
+}
 
 function keyNotes(status: StatusLike): Note[] {
   return status && !status.hasKey ? [{ tone: 'err', key: 'keyMissing' }] : [];
@@ -73,27 +79,24 @@ function refsNote(m: ImageModel, model: string, refTotal: number): Note | null {
   return { tone: 'warn', key: 'refsOver', params: { model, max, count: refTotal - max } };
 }
 
+// The value notes follow the same rules as the ≈ hints of the chips (fallbackOf)
+
 function aspectNote(m: ImageModel, model: string, aspect: string): Note | null {
-  const supported = enumVals(m, 'aspect_ratio');
-  if (!aspect || !supported || supported.includes(aspect)) return null;
-  return {
-    tone: '',
-    key: 'aspectAdjusted',
-    params: { model, from: aspect, to: nearestAspect(supported, aspect) ?? '?' },
-  };
+  const f = fallbackOf(m, 'aspect_ratio', aspect);
+  if (!f) return null;
+  if (!f.to) return { tone: '', key: 'aspectUnsupported', params: { model } };
+  return { tone: '', key: 'aspectAdjusted', params: { model, from: aspect, to: f.to } };
 }
 
 function sizeNote(m: ImageModel, model: string, size: string): Note | null {
-  if (!size) return null;
-  const supported = enumVals(m, 'resolution');
-  if (!supported) return { tone: '', key: 'sizeUnsupported', params: { model } };
-  if (supported.includes(size)) return null;
-  return { tone: '', key: 'sizeAdjusted', params: { model, from: size, to: nearestSize(supported, size) ?? '?' } };
+  const f = fallbackOf(m, 'resolution', size);
+  if (!f) return null;
+  if (!f.to) return { tone: '', key: 'sizeUnsupported', params: { model } };
+  return { tone: '', key: 'sizeAdjusted', params: { model, from: size, to: f.to } };
 }
 
 function formatNote(m: ImageModel, model: string, format: string): Note | null {
-  if (!format || enumVals(m, 'output_format')?.includes(format)) return null;
-  return { tone: '', key: 'formatUnsupported', params: { model } };
+  return fallbackOf(m, 'output_format', format) ? { tone: '', key: 'formatUnsupported', params: { model } } : null;
 }
 
 // ---------------------------------------------------------------- Audio
@@ -105,9 +108,6 @@ export interface AudioNotesInput {
   musicModels: MusicModel[];
   voices: VoiceInfo[];
 }
-
-/** Providers whose speech models follow free-text instructions. */
-const INSTRUCTION_PROVIDERS = /^(google|fish-audio|openai)\//;
 
 export function audioNotes(input: AudioNotesInput): Note[] {
   const kindNotes = input.settings.audioKind === 'speech' ? speechNotes(input) : musicNotes(input);
@@ -124,7 +124,7 @@ function speechNotes({ settings: s, speechModels, voices }: AudioNotesInput): No
   }
   notes.push(...ownVoiceNotes(s.voice, voices));
   if (!m.cloning && voices.length) notes.push({ tone: '', key: 'cloningOnly' });
-  if (s.instructions && !INSTRUCTION_PROVIDERS.test(m.id)) notes.push({ tone: '', key: 'instructionsIgnored' });
+  if (s.instructions && !followsInstructions(m.id)) notes.push({ tone: '', key: 'instructionsIgnored' });
   return notes;
 }
 

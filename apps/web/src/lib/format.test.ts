@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { de } from '@/i18n/de';
+import { en } from '@/i18n/en';
 import { fmtTime, money, num, setFormatLang, usd } from './format';
 
 // Intl puts a (narrow) no-break space between number and currency sign in German
@@ -8,8 +10,9 @@ afterEach(() => setFormatLang('en'));
 
 describe('usd', () => {
   it('formats costs in English and German', () => {
-    expect(usd(null)).toBe('n/a');
-    expect(usd(undefined, 'de')).toBe('n/a');
+    // A missing cost shows the same placeholder as the other empty fields (common.none)
+    expect(usd(null)).toBe(en.common.none);
+    expect(usd(undefined, 'de')).toBe(de.common.none);
     expect(usd(0.0391, 'en')).toBe('$0.0391');
     expect(usd(0.095, 'en')).toBe('$0.0950');
     expect(usd(1.5, 'en')).toBe('$1.500');

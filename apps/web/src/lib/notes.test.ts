@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type AudioNotesInput, audioNotes, type ImageNotesInput, imageNotes } from './notes';
+import { type AudioNotesInput, audioNotes, blockingNotes, type ImageNotesInput, imageNotes } from './notes';
 import type { ElementInfo, ImageModel, MusicModel, SpeechModel, VoiceInfo, ZdrEndpoint } from './types';
 
 const zdr: ZdrEndpoint[] = [{ tag: 'a', provider: 'A', safetyRetention: false }];
@@ -74,6 +74,18 @@ describe('imageNotes', () => {
     expect(imageInput({}, { size: '2K' })).toEqual([
       { tone: '', key: 'sizeUnsupported', params: { model: 'Model x/a' } },
     ]);
+    // Without an aspect ratio parameter the model uses its own (the server ignores the value)
+    expect(imageInput({}, { aspect: '16:9' })).toEqual([
+      { tone: '', key: 'aspectUnsupported', params: { model: 'Model x/a' } },
+    ]);
+  });
+
+  it('picks the blocking notes', () => {
+    const blocked = { ...imageModel('x/a'), zdr: [] };
+    const notes = imageInput({ models: [blocked], elements: [] }, { element: '' });
+    expect(notes.map((n) => n.key)).toEqual(['noElement', 'blocked']);
+    expect(blockingNotes(notes)).toEqual([{ tone: 'err', key: 'blocked', params: { model: 'Model x/a' } }]);
+    expect(blockingNotes(imageInput())).toEqual([]);
   });
 });
 

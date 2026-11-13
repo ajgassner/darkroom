@@ -1,5 +1,5 @@
 import { CheckIcon } from 'lucide-react';
-import { Checkbox as CheckboxPrimitive, Tooltip as TooltipPrimitive } from 'radix-ui';
+import { Checkbox as CheckboxPrimitive, Popover as PopoverPrimitive, Tooltip as TooltipPrimitive } from 'radix-ui';
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
@@ -118,6 +118,59 @@ export function Tooltip({ content, children }: { content: React.ReactNode; child
 }
 
 export const TooltipProvider = TooltipPrimitive.Provider;
+
+/**
+ * Small info button whose text shows like a tooltip on hover and keyboard focus, and stays open on tap or click
+ * (tooltips never open on touch screens). Clicks don't reach a surrounding label or button.
+ */
+export function InfoTip({
+  content,
+  className,
+  children,
+}: {
+  content: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const mouse = (e: React.PointerEvent) => e.pointerType === 'mouse';
+  return (
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Trigger
+        type="button"
+        onPointerEnter={(e) => mouse(e) && setOpen(true)}
+        onPointerLeave={(e) => mouse(e) && setOpen(false)}
+        onFocus={(e) => e.currentTarget.matches(':focus-visible') && setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onClick={(e) => {
+          // Handled here instead of Radix's toggle, so a click after hovering keeps it open
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        className={cn(
+          'cursor-help rounded-sm underline decoration-dotted underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-accent/60',
+          className,
+        )}
+      >
+        {children}
+      </PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          side="top"
+          sideOffset={6}
+          collisionPadding={8}
+          // Focus stays where it is: moving it back to the trigger on close would open it again (onFocus)
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          className="z-[70] max-w-80 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-xs text-text shadow-xl"
+        >
+          {content}
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
+  );
+}
 
 export function Spinner({ className }: { className?: string }) {
   return (

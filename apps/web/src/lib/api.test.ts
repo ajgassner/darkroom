@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { api, canBeTransparent, streamEvents } from './api';
+import { api, canBeTransparent, errorToastId, streamEvents } from './api';
 import type { RunEvent } from './types';
 
 function stream(chunks: string[]): ReadableStream<Uint8Array<ArrayBuffer>> {
@@ -24,6 +24,14 @@ describe('server not reachable', () => {
       code: 'server_unreachable',
       message: expect.stringContaining('darkroom start'),
     });
+  });
+
+  it('gives all "not reachable" errors the same toast id', async () => {
+    vi.stubGlobal('fetch', failedFetch);
+    const errors = await Promise.all([api('/api/status').catch((e) => e), api('/api/history').catch((e) => e)]);
+    expect(errors.map(errorToastId)).toEqual(['server_unreachable', 'server_unreachable']);
+    expect(errorToastId(new Error('boom'))).toBeUndefined();
+    expect(errorToastId(null)).toBeUndefined();
   });
 
   it('reports a stream that breaks off as unreachable', async () => {

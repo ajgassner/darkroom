@@ -13,10 +13,13 @@ import { KeySetup } from '@/features/KeySetup';
 import { Lightbox } from '@/features/Lightbox';
 import { LoadingScreen } from '@/features/LoadingScreen';
 import { PasteDialog, usePasteHandler } from '@/features/PasteDialog';
+import { NoteList } from '@/features/shared';
 import { Topbar } from '@/features/Topbar';
 import { useMediaQuery } from '@/features/useMediaQuery';
+import { usePanelNotes } from '@/features/usePanelNotes';
 import { VoicesDialog } from '@/features/VoicesDialog';
 import { loadAll } from '@/lib/actions';
+import { blockingNotes } from '@/lib/notes';
 import { useData, useSettings, useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
@@ -91,11 +94,15 @@ function Studio() {
   );
 }
 
-/** Settings below the composer on narrow screens, folded away until opened. */
+/**
+ * Settings below the composer on narrow screens, folded away until opened. While folded, the blocking notes (no
+ * usable model, missing sample, …) stay visible, since they are why Generate may be disabled.
+ */
 function CollapsibleSettings({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const id = useId();
+  const blocking = blockingNotes(usePanelNotes());
   return (
     <section className="mt-1 rounded-[14px] border border-line bg-panel">
       <button
@@ -108,6 +115,11 @@ function CollapsibleSettings({ children }: { children: ReactNode }) {
         {t('layout.settings')}
         <ChevronDownIcon className={cn('size-4 text-muted transition-transform', open && 'rotate-180')} />
       </button>
+      {!open && blocking.length > 0 && (
+        <div className="px-3 pb-2.5">
+          <NoteList notes={blocking} />
+        </div>
+      )}
       {open && (
         <div id={id} className="border-t border-line px-3 pt-3.5 pb-5">
           {children}

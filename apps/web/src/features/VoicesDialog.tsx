@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/misc';
 import { Select } from '@/components/ui/select';
-import { deleteVoice, errorMessage, reloadVoices, transcribe, uploadSamples } from '@/lib/actions';
+import { deleteVoice, reloadVoices, toastError, transcribe, uploadSamples } from '@/lib/actions';
 import { api } from '@/lib/api';
 import { transcribeApiLabel } from '@/lib/labels';
 import { useData, useSettings, useUi } from '@/lib/store';
@@ -61,7 +61,7 @@ function VoiceEditor({ v }: { v: VoiceInfo }) {
       await reloadVoices();
       toast.success(t('toast.saved'));
     } catch (err) {
-      toast.error(errorMessage(err));
+      toastError(err);
     }
   };
 
@@ -131,7 +131,7 @@ function Sample({ v, file }: { v: VoiceInfo; file: string }) {
       await api(base, { method: 'DELETE' });
       await reloadVoices();
     } catch (err) {
-      toast.error(errorMessage(err));
+      toastError(err);
     }
   };
 
@@ -145,7 +145,7 @@ function Sample({ v, file }: { v: VoiceInfo; file: string }) {
       await reloadVoices();
       toast.success(t('toast.transcriptSaved'));
     } catch (err) {
-      toast.error(errorMessage(err));
+      toastError(err);
     }
   };
 
@@ -255,7 +255,7 @@ function Recorder({ name }: { name: string }) {
       record(stream);
     } catch (err) {
       stopTracks(stream);
-      toast.error(errorMessage(err));
+      toastError(err);
     }
   };
 

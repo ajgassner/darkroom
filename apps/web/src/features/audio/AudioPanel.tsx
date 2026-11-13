@@ -2,19 +2,18 @@ import type { TFunction } from 'i18next';
 import { PlayIcon, SquareIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input, RadioDot, SectionTitle, Tag, Tooltip } from '@/components/ui/misc';
 import { Select, type SelectGroup } from '@/components/ui/select';
-import { errorMessage, refreshHistory } from '@/lib/actions';
+import { refreshHistory, toastError } from '@/lib/actions';
 import { api, outUrl } from '@/lib/api';
 import { allowedByPrivacy, shortList, shortName, sortModels } from '@/lib/models';
-import { audioNotes } from '@/lib/notes';
 import { useData, useSettings, useUi } from '@/lib/store';
 import type { SpeechModel } from '@/lib/types';
 import {
   demoText,
   fallbackVoice,
+  followsInstructions,
   langName,
   SPEEDS,
   speechLangs,
@@ -23,7 +22,7 @@ import {
   voiceLang,
 } from '@/lib/voices';
 import { FavoriteStar, ModelRow, ModelTitle } from '../ModelMarks';
-import { Chip, NotesSection } from '../shared';
+import { Chip, PanelNotes } from '../shared';
 import { ZdrTag } from '../ZdrTag';
 
 export function AudioPanel() {
@@ -43,7 +42,7 @@ export function AudioPanel() {
         </div>
       </section>
       {audioKind === 'speech' ? <SpeechSections /> : <MusicSection />}
-      <AudioNotes />
+      <PanelNotes />
     </div>
   );
 }
@@ -201,6 +200,7 @@ function SpeechRow({ m, checked, onPick }: { m: SpeechModel; checked: boolean; o
             <ModelTitle name={shortName(m.name)} created={m.created} />
             <div className="mt-px text-[11px] leading-[1.35] text-muted [overflow-wrap:anywhere]">
               {speechPriceText(t, m)} · {voicesText} · {speechLangsText(t, m)}
+              {followsInstructions(m.id) && ` · ${t('audio.followsInstructions')}`}
             </div>
           </div>
           <div className="flex flex-col items-end gap-[3px]">
@@ -252,7 +252,7 @@ function DemoButton({ model }: { model: SpeechModel | undefined }) {
       setState('playing');
       if (!r.cached) void refreshHistory();
     } catch (err) {
-      toast.error(errorMessage(err));
+      toastError(err);
       setState('idle');
     }
   };
@@ -321,10 +321,4 @@ function MusicSection() {
       {current && <p className="mt-1.5 text-xs text-muted">{current.description.slice(0, 260)}</p>}
     </section>
   );
-}
-
-function AudioNotes() {
-  const settings = useSettings();
-  const { speechModels, musicModels, voices, status } = useData();
-  return <NotesSection notes={audioNotes({ status, settings, speechModels, musicModels, voices })} />;
 }

@@ -15,10 +15,18 @@ describe('slugify', () => {
     expect(slugify('max')).toBe('max');
   });
 
+  it('spells out letters without a decomposition', () => {
+    expect(slugify('Æsir Øre Œuvre')).toBe('aesir-oere-oeuvre');
+    expect(slugify('Łódź')).toBe('lodz');
+    expect(slugify('Đorđe Ðan')).toBe('dorde-dan');
+    expect(slugify('Þór')).toBe('thor');
+  });
+
   it('returns nothing for names without letters or digits', () => {
     expect(slugify('')).toBe('');
     expect(slugify(' -- ! ')).toBe('');
     expect(slugify('日本')).toBe('');
+    expect(slugify('Москва')).toBe('');
   });
 
   it('only produces names the server accepts', () => {

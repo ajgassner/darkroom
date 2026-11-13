@@ -4,6 +4,7 @@ import {
   deleteElement,
   deletePhoto,
   ELEMENT_TYPES,
+  existingElement,
   getElement,
   listElements,
   photoPath,
@@ -32,6 +33,13 @@ export async function elementRoutes(fastify: FastifyInstance) {
     async (req) => {
       const { name: n, label, type = 'person' } = req.body;
       if (!validName(n)) throw invalidName(n);
+      // Creating never overwrites: an existing folder (also one differing only in case) is refused
+      const taken = await existingElement(n);
+      if (taken) {
+        throw new HttpError(409, 'element_exists', `Element "${taken}" already exists (refs/${taken}/)`, {
+          name: taken,
+        });
+      }
       return saveElement(n, {
         label: label || n,
         type: type as (typeof ELEMENT_TYPES)[number],
