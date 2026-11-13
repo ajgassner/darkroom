@@ -381,6 +381,9 @@ function ExtraRefsSection() {
         </Button>
       </div>
       <DropZone label={t('refs.drop')} accept="image/*" onFiles={(files) => void addExtraFiles(files)} />
+      <Button variant="link" className="mt-1.5" onClick={() => useUi.setState({ uploadsOpen: true })}>
+        {t('refs.previous')}
+      </Button>
       {refs.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {refs.map((r, i) => (

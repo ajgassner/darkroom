@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MANIFEST, OUT_DIR } from '../config.ts';
 import type { CostSummary, ManifestEntry } from '../contract.ts';
+import { entryUploads } from './uploads.ts';
 
 export type { ManifestEntry };
 
@@ -190,6 +191,17 @@ export async function unusedDebugIds(deleted: ManifestEntry[]): Promise<string[]
   if (!ids.size) return [];
   for (const e of await readEntries()) if (!e.deleted && e.debugId) ids.delete(e.debugId);
   return [...ids];
+}
+
+/**
+ * Uploads (file names in out/uploads/) that the deleted entries used and no remaining entry of `entries` uses.
+ * Uploads the deleted entries did not use are left alone, even when nothing uses them: only a delete frees them.
+ */
+export function unusedUploads(deleted: ManifestEntry[], entries: ManifestEntry[]): string[] {
+  const names = new Set(deleted.flatMap(entryUploads));
+  if (!names.size) return [];
+  for (const e of entries) if (!e.deleted) for (const name of entryUploads(e)) names.delete(name);
+  return [...names];
 }
 
 /** Remove the files of deleted entries. */

@@ -13,6 +13,7 @@ import { runTool } from '@/lib/runs';
 import { useData, useSettings, useUi } from '@/lib/store';
 import { entryInfoRows } from '@/lib/text/labels';
 import type { ImageModel, ManifestEntry } from '@/lib/types';
+import { withOutRef } from '@/lib/ui/uploads';
 import { cn } from '@/lib/utils';
 import { useModelName } from '../hooks/useModelName';
 
@@ -41,9 +42,7 @@ export function Lightbox() {
                 onClick={() => {
                   useUi.setState((s) => ({
                     lightbox: null,
-                    extraRefs: s.extraRefs.some((r) => r.kind === 'out' && r.outFile === file)
-                      ? s.extraRefs
-                      : [...s.extraRefs, { kind: 'out', outFile: file }],
+                    extraRefs: withOutRef(s.extraRefs, file),
                   }));
                   set({ mode: 'image' });
                   toast.success(t('toast.refAdded'));

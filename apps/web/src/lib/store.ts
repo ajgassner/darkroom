@@ -109,7 +109,8 @@ export const useData = create<DataState>()(() => ({
 
 // ---------------------------------------------------------------- UI state (not persisted)
 
-type ExtraRef = { kind: 'out'; outFile: string } | { kind: 'upload'; dataUrl: string; name: string };
+/** Additional reference: a file from out/ (a result or a previous upload) or a new upload not yet sent. */
+export type ExtraRef = { kind: 'out'; outFile: string } | { kind: 'upload'; dataUrl: string; name: string };
 
 export interface LiveFirst {
   kind?: 'image' | 'audio';
@@ -143,6 +144,7 @@ interface UiState {
   editingElement: string | null;
   voicesOpen: boolean;
   editingVoice: string | null;
+  uploadsOpen: boolean;
   debugEntry: ManifestEntry | null;
   pasteFiles: File[] | null;
   /** "voice/file" keys of samples currently being transcribed */
@@ -162,6 +164,7 @@ export const useUi = create<UiState>()(() => ({
   editingElement: null,
   voicesOpen: false,
   editingVoice: null,
+  uploadsOpen: false,
   debugEntry: null,
   pasteFiles: null,
   transcribing: [],

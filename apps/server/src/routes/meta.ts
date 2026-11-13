@@ -15,7 +15,15 @@ import { DEFAULT_INSTRUCTIONS } from '@darkroom/core/elements/refs';
 import { RELIGHT_PRESETS } from '@darkroom/core/image/tools';
 import { saveApiKey } from '@darkroom/core/openrouter/api-key';
 import { deleteDebug, readDebug } from '@darkroom/core/storage/debug';
-import { costSummary, markDeleted, readEntries, removeFiles, unusedDebugIds } from '@darkroom/core/storage/manifest';
+import {
+  costSummary,
+  markDeleted,
+  readEntries,
+  removeFiles,
+  unusedDebugIds,
+  unusedUploads,
+} from '@darkroom/core/storage/manifest';
+import { removeUploads } from '@darkroom/core/storage/uploads';
 import { checkForUpdate } from '@darkroom/core/system/update-check';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
@@ -98,7 +106,9 @@ export async function metaRoutes(fastify: FastifyInstance) {
       const removed = await removeFiles(changed);
       // Results of one call share its debug record: keep it while one of them remains
       await Promise.all((await unusedDebugIds(changed)).map((id) => deleteDebug(id)));
-      return { entries: changed.length, files: removed };
+      // Uploaded references go with the last entry that used them (uploads no entry ever used are left alone)
+      const uploads = await removeUploads(unusedUploads(changed, await readEntries()));
+      return { entries: changed.length, files: removed, uploads };
     },
   );
 }

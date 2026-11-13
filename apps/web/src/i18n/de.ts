@@ -119,6 +119,26 @@ export const de: Bundle<typeof en> = {
     clear: 'Leeren',
     drop: 'Bilder hierher ziehen, klicken oder ⌘V',
     remove: 'Entfernen',
+    previous: 'Frühere Uploads',
+  },
+  uploads: {
+    title: 'Frühere Uploads',
+    hint: 'Bilder, die du als zusätzliche Referenzen hinzugefügt hast. Wähle eines aus, um es wieder zu verwenden. Ein Upload wird zusammen mit dem letzten Lauf gelöscht, der es verwendet hat.',
+    empty:
+      'Noch keine Uploads. Bilder, die du unter „Zusätzliche Referenzen“ ablegst oder einfügst, erscheinen hier, sobald du damit generierst.',
+    failed: 'Die Uploads konnten nicht geladen werden.',
+    usedIn_one: 'in {{count}} Lauf verwendet',
+    usedIn_other: 'in {{count}} Läufen verwendet',
+    unused: 'unbenutzt',
+    pick: 'Als Referenz hinzufügen ({{usage}})',
+    unpick: 'Aus den Referenzen entfernen ({{usage}})',
+    picked: 'Hinzugefügt',
+    delete: 'Upload löschen',
+    confirm: 'Diesen Upload löschen?',
+    confirmUsed_one: 'Er wird in {{count}} Lauf verwendet; dessen Ergebnis bleibt, verliert aber diese Referenz.',
+    confirmUsed_other:
+      'Er wird in {{count}} Läufen verwendet; deren Ergebnisse bleiben, verlieren aber diese Referenz.',
+    done: 'Fertig',
   },
   notes: {
     title: 'Hinweise',
@@ -249,6 +269,7 @@ export const de: Bundle<typeof en> = {
     deleted_one: '{{count}} Datei gelöscht',
     deleted_other: '{{count}} Dateien gelöscht',
     removed: 'Entfernt',
+    uploadDeleted: 'Upload gelöscht',
     copied: 'Kopiert',
     saved: 'Gespeichert',
     reused: 'Prompt und Einstellungen übernommen',
@@ -502,6 +523,8 @@ export const de: Bundle<typeof en> = {
     element_exists: 'Ein Element „@{{name}}“ gibt es schon. Wähle einen anderen Namen.',
     voice_exists: 'Eine Stimme „{{name}}“ gibt es schon. Wähle einen anderen Namen.',
     element_not_found: 'Element „@{{name}}“ gibt es nicht mehr',
+    upload_not_found: 'Den Upload {{name}} gibt es nicht mehr',
+    invalid_upload: 'Ungültiger Upload-Name „{{name}}“',
     element_no_photos: 'Element „@{{name}}“ hat noch keine Fotos',
     voice_not_found: 'Stimme „{{name}}“ gibt es nicht mehr',
     voice_config_invalid:

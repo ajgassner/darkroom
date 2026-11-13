@@ -1,4 +1,5 @@
 import type { RunEvent } from './types';
+import { uploadName } from './ui/uploads';
 
 /** Server error: English message plus the machine-readable code the UI translates. */
 class ApiError extends Error {
@@ -118,6 +119,11 @@ export function canBeTransparent(file: string): boolean {
 
 export function downloadUrl(file: string, stripMeta: boolean): string {
   return `${outUrl(file)}?download=1${stripMeta ? '&clean=1' : ''}`;
+}
+
+/** Small preview of a previous upload ("uploads/<hash>.jpg"). */
+export function uploadThumbUrl(file: string, size = 240): string {
+  return `/api/uploads/${encodeURIComponent(uploadName(file))}/thumb?size=${size}`;
 }
 
 export function elementPhotoUrl(element: string, file: string, size = 120): string {
